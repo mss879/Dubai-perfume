@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Product {
@@ -542,6 +543,28 @@ export default function Home() {
       selectedSize: "50ml"
     }
   ]);
+
+  // Load initial cart from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("gharib_cart");
+      if (stored) {
+        try {
+          setCartItems(JSON.parse(stored));
+        } catch (e) {
+          console.error("Failed to parse cart storage", e);
+        }
+      }
+    }
+  }, []);
+
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("gharib_cart", JSON.stringify(cartItems));
+    }
+  }, [cartItems]);
+
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCartPageOpen, setIsCartPageOpen] = useState(false);
 
@@ -1217,7 +1240,7 @@ export default function Home() {
 
               {/* User Profile / Sign In — Static icon, no animation */}
               <button
-                onClick={() => router.push("/signin")}
+                onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
                 className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform"
               >
                 <div className="relative flex items-center justify-center w-[38px] h-[38px]">
@@ -1440,7 +1463,7 @@ export default function Home() {
 
               {/* Mobile User Profile */}
               <button
-                onClick={() => router.push("/signin")}
+                onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
                 className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-white"
                 aria-label="Sign In"
               >
@@ -2826,6 +2849,8 @@ export default function Home() {
         <div className="w-full max-w-[1360px] mx-auto flex flex-wrap items-center justify-between py-8 px-6 md:px-12 text-[9px] tracking-[0.2em] text-[#8C8276] uppercase font-bold gap-4">
           <div className="flex flex-wrap items-center gap-6">
             <span>© 2026 GHARIB. All Rights Reserved.</span>
+            <span onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")} className="hover:text-black transition-colors duration-300 cursor-pointer">My Account</span>
+            <span onClick={() => router.push("/admin")} className="hover:text-black transition-colors duration-300 cursor-pointer">Admin Desk</span>
             <span className="hover:text-black transition-colors duration-300 cursor-pointer">Privacy Policy</span>
             <span className="hover:text-black transition-colors duration-300 cursor-pointer">Terms of Use</span>
           </div>
@@ -3292,12 +3317,12 @@ export default function Home() {
 
                     {/* CTA Concierge buttons */}
                     <div className="flex flex-col gap-3 mt-4">
-                      <button
-                        onClick={() => triggerNotification("Opening secure payment channels...")}
-                        className="w-full py-4 text-center bg-black hover:bg-amber-950 text-white text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.1)] rounded-none active:scale-[0.99] cursor-pointer"
+                      <Link
+                        href="/checkout"
+                        className="w-full py-4 text-center bg-black hover:bg-amber-950 text-white text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.1)] rounded-none active:scale-[0.99] cursor-pointer text-decoration-none block"
                       >
                         PROCEED TO SECURE CHECKOUT
-                      </button>
+                      </Link>
 
                       <button
                         onClick={() => setIsCartPageOpen(false)}
