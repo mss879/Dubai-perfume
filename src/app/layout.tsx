@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fragsence | Evoke Every Emotion - Luxury Perfumes",
+  title: "Gharib | Exquisite Luxury Fragrances",
   description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.",
-  keywords: ["perfume", "fragrance", "luxury perfume", "dubai perfume", "gold memoir", "mystic oud", "ocean breeze"],
+  keywords: ["perfume", "fragrance", "luxury perfume", "dubai perfume", "gold memoir", "mystic oud", "ocean breeze", "gharib"],
 };
 
 export default function RootLayout({

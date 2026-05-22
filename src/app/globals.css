@@ -33,9 +33,11 @@ body {
   0% {
     transform: translateY(0px) rotate(-12deg);
   }
+
   50% {
     transform: translateY(-15px) rotate(-10deg);
   }
+
   100% {
     transform: translateY(0px) rotate(-12deg);
   }
@@ -45,9 +47,11 @@ body {
   0% {
     transform: translateY(0px) rotate(15deg);
   }
+
   50% {
     transform: translateY(15px) rotate(17deg);
   }
+
   100% {
     transform: translateY(0px) rotate(15deg);
   }
@@ -77,8 +81,13 @@ body {
 
 /* Infinite Marquee Loop Animation */
 @keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 .animate-marquee-track {
