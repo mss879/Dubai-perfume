@@ -1011,9 +1011,11 @@ export default function Home() {
             muted
             playsInline
             loop
+            preload="auto"
+            poster="/Perfume_bottles_floating_luxury_poster.jpg"
             className="w-full h-full object-cover scale-105 relative z-0"
           >
-            <source src="/Perfume_bottles_floating_luxury_…_202605201020.mp4" type="video/mp4" />
+            <source src="/Perfume_bottles_floating_luxury_optimized.mp4" type="video/mp4" />
           </video>
         </div>
 
@@ -2135,9 +2137,11 @@ export default function Home() {
                 muted
                 playsInline
                 loop
+                preload="metadata"
+                poster="/Perfume_bottle_on_ice_poster.jpg"
                 className="w-full h-full object-cover"
               >
-                <source src="/Perfume_bottle_on_ice_202605201706.mp4" type="video/mp4" />
+                <source src="/Perfume_bottle_on_ice_optimized.mp4" type="video/mp4" />
               </video>
             </div>
 

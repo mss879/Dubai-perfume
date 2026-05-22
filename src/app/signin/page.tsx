@@ -68,6 +68,8 @@ export default function SignInPage() {
           loop
           muted
           playsInline
+          preload="metadata"
+          poster="/signin_bg_poster.jpg"
           className="absolute inset-0 w-full h-full object-cover blur-[3px] scale-105"
         >
           <source src="/signin_bg.mp4" type="video/mp4" />
