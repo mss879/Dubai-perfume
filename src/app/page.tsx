@@ -388,11 +388,7 @@ const ProductCard: React.FC<{
 
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
+    <div
       className="border border-[#EAE3DB]/70 bg-white hover:border-amber-600/40 hover:shadow-[0_24px_55px_rgba(27,15,10,0.08)] group transition-all duration-500 flex flex-col justify-between rounded-none overflow-hidden h-full relative"
     >
       {/* Decorative gold hairline accents that appear on card hover */}
@@ -496,7 +492,7 @@ const ProductCard: React.FC<{
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -2122,11 +2118,7 @@ export default function Home() {
         <div className="w-full max-w-none grid grid-cols-1 md:grid-cols-3 gap-0 relative z-10">
 
           {/* CARD 1: The Long Card (Ice Video background) - 2 Columns wide */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
+          <div
             className="md:col-span-2 aspect-video rounded-none overflow-hidden relative border-b md:border-r border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_40px_rgba(212,175,55,0.06)] group transition-all duration-700 flex flex-col justify-end p-8 md:p-10"
           >
             {/* Background Ice Video */}
@@ -2158,14 +2150,10 @@ export default function Home() {
                 Rasasi Hawas Ice
               </h3>
             </div>
-          </motion.div>
+          </div>
 
           {/* CARD 2: Box Card 1 (Amber Duo Offer) - 1 Column wide */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+          <div
             className="aspect-[4/3] md:aspect-auto rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border-b border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-8"
           >
             {/* Absolute Background Image with Zoom hover effect */}
@@ -2194,7 +2182,7 @@ export default function Home() {
                 </h3>
               </div>
             </div>
-          </motion.div>
+          </div>
 
         </div>
       </section>
@@ -2375,11 +2363,7 @@ export default function Home() {
           <div className="w-full max-w-none grid grid-cols-1 md:grid-cols-3 gap-0 relative z-10">
 
             {/* CARD 3: Box Card 2 (Vault Clearance) - 1 Column wide */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+            <div
               className="aspect-[4/3] md:aspect-[8/9] rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border-b md:border-b-0 md:border-r border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-6"
             >
               {/* Background Image */}
@@ -2408,14 +2392,10 @@ export default function Home() {
                   </h3>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* CARD 4: Box Card 3 (BOGO Gifting) - 1 Column wide */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
+            <div
               className="aspect-[4/3] md:aspect-[8/9] rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border-b md:border-b-0 md:border-r border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-6"
             >
               {/* Background Image */}
@@ -2444,14 +2424,10 @@ export default function Home() {
                   </h3>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* CARD 5: Box Card 4 (50% Off Last Chance) - 1 Column wide */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
+            <div
               className="aspect-[4/3] md:aspect-[8/9] rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border border-transparent hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-6"
             >
               {/* Background Image */}
@@ -2480,7 +2456,7 @@ export default function Home() {
                   </h3>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
           </div>
         </section>
