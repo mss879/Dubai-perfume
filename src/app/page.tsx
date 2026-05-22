@@ -2942,13 +2942,13 @@ export default function Home() {
                         className="py-5 flex gap-4 first:pt-0 last:pb-0"
                       >
                         {/* Product Image Frame */}
-                        <div className="relative w-20 h-24 bg-white border border-[#EAE3DB] flex-shrink-0 flex items-center justify-center p-2 overflow-hidden shadow-sm">
+                        <div className="relative w-20 h-24 bg-white border border-[#EAE3DB] flex-shrink-0 overflow-hidden shadow-sm">
                           <Image
                             src={item.product.image}
                             alt={item.product.name}
-                            width={64}
-                            height={80}
-                            className="object-contain"
+                            fill
+                            sizes="80px"
+                            className="object-contain p-2"
                           />
                         </div>
 
