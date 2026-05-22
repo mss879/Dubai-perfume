@@ -389,13 +389,13 @@ const ProductCard: React.FC<{
 
   return (
     <div
-      className="border border-[#EAE3DB]/70 bg-white hover:border-amber-600/40 hover:shadow-[0_24px_55px_rgba(27,15,10,0.08)] group transition-all duration-500 flex flex-col justify-between rounded-none overflow-hidden h-full relative"
+      className="border border-[#EAE3DB]/70 bg-white hover:border-amber-700/30 hover:shadow-[0_24px_55px_rgba(27,15,10,0.08)] group transition-all duration-500 flex flex-col justify-between rounded-none overflow-hidden h-full relative"
     >
       {/* Decorative gold hairline accents that appear on card hover */}
       <div className="absolute inset-0 border border-amber-600/0 group-hover:border-amber-600/10 pointer-events-none transition-colors duration-500 z-10"></div>
 
       {/* Image Container */}
-      <div className="bg-gradient-to-b from-[#FAF9F6] via-[#FCFBF9] to-[#FAF9F6] relative flex items-center justify-center p-4 w-full aspect-[4/5] overflow-hidden border-b border-[#EAE3DB]/30">
+      <div className="bg-gradient-to-b from-[#FAF9F6] via-[#FCFBF9] to-[#FAF9F6] relative flex items-center justify-center p-0 w-full aspect-[4/5] overflow-hidden border-b border-[#EAE3DB]/30">
 
         {/* Luxury Badge */}
         {badgeText && (
@@ -424,12 +424,12 @@ const ProductCard: React.FC<{
         <div className="absolute inset-0 bg-radial from-amber-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
 
         {/* Main Bottle Image */}
-        <div className="relative w-[85%] h-[85%] transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.08] flex items-center justify-center">
+        <div className="relative w-full h-full transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.05] flex items-center justify-center">
           <Image
             src={prod.image}
             alt={prod.name}
             fill
-            className="object-contain filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] group-hover:drop-shadow-[0_18px_32px_rgba(82,42,22,0.12)] transition-all duration-700"
+            className="object-cover p-0 filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] group-hover:drop-shadow-[0_18px_32px_rgba(82,42,22,0.12)] transition-all duration-700"
             priority
           />
         </div>
@@ -440,54 +440,53 @@ const ProductCard: React.FC<{
 
         {/* Brand & Name */}
         <div>
-          <span className="text-[8px] tracking-[0.3em] font-extrabold text-amber-800/80 uppercase block mb-1 pl-[0.1em]">
+          <span className="text-[9px] tracking-[0.3em] font-extrabold text-amber-800 uppercase block mb-1 pl-[0.15em]">
             {prod.brand}
           </span>
-          <h3 className="text-[15px] font-serif-luxury font-medium text-neutral-900 uppercase tracking-wide leading-snug line-clamp-1 group-hover:text-amber-900 transition-colors duration-300">
+          <h3 className="text-[17px] font-serif font-bold text-neutral-950 uppercase tracking-wide leading-snug line-clamp-1 group-hover:text-amber-900 transition-colors duration-300">
             {prod.name}
           </h3>
-          <span className="text-[9px] text-neutral-400 tracking-widest uppercase block mt-1 font-semibold pl-[0.1em]">
+          <span className="text-[9px] text-[#8C8276] tracking-[0.2em] uppercase block mt-1.5 font-bold pl-[0.15em]">
             EXTRAIT DE PARFUM
           </span>
         </div>
 
         {/* Sizes & Purchase Row */}
-        <div className="mt-5 border-t border-neutral-100 pt-4 flex flex-col gap-4">
+        <div className="mt-6 border-t border-neutral-100 pt-5 flex flex-col gap-5">
 
           {/* Sizing Controls */}
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] tracking-widest text-neutral-400 uppercase font-medium">Select Volume</span>
-            <div className="flex items-center gap-2.5">
-              {prod.sizes.map((sz, idx) => (
-                <React.Fragment key={sz}>
-                  {idx > 0 && <span className="text-black/10 text-[8px] select-none font-light">|</span>}
-                  <button
-                    onClick={() => onSelectSize(prod.id, sz)}
-                    className={`text-[9px] tracking-[0.15em] font-extrabold uppercase transition-all duration-300 relative py-0.5 ${activeSize === sz
-                        ? "text-black after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-full after:h-[1.5px] after:bg-amber-600"
-                        : "text-neutral-400 hover:text-black"
-                      }`}
-                  >
-                    {sz}
-                  </button>
-                </React.Fragment>
+          <div className="flex flex-col gap-2.5">
+            <span className="text-[10px] tracking-[0.2em] text-[#8C8276] uppercase font-bold pl-[0.1em]">Select Volume</span>
+            <div className="flex items-center gap-2">
+              {prod.sizes.map((sz) => (
+                <button
+                  key={sz}
+                  onClick={() => onSelectSize(prod.id, sz)}
+                  className={`px-3.5 py-2 text-[10px] font-mono tracking-widest uppercase transition-all duration-300 cursor-pointer font-bold border rounded-none ${
+                    activeSize === sz
+                      ? "bg-black border-black text-white shadow-sm"
+                      : "bg-white border-[#EAE3DB] text-neutral-600 hover:border-black hover:text-black"
+                  }`}
+                >
+                  {sz}
+                </button>
               ))}
             </div>
           </div>
 
           {/* Pricing & CTA Button */}
-          <div className="flex items-center justify-between mt-1 pt-3 border-t border-neutral-100/60">
+          <div className="flex items-center justify-between mt-1 pt-4 border-t border-neutral-100">
             <div className="flex flex-col">
-              <span className="text-[8px] tracking-widest text-neutral-400 uppercase font-medium">Retail Price</span>
-              <span className="text-[17px] font-serif-luxury font-semibold text-neutral-900 tracking-tight mt-0.5">
+              <span className="text-[10px] tracking-[0.2em] text-[#8C8276] uppercase font-bold">RETAIL PRICE</span>
+              <span className="text-lg font-serif font-extrabold text-neutral-950 tracking-wide mt-0.5">
                 {prod.price}
               </span>
             </div>
             <button
               onClick={() => onAddToCart(prod.id)}
-              className="bg-black hover:bg-amber-950 text-white text-[8px] font-bold tracking-[0.25em] uppercase px-5 py-3.5 transition-all duration-300 rounded-none cursor-pointer border border-black hover:border-amber-950 active:scale-95 shadow-sm"
+              className="bg-black hover:bg-amber-950 text-white text-[9px] font-black tracking-[0.25em] uppercase px-5 py-3.5 transition-all duration-300 rounded-none cursor-pointer border border-black hover:border-amber-950 active:scale-95 shadow-[0_4px_12px_rgba(0,0,0,0.06)] active:shadow-sm"
             >
-              Add To Bag
+              ADD TO BAG
             </button>
           </div>
         </div>
@@ -1038,7 +1037,7 @@ export default function Home() {
           className="w-full z-30 relative text-white"
         >
           {/* Glassmorphic navbar wrapper to isolate backdrop-blur and prevent transparency leaking into absolute dropdowns */}
-          <div className="w-full border-b border-white/10 backdrop-blur-md bg-black/10">
+          <div className="w-full border-b border-white/10 bg-black/10">
             <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-5 flex items-center justify-between">
             {/* Left Menu Items (Home, About, Shop with Dropdown) */}
             <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-white/70">
@@ -3067,22 +3066,22 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
-            className="fixed inset-0 bg-[#070302] z-[110] flex flex-col text-white font-sans-luxury overflow-y-auto"
+            className="fixed inset-0 bg-[#FAF9F6] z-[110] flex flex-col text-neutral-900 font-sans-luxury overflow-y-auto"
           >
             {/* Header Area */}
-            <header className="w-full px-6 md:px-12 py-5 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#070302] backdrop-blur-md z-10">
+            <header className="w-full px-6 md:px-12 py-5 border-b border-[#EAE3DB] flex items-center justify-between sticky top-0 bg-[#FAF9F6]/95 backdrop-blur-md z-10">
               <button
                 onClick={() => setIsCartPageOpen(false)}
-                className="group flex items-center gap-2 text-[10px] tracking-[0.25em] text-white/60 hover:text-white uppercase transition-all duration-300 cursor-pointer"
+                className="group flex items-center gap-2 text-[10px] tracking-[0.25em] text-neutral-500 hover:text-neutral-950 uppercase transition-all duration-300 cursor-pointer"
               >
                 <span className="group-hover:-translate-x-1.5 transition-transform duration-300">←</span> RETURN TO ATELIER
               </button>
 
-              <h2 className="text-base md:text-lg font-bold tracking-[0.4em] uppercase text-white font-serif pl-[0.4em]">
+              <h2 className="text-base md:text-lg font-bold tracking-[0.4em] uppercase text-neutral-950 font-serif pl-[0.4em]">
                 GHARIB
               </h2>
 
-              <span className="text-[10px] font-mono tracking-widest text-amber-500/80 uppercase">
+              <span className="text-[10px] font-mono tracking-widest text-amber-800 uppercase font-bold">
                 SECURE BAG [{cartCount}]
               </span>
             </header>
@@ -3092,17 +3091,17 @@ export default function Home() {
               {/* Left Column: Cart Selection & Options */}
               <div className="lg:col-span-7 flex flex-col gap-10">
                 <div>
-                  <h3 className="text-[11px] font-black tracking-[0.25em] text-amber-500/90 uppercase border-b border-white/10 pb-3.5 mb-6 flex items-center gap-2">
+                  <h3 className="text-[11px] font-extrabold tracking-[0.25em] text-amber-800 uppercase border-b border-[#EAE3DB] pb-3.5 mb-6 flex items-center gap-2">
                     <span>✧</span> SELECTION DETAILS <span>✧</span>
                   </h3>
 
                   {cartItems.length === 0 ? (
-                    <div className="text-center py-16 bg-white/[0.01] border border-white/5 p-8 flex flex-col items-center justify-center gap-4">
-                      <span className="text-2xl text-white/20">✧</span>
-                      <p className="text-xs uppercase tracking-widest text-white/40">YOUR ATELIER SELECTION IS CURRENTLY EMPTY.</p>
+                    <div className="text-center py-16 bg-white border border-[#EAE3DB] p-8 flex flex-col items-center justify-center gap-4 shadow-sm">
+                      <span className="text-2xl text-amber-700/30">✧</span>
+                      <p className="text-xs uppercase tracking-widest text-neutral-400 font-bold">YOUR ATELIER SELECTION IS CURRENTLY EMPTY.</p>
                       <button
                         onClick={() => setIsCartPageOpen(false)}
-                        className="text-[10px] text-amber-500 hover:text-white border border-amber-500/30 px-6 py-2.5 uppercase tracking-widest font-black transition-all mt-2 cursor-pointer"
+                        className="text-[10px] text-amber-700 hover:text-black border border-amber-600/30 hover:border-neutral-900 px-6 py-2.5 uppercase tracking-widest font-black transition-all mt-2 cursor-pointer"
                       >
                         BROWSE EXCLUSIVES
                       </button>
@@ -3117,16 +3116,16 @@ export default function Home() {
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.08 }}
-                            className="bg-white/[0.01] border border-white/5 p-5 md:p-6 flex flex-col md:flex-row gap-6 relative group hover:border-amber-500/10 transition-colors duration-300"
+                            className="bg-white border border-[#EAE3DB] p-5 md:p-6 flex flex-col md:flex-row gap-6 relative group hover:border-amber-700/30 transition-colors duration-300 shadow-[0_2px_12px_rgba(0,0,0,0.02)]"
                           >
                             {/* Product Frame */}
-                            <div className="w-24 h-28 bg-white/[0.02] border border-white/10 flex-shrink-0 flex items-center justify-center p-3 relative">
+                            <div className="relative w-24 h-28 bg-white border border-[#EAE3DB] flex-shrink-0 overflow-hidden shadow-sm">
                               <Image
                                 src={item.product.image}
                                 alt={item.product.name}
-                                width={80}
-                                height={96}
-                                className="object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform duration-300"
+                                fill
+                                sizes="96px"
+                                className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                               />
                             </div>
 
@@ -3135,41 +3134,41 @@ export default function Home() {
                               <div>
                                 <div className="flex justify-between items-start gap-4">
                                   <div>
-                                    <span className="text-[9px] font-black tracking-widest text-amber-500 uppercase">
+                                    <span className="text-[9px] font-extrabold tracking-widest text-amber-800 uppercase">
                                       {item.product.brand}
                                     </span>
-                                    <h4 className="text-sm md:text-base uppercase font-serif tracking-wider font-semibold text-white mt-0.5">
+                                    <h4 className="text-sm md:text-base uppercase font-serif tracking-wider font-semibold text-neutral-900 mt-0.5">
                                       {item.product.name}
                                     </h4>
                                   </div>
                                   <button
                                     onClick={() => handleRemoveItem(item.product.id, item.selectedSize)}
-                                    className="text-[9px] tracking-widest text-white/40 hover:text-red-500 uppercase transition-colors cursor-pointer font-bold"
+                                    className="text-[9px] tracking-widest text-neutral-400 hover:text-red-600 uppercase transition-colors cursor-pointer font-bold"
                                   >
                                     ✕ ELIMINATE
                                   </button>
                                 </div>
 
-                                <p className="text-[10px] tracking-widest text-white/50 mt-1 font-mono uppercase">
+                                <p className="text-[10px] tracking-widest text-neutral-500 mt-1 font-mono uppercase">
                                   Scent Family: {item.product.olfactory || "Bespoke blend"} &nbsp;|&nbsp; Size: {item.selectedSize}
                                 </p>
                               </div>
 
-                              <div className="flex justify-between items-center mt-5 border-t border-white/5 pt-4">
+                              <div className="flex justify-between items-center mt-5 border-t border-neutral-100 pt-4">
                                 {/* Quantity adjusts */}
-                                <div className="flex items-center border border-white/10">
+                                <div className="flex items-center border border-neutral-200">
                                   <button
                                     onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, -1)}
-                                    className="w-7 h-7 flex items-center justify-center hover:bg-white/5 text-white/60 hover:text-white transition-all text-xs font-bold cursor-pointer"
+                                    className="w-7 h-7 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
                                   >
                                     −
                                   </button>
-                                  <span className="w-10 text-center text-[11px] font-mono font-bold">
+                                  <span className="w-10 text-center text-[11px] font-mono font-bold text-neutral-800">
                                     {item.quantity}
                                   </span>
                                   <button
                                     onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, 1)}
-                                    className="w-7 h-7 flex items-center justify-center hover:bg-white/5 text-white/60 hover:text-white transition-all text-xs font-bold cursor-pointer"
+                                    className="w-7 h-7 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
                                   >
                                     +
                                   </button>
@@ -3177,10 +3176,10 @@ export default function Home() {
 
                                 {/* Price computation */}
                                 <div className="text-right">
-                                  <span className="text-[9px] uppercase tracking-widest text-white/30 block mb-0.5 font-mono">
+                                  <span className="text-[9px] uppercase tracking-widest text-neutral-400 block mb-0.5 font-mono">
                                     {item.quantity} x {item.product.price}
                                   </span>
-                                  <span className="text-sm font-serif text-amber-400 font-semibold tracking-wider">
+                                  <span className="text-sm font-serif text-amber-800 font-semibold tracking-wider">
                                     ${priceNum * item.quantity}
                                   </span>
                                 </div>
@@ -3195,16 +3194,16 @@ export default function Home() {
 
                 {/* Luxury Gifting Customization Option */}
                 {cartItems.length > 0 && (
-                  <div className="bg-white/[0.01] border border-amber-500/20 p-6 md:p-8 flex flex-col gap-4">
+                  <div className="bg-white border border-[#EAE3DB] p-6 md:p-8 flex flex-col gap-4 shadow-sm">
                     <div className="flex items-start gap-4">
-                      <div className="w-5 h-5 border border-amber-500/40 rounded-none flex items-center justify-center cursor-pointer bg-white/5 text-amber-500 font-mono mt-0.5 hover:border-amber-500/80 transition-colors">
+                      <div className="w-5 h-5 border border-amber-600/40 rounded-none flex items-center justify-center cursor-pointer bg-amber-50/50 text-amber-800 font-mono mt-0.5 hover:border-amber-700 transition-colors">
                         ✓
                       </div>
                       <div>
-                        <h4 className="text-[11px] font-black tracking-[0.2em] text-white uppercase">
+                        <h4 className="text-[11px] font-extrabold tracking-[0.2em] text-neutral-900 uppercase">
                           Signature Gold Gilded Gift Packaging
                         </h4>
-                        <p className="text-[10px] tracking-widest text-white/50 leading-relaxed mt-1.5">
+                        <p className="text-[10px] tracking-widest text-neutral-500 leading-relaxed mt-1.5">
                           Enclosed in a premium high-end hot gold-stamped dark chocolate suede box, tied with natural silk cord, and finished with dried floral olfactory accents. Fully complimentary.
                         </p>
                       </div>
@@ -3215,23 +3214,23 @@ export default function Home() {
                 {/* Free Sample Selector */}
                 {cartItems.length > 0 && (
                   <div>
-                    <h3 className="text-[11px] font-black tracking-[0.25em] text-amber-500/90 uppercase border-b border-white/10 pb-3.5 mb-5 flex items-center gap-2">
+                    <h3 className="text-[11px] font-extrabold tracking-[0.25em] text-amber-800 uppercase border-b border-[#EAE3DB] pb-3.5 mb-5 flex items-center gap-2">
                       <span>✧</span> COMPLIMENTARY TRIAL DECANT (SELECT 1) <span>✧</span>
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="border border-amber-500/30 hover:border-amber-500/50 bg-[#0d0705]/80 p-4 flex items-center justify-between cursor-pointer transition-colors duration-300">
+                      <div className="border-2 border-amber-700 bg-[#FAF5EF] p-4 flex items-center justify-between cursor-pointer transition-all duration-300 shadow-sm">
                         <div>
-                          <span className="text-[8px] font-black tracking-widest text-amber-500 block">INITIO</span>
-                          <span className="text-xs font-serif uppercase tracking-wider font-semibold">Oud Imperial (2ml)</span>
+                          <span className="text-[8px] font-extrabold tracking-widest text-amber-800 block">INITIO</span>
+                          <span className="text-xs font-serif uppercase tracking-wider font-bold text-neutral-900">Oud Imperial (2ml)</span>
                         </div>
-                        <span className="text-[9px] tracking-widest uppercase bg-amber-500/20 text-amber-400 font-extrabold px-2 py-0.5">SELECTED</span>
+                        <span className="text-[9px] tracking-widest uppercase bg-amber-800 text-white font-extrabold px-2.5 py-0.5">SELECTED</span>
                       </div>
-                      <div className="border border-white/5 hover:border-amber-500/30 bg-white/[0.01] p-4 flex items-center justify-between cursor-pointer transition-colors duration-300 opacity-60 hover:opacity-100">
+                      <div className="border border-[#EAE3DB] hover:border-amber-600/30 bg-white p-4 flex items-center justify-between cursor-pointer transition-all duration-300 hover:shadow-sm group">
                         <div>
-                          <span className="text-[8px] font-black tracking-widest text-white/40 block">RABANNE</span>
-                          <span className="text-xs font-serif uppercase tracking-wider font-semibold">Phantom Parfum (2ml)</span>
+                          <span className="text-[8px] font-extrabold tracking-widest text-neutral-400 block">RABANNE</span>
+                          <span className="text-xs font-serif uppercase tracking-wider font-semibold text-neutral-600">Phantom Parfum (2ml)</span>
                         </div>
-                        <span className="text-[9px] tracking-widest uppercase border border-white/20 text-white/50 px-2 py-0.5">CHOOSE</span>
+                        <span className="text-[9px] tracking-widest uppercase border border-neutral-300 text-neutral-500 px-2.5 py-0.5 group-hover:border-amber-600 group-hover:text-amber-800 transition-colors">CHOOSE</span>
                       </div>
                     </div>
                   </div>
@@ -3241,51 +3240,51 @@ export default function Home() {
               {/* Right Column: Order Summary details */}
               <div className="lg:col-span-5">
                 {cartItems.length > 0 && (
-                  <div className="bg-[#0b0503]/60 border border-amber-500/20 p-8 flex flex-col gap-6 sticky top-28 backdrop-blur-md">
-                    <h3 className="text-[11px] font-black tracking-[0.25em] text-amber-500 uppercase border-b border-white/5 pb-4">
+                  <div className="bg-[#FAF5EF] border border-[#EAE3DB] p-8 flex flex-col gap-6 sticky top-28 backdrop-blur-md shadow-sm">
+                    <h3 className="text-[11px] font-extrabold tracking-[0.25em] text-amber-800 uppercase border-b border-[#EAE3DB] pb-4">
                       VALUED SUMMARY
                     </h3>
 
                     {/* Math breakdown */}
                     <div className="flex flex-col gap-3.5 text-[10px] tracking-widest uppercase">
-                      <div className="flex justify-between items-center text-white/50">
+                      <div className="flex justify-between items-center text-neutral-500">
                         <span>Items Subtotal</span>
-                        <span className="font-mono text-white/80">
+                        <span className="font-mono text-neutral-800 font-bold">
                           ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
                         </span>
                       </div>
-                      <div className="flex justify-between items-center text-white/50">
+                      <div className="flex justify-between items-center text-neutral-500">
                         <span>Luxury Secure Transport</span>
-                        <span className="text-amber-400 font-bold">COMPLIMENTARY</span>
+                        <span className="text-amber-800 font-bold">COMPLIMENTARY</span>
                       </div>
-                      <div className="flex justify-between items-center text-white/50">
+                      <div className="flex justify-between items-center text-neutral-500">
                         <span>Temperature Controlled Pack</span>
-                        <span className="text-amber-400 font-bold">COMPLIMENTARY</span>
+                        <span className="text-amber-800 font-bold">COMPLIMENTARY</span>
                       </div>
 
                       {/* Promo Code Sharp Box */}
                       <div className="flex flex-col gap-2 mt-2">
-                        <label className="text-[8px] tracking-[0.25em] text-white/40 block font-bold">
+                        <label className="text-[8px] tracking-[0.25em] text-neutral-400 block font-bold">
                           PROMOTIONAL ATELIER CODE
                         </label>
                         <div className="flex">
                           <input
                             type="text"
                             placeholder="ENTER GOLDEN CODE..."
-                            className="flex-grow bg-white/5 border border-white/10 rounded-none px-3.5 py-2.5 text-[10px] tracking-widest uppercase outline-none text-white focus:border-amber-500/50"
+                            className="flex-grow bg-white border border-[#EAE3DB] rounded-none px-3.5 py-2.5 text-[10px] tracking-widest uppercase outline-none text-neutral-800 focus:border-amber-600 placeholder-neutral-300"
                           />
                           <button
                             onClick={() => triggerNotification("Golden Code applied successfully.")}
-                            className="bg-white/10 hover:bg-amber-500 hover:text-black border-y border-r border-white/10 hover:border-amber-500 text-white text-[9px] font-black tracking-widest px-4 uppercase transition-all duration-300 rounded-none cursor-pointer"
+                            className="bg-neutral-900 hover:bg-black text-white border-y border-r border-neutral-900 text-[9px] font-black tracking-widest px-5 uppercase transition-all duration-300 rounded-none cursor-pointer"
                           >
                             APPLY
                           </button>
                         </div>
                       </div>
 
-                      <div className="border-t border-white/5 pt-4 flex justify-between items-center text-xs tracking-[0.15em] font-extrabold text-white mt-2">
+                      <div className="border-t border-[#EAE3DB] pt-4 flex justify-between items-center text-xs tracking-[0.15em] font-extrabold text-neutral-950 mt-2">
                         <span>ESTIMATED TOTAL</span>
-                        <span className="font-mono text-amber-400 text-base">
+                        <span className="font-mono text-amber-800 text-base font-extrabold">
                           ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
                         </span>
                       </div>
@@ -3295,27 +3294,27 @@ export default function Home() {
                     <div className="flex flex-col gap-3 mt-4">
                       <button
                         onClick={() => triggerNotification("Opening secure payment channels...")}
-                        className="w-full py-4 text-center bg-amber-500 hover:bg-amber-600 text-black text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_25px_rgba(245,158,11,0.3)] rounded-none active:scale-[0.99] cursor-pointer"
+                        className="w-full py-4 text-center bg-black hover:bg-amber-950 text-white text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.1)] rounded-none active:scale-[0.99] cursor-pointer"
                       >
                         PROCEED TO SECURE CHECKOUT
                       </button>
 
                       <button
                         onClick={() => setIsCartPageOpen(false)}
-                        className="w-full text-center border border-white/20 hover:border-amber-500/40 bg-transparent text-white text-[10px] font-extrabold tracking-[0.25em] py-3.5 uppercase transition-all duration-300 cursor-pointer rounded-none"
+                        className="w-full text-center border border-neutral-300 hover:border-neutral-950 bg-transparent text-neutral-800 text-[10px] font-extrabold tracking-[0.25em] py-3.5 uppercase transition-all duration-300 cursor-pointer rounded-none"
                       >
                         CONTINUE EXPLORING
                       </button>
                     </div>
 
                     {/* Trust badges */}
-                    <div className="border-t border-white/5 pt-6 mt-2 flex flex-col gap-3 text-center">
-                      <p className="text-[9px] tracking-widest text-white/40 uppercase leading-relaxed">
+                    <div className="border-t border-[#EAE3DB] pt-6 mt-2 flex flex-col gap-3 text-center">
+                      <p className="text-[9px] tracking-widest text-neutral-400 uppercase leading-relaxed font-semibold">
                         Authorized Original Brand Guarantee &nbsp;•&nbsp; Temperature-Guaranteed Cargo &nbsp;•&nbsp; Gilded Silk Gifting Included
                       </p>
 
                       {/* Gilded Lock Badge */}
-                      <div className="flex items-center justify-center gap-1.5 text-[8px] font-extrabold tracking-[0.2em] uppercase text-amber-500/80">
+                      <div className="flex items-center justify-center gap-1.5 text-[8px] font-extrabold tracking-[0.2em] uppercase text-amber-800">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                         </svg>
