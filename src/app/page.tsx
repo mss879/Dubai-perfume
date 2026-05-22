@@ -2892,37 +2892,37 @@ export default function Home() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 32, stiffness: 300 } as any}
-              className="fixed right-0 top-0 bottom-0 w-full sm:w-[460px] bg-[#0c0604]/98 border-l border-amber-500/20 shadow-[0_0_60px_rgba(0,0,0,0.9)] z-[101] flex flex-col font-sans-luxury text-white"
+              className="fixed right-0 top-0 bottom-0 w-full sm:w-[460px] bg-[#FAF9F6]/95 backdrop-blur-md border-l border-[#EAE3DB] shadow-[0_0_60px_rgba(0,0,0,0.08)] z-[101] flex flex-col font-sans-luxury text-neutral-900"
             >
               {/* Drawer Header */}
-              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <div className="p-6 border-b border-[#EAE3DB]/60 flex items-center justify-between">
                 <button
                   onClick={() => setIsCartOpen(false)}
-                  className="group flex items-center gap-2 text-[10px] tracking-[0.25em] text-white/50 hover:text-white uppercase transition-colors duration-300 cursor-pointer"
+                  className="group flex items-center gap-2 text-[10px] tracking-[0.25em] text-neutral-500 hover:text-neutral-950 uppercase transition-colors duration-300 cursor-pointer"
                 >
                   <span className="group-hover:-translate-x-1 transition-transform duration-300">←</span> CLOSE
                 </button>
 
-                <h3 className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-500/90 flex items-center gap-1.5 pl-[0.3em]">
+                <h3 className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-800 flex items-center gap-1.5 pl-[0.3em]">
                   <span>✧</span> MY SELECTION <span>✧</span>
                 </h3>
 
-                <span className="text-[10px] font-mono text-white/40">
+                <span className="text-[10px] font-mono text-neutral-400 font-bold">
                   [{cartCount}]
                 </span>
               </div>
 
               {/* Drawer Content / List Area */}
-              <div className="flex-grow overflow-y-auto p-6 divide-y divide-white/5 custom-scrollbar">
+              <div className="flex-grow overflow-y-auto p-6 divide-y divide-[#EAE3DB]/60 custom-scrollbar">
                 {cartItems.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center gap-4">
-                    <span className="text-3xl text-amber-500/40">✧</span>
-                    <p className="text-[11px] uppercase tracking-[0.25em] text-white/40 font-bold">
+                    <span className="text-3xl text-amber-600/40">✧</span>
+                    <p className="text-[11px] uppercase tracking-[0.25em] text-neutral-400 font-bold">
                       Your selection is empty
                     </p>
                     <button
                       onClick={() => setIsCartOpen(false)}
-                      className="text-[10px] text-amber-500 hover:text-white tracking-[0.2em] uppercase font-black transition-colors duration-300 mt-2 border border-amber-500/30 hover:border-white px-4 py-2 cursor-pointer"
+                      className="text-[10px] text-amber-700 hover:text-black tracking-[0.2em] uppercase font-black transition-colors duration-300 mt-2 border border-amber-600/30 hover:border-neutral-900 px-4 py-2 cursor-pointer"
                     >
                       Return to Gallery
                     </button>
@@ -2942,13 +2942,13 @@ export default function Home() {
                         className="py-5 flex gap-4 first:pt-0 last:pb-0"
                       >
                         {/* Product Image Frame */}
-                        <div className="relative w-20 h-24 bg-white/[0.02] border border-white/10 flex-shrink-0 flex items-center justify-center p-2 overflow-hidden">
+                        <div className="relative w-20 h-24 bg-white border border-[#EAE3DB] flex-shrink-0 flex items-center justify-center p-2 overflow-hidden shadow-sm">
                           <Image
                             src={item.product.image}
                             alt={item.product.name}
                             width={64}
                             height={80}
-                            className="object-contain filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+                            className="object-contain"
                           />
                         </div>
 
@@ -2956,20 +2956,20 @@ export default function Home() {
                         <div className="flex-grow flex flex-col justify-between min-w-0">
                           <div>
                             <div className="flex justify-between items-start gap-2">
-                              <span className="text-[8px] font-extrabold tracking-widest text-amber-500/90 uppercase truncate">
+                              <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
                                 {item.product.brand}
                               </span>
                               <button
                                 onClick={() => handleRemoveItem(item.product.id, item.selectedSize)}
-                                className="text-[9px] text-white/30 hover:text-red-500 transition-colors uppercase tracking-widest cursor-pointer font-bold"
+                                className="text-[9px] text-neutral-400 hover:text-red-600 transition-colors uppercase tracking-widest cursor-pointer font-bold"
                               >
                                 REMOVE
                               </button>
                             </div>
-                            <h4 className="text-xs uppercase font-serif tracking-wider font-semibold text-white/95 mt-0.5 truncate">
+                            <h4 className="text-xs uppercase font-serif tracking-wider font-semibold text-neutral-900 mt-0.5 truncate">
                               {item.product.name}
                             </h4>
-                            <p className="text-[9px] uppercase tracking-widest text-white/40 mt-1 font-mono">
+                            <p className="text-[9px] uppercase tracking-widest text-neutral-500 mt-1 font-mono">
                               Size: {item.selectedSize}
                             </p>
                           </div>
@@ -2977,26 +2977,26 @@ export default function Home() {
                           {/* Quantity control & pricing */}
                           <div className="flex justify-between items-center mt-3">
                             {/* Modern Boxy Counter */}
-                            <div className="flex items-center border border-white/10">
+                            <div className="flex items-center border border-neutral-200/80">
                               <button
                                 onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, -1)}
-                                className="w-6 h-6 flex items-center justify-center hover:bg-white/5 text-white/60 hover:text-white transition-all text-xs font-bold cursor-pointer"
+                                className="w-6 h-6 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
                               >
                                 −
                               </button>
-                              <span className="w-8 text-center text-[10px] font-mono font-bold">
+                              <span className="w-8 text-center text-[10px] font-mono font-bold text-neutral-800">
                                 {item.quantity}
                               </span>
                               <button
                                 onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, 1)}
-                                className="w-6 h-6 flex items-center justify-center hover:bg-white/5 text-white/60 hover:text-white transition-all text-xs font-bold cursor-pointer"
+                                className="w-6 h-6 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
                               >
                                 +
                               </button>
                             </div>
 
                             {/* Price display */}
-                            <span className="text-xs font-serif text-amber-400 font-semibold tracking-wider">
+                            <span className="text-xs font-serif text-amber-800 font-semibold tracking-wider">
                               ${itemTotal}
                             </span>
                           </div>
@@ -3009,25 +3009,25 @@ export default function Home() {
 
               {/* Drawer Footer summary */}
               {cartItems.length > 0 && (
-                <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md flex flex-col gap-4">
+                <div className="p-6 border-t border-[#EAE3DB] bg-[#FAF5EF] flex flex-col gap-4 shadow-[0_-10px_30px_rgba(0,0,0,0.02)]">
                   <div className="flex flex-col gap-2">
-                    <div className="flex justify-between items-center text-[10px] tracking-widest uppercase text-white/50">
+                    <div className="flex justify-between items-center text-[10px] tracking-widest uppercase text-neutral-500">
                       <span>Valued Subtotal</span>
-                      <span className="font-mono text-white/80">
+                      <span className="font-mono text-neutral-800 font-bold">
                         ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-[9px] tracking-widest uppercase text-amber-500/60">
+                    <div className="flex justify-between items-center text-[9px] tracking-widest uppercase text-amber-700/80">
                       <span>Standard Luxury Delivery</span>
                       <span className="font-bold">COMPLIMENTARY</span>
                     </div>
-                    <div className="flex justify-between items-center text-[9px] tracking-widest uppercase text-amber-500/60 border-b border-white/5 pb-2">
+                    <div className="flex justify-between items-center text-[9px] tracking-widest uppercase text-amber-700/80 border-b border-neutral-200/60 pb-2">
                       <span>Olfactory Custom wrapping</span>
                       <span className="font-bold">COMPLIMENTARY</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs tracking-[0.15em] uppercase font-bold text-white pt-2">
+                    <div className="flex justify-between items-center text-xs tracking-[0.15em] uppercase font-bold text-neutral-950 pt-2">
                       <span>ESTIMATED TOTAL</span>
-                      <span className="font-mono text-amber-400 text-sm">
+                      <span className="font-mono text-amber-800 text-sm font-extrabold">
                         ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
                       </span>
                     </div>
@@ -3040,14 +3040,14 @@ export default function Home() {
                         setIsCartOpen(false);
                         setIsCartPageOpen(true);
                       }}
-                      className="w-full text-center border border-white/20 hover:border-amber-500/50 bg-transparent hover:bg-amber-500/5 text-white text-[10px] font-extrabold tracking-[0.25em] py-3.5 uppercase transition-all duration-300 cursor-pointer hover:shadow-[0_0_15px_rgba(245,158,11,0.1)] rounded-none"
+                      className="w-full text-center border border-neutral-300 hover:border-neutral-900 bg-transparent hover:bg-neutral-50 text-neutral-900 text-[10px] font-extrabold tracking-[0.25em] py-3.5 uppercase transition-all duration-300 cursor-pointer rounded-none"
                     >
                       GO TO CART (FULL VIEW)
                     </button>
 
                     <button
                       onClick={() => triggerNotification("Redirecting to our secure luxury concierge...")}
-                      className="w-full py-4 text-center bg-amber-500 hover:bg-amber-600 text-black text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(245,158,11,0.25)] rounded-none active:scale-[0.99] cursor-pointer"
+                      className="w-full py-4 text-center bg-black hover:bg-amber-950 text-white text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.1)] rounded-none active:scale-[0.99] cursor-pointer"
                     >
                       CONCIERGE CHECKOUT
                     </button>
