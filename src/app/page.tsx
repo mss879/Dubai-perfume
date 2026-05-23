@@ -19,7 +19,7 @@ const PRODUCTS: Product[] = [
   {
     id: 1,
     title: "Gold Memoir",
-    price: "$203",
+    price: "745",
     image: "/gold-memoir.png",
     description:
       "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.",
@@ -28,7 +28,7 @@ const PRODUCTS: Product[] = [
   {
     id: 2,
     title: "Enchanted Blooms",
-    price: "$119",
+    price: "437",
     image: "/enchanted-blooms.png",
     description:
       "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.",
@@ -37,7 +37,7 @@ const PRODUCTS: Product[] = [
   {
     id: 3,
     title: "Mystic Oud",
-    price: "$169",
+    price: "620",
     image: "/mystic-oud.png",
     description:
       "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.",
@@ -46,7 +46,7 @@ const PRODUCTS: Product[] = [
   {
     id: 4,
     title: "Ocean Breeze",
-    price: "$145",
+    price: "532",
     image: "/ocean-breeze.png",
     description:
       "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.",
@@ -220,7 +220,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 1,
     brand: "INITIO PARFUMS PRIVES",
     name: "Oud for greatness",
-    price: "$331",
+    price: "1215",
     sizes: ["50ml", "90ml"],
     image: "/catalog_initio_oud.png",
     isNew: true,
@@ -230,7 +230,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 2,
     brand: "JULIETTE HAS A GUN",
     name: "Juliette",
-    price: "$98",
+    price: "360",
     sizes: ["30ml", "50ml"],
     image: "/catalog_juliette_gun.png",
     isBestSeller: true,
@@ -240,7 +240,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 3,
     brand: "RABANNE",
     name: "Phantom",
-    price: "$120",
+    price: "440",
     sizes: ["50ml", "100ml"],
     image: "/catalog_rabanne_phantom.png",
     isNew: true,
@@ -250,7 +250,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 4,
     brand: "HFC",
     name: "Devil's intrigue",
-    price: "$370",
+    price: "1358",
     sizes: ["75ml"],
     image: "/catalog_hfc_devils.png",
     isBestSeller: true,
@@ -260,7 +260,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 5,
     brand: "TOM FORD",
     name: "Lost Cherry eau de parfum",
-    price: "$326.00",
+    price: "1196",
     sizes: ["30ml", "50ml", "100ml"],
     image: "/catalog_tom_ford_cherry.png",
     isBestSeller: true,
@@ -270,7 +270,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 6,
     brand: "MOSCHINO",
     name: "Toy Boy",
-    price: "$43.12",
+    price: "158",
     sizes: ["30ml", "50ml", "100ml"],
     image: "/catalog_moschino_teddy.png",
     isNew: true,
@@ -280,7 +280,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 7,
     brand: "FILIPPO SORCINELLI",
     name: "Epicentro",
-    price: "$326.00",
+    price: "1196",
     sizes: ["50ml", "100ml"],
     image: "/catalog_sorcinelli_epicentro.png",
     isBestSeller: true,
@@ -292,7 +292,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 8,
     brand: "FILIPPO SORCINELLI",
     name: "Eio_non_ho_mani_che_mi_accarezzino_il_volto",
-    price: "$235.00",
+    price: "862",
     sizes: ["100ml"],
     image: "/catalog_sorcinelli_leather.png",
     isNew: true,
@@ -304,7 +304,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     id: 9,
     brand: "MARC-ANTOINE BARROIS",
     name: "Ganymede Extrait",
-    price: "$319",
+    price: "1170",
     sizes: ["30ml", "50ml"],
     image: "/catalog_marc_barrois.png",
     isNew: true,
@@ -385,7 +385,8 @@ const ProductCard: React.FC<{
   onSelectSize: (id: number, size: string) => void;
   onAddToCart: (id: number) => void;
   badgeText?: string;
-}> = ({ prod, isFav, activeSize, onToggleFavorite, onSelectSize, onAddToCart, badgeText }) => {
+  formatCurrency: (aedAmount: number) => string;
+}> = ({ prod, isFav, activeSize, onToggleFavorite, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
 
 
   return (
@@ -463,11 +464,10 @@ const ProductCard: React.FC<{
                 <button
                   key={sz}
                   onClick={() => onSelectSize(prod.id, sz)}
-                  className={`px-3.5 py-2 text-[10px] font-mono tracking-widest uppercase transition-all duration-300 cursor-pointer font-bold border rounded-none ${
-                    activeSize === sz
+                  className={`px-3.5 py-2 text-[10px] font-mono tracking-widest uppercase transition-all duration-300 cursor-pointer font-bold border rounded-none ${activeSize === sz
                       ? "bg-black border-black text-white shadow-sm"
                       : "bg-white border-[#EAE3DB] text-neutral-600 hover:border-black hover:text-black"
-                  }`}
+                    }`}
                 >
                   {sz}
                 </button>
@@ -480,7 +480,7 @@ const ProductCard: React.FC<{
             <div className="flex flex-col">
               <span className="text-[10px] tracking-[0.2em] text-[#8C8276] uppercase font-bold">RETAIL PRICE</span>
               <span className="text-lg font-serif font-extrabold text-neutral-950 tracking-wide mt-0.5">
-                {prod.price}
+                {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
               </span>
             </div>
             <button
@@ -571,6 +571,113 @@ export default function Home() {
   // Luxury Auth & Member states
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  // Currency Engine States
+  const [activeCurrency, setActiveCurrency] = useState("AED");
+  const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({
+    AED: 1.0,
+    USD: 0.2722,
+    EUR: 0.2514,
+    GBP: 0.2154,
+    SAR: 1.0208,
+    QAR: 0.9912,
+    KWD: 0.0838,
+    BHD: 0.1027,
+    OMR: 0.1048,
+    INR: 22.68
+  });
+
+  // Currency Geolocation & Live API Sync
+  useEffect(() => {
+    // 1. Sync active currency from localStorage if it exists
+    const storedCurrency = localStorage.getItem("gharib_active_currency");
+    if (storedCurrency) {
+      setActiveCurrency(storedCurrency);
+    } else {
+      // Geolocate user based on IP
+      const geolocateUser = async () => {
+        try {
+          const res = await fetch("https://ipapi.co/json/");
+          const data = await res.json();
+          if (data && data.currency) {
+            const supported = ["AED", "SAR", "QAR", "KWD", "BHD", "OMR", "USD", "EUR", "GBP", "INR"];
+            if (supported.includes(data.currency)) {
+              setActiveCurrency(data.currency);
+              localStorage.setItem("gharib_active_currency", data.currency);
+            }
+          }
+        } catch (e) {
+          console.error("Auto-geolocation query failed. Defaulting to AED.", e);
+        }
+      };
+      geolocateUser();
+    }
+
+    // 2. Fetch live market-accurate exchange rates
+    const fetchLiveRates = async () => {
+      try {
+        const cachedRates = sessionStorage.getItem("gharib_exchange_rates");
+        if (cachedRates) {
+          setExchangeRates(JSON.parse(cachedRates));
+          return;
+        }
+
+        const res = await fetch("https://open.er-api.com/v6/latest/AED");
+        const data = await res.json();
+        if (data && data.result === "success" && data.rates) {
+          const rates = {
+            AED: 1.0,
+            USD: data.rates.USD || 0.2722,
+            EUR: data.rates.EUR || 0.2514,
+            GBP: data.rates.GBP || 0.2154,
+            SAR: data.rates.SAR || 1.0208,
+            QAR: data.rates.QAR || 0.9912,
+            KWD: data.rates.KWD || 0.0838,
+            BHD: data.rates.BHD || 0.1027,
+            OMR: data.rates.OMR || 0.1048,
+            INR: data.rates.INR || 22.68
+          };
+          setExchangeRates(rates);
+          sessionStorage.setItem("gharib_exchange_rates", JSON.stringify(rates));
+        }
+      } catch (e) {
+        console.error("Live exchange rates retrieval failed. Relying on baseline coefficients.", e);
+      }
+    };
+    fetchLiveRates();
+  }, []);
+
+  // Global Price Formatter Utility
+  const formatCurrency = (aedAmount: number, targetCurrency: string = activeCurrency) => {
+    const rate = exchangeRates[targetCurrency] || 1.0;
+    const converted = aedAmount * rate;
+
+    const symbols: Record<string, string> = {
+      AED: "AED",
+      USD: "$",
+      EUR: "€",
+      GBP: "£",
+      SAR: "SAR",
+      QAR: "QAR",
+      KWD: "KWD",
+      BHD: "BHD",
+      OMR: "OMR",
+      INR: "₹"
+    };
+
+    const symbol = symbols[targetCurrency] || "$";
+    const decimals = ["AED", "SAR", "QAR", "OMR", "BHD", "KWD"].includes(targetCurrency) ? 0 : 2;
+    const formattedVal = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(converted);
+
+    if (["AED", "SAR", "QAR", "OMR", "BHD", "KWD"].includes(targetCurrency)) {
+      return `${formattedVal} ${symbol}`;
+    }
+    return `${symbol}${formattedVal}`;
+  };
+
   // Compute cartCount dynamically
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -616,7 +723,7 @@ export default function Home() {
 
     const tick = () => {
       const currentFullPhrase = searchPhrases[currentPhraseIndex];
-      
+
       if (!isDeleting) {
         // Typing characters
         currentCharIndex++;
@@ -1062,549 +1169,365 @@ export default function Home() {
           {/* Glassmorphic navbar wrapper to isolate backdrop-blur and prevent transparency leaking into absolute dropdowns */}
           <div className="w-full border-b border-white/10 bg-black/10">
             <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-5 flex items-center justify-between">
-            {/* Left Menu Items (Home, About, Shop with Dropdown) */}
-            <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-white/70">
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedOlfactory(null);
-                  setSelectedBrand(null);
-                  setSelectedCollection(null);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                className="transition-colors duration-300 cursor-pointer uppercase font-medium hover:text-white"
-              >
-                HOME
-              </button>
-              <a
-                href="#about"
-                className="transition-colors duration-300 uppercase font-medium hover:text-white"
-              >
-                ABOUT
-              </a>
-              <a
-                href="#contact"
-                className="transition-colors duration-300 uppercase font-medium hover:text-white"
-              >
-                CONTACT
-              </a>
-              {/* Shop trigger wrapper for Mega Menu */}
-              <div
-                className="relative py-2 cursor-pointer"
-                onMouseEnter={() => setIsMegaMenuOpen(true)}
-                onMouseLeave={() => setIsMegaMenuOpen(false)}
-              >
+              {/* Left Menu Items (Home, About, Shop with Dropdown) */}
+              <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-white/70">
                 <button
-                  onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
-                  className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-white"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedOlfactory(null);
+                    setSelectedBrand(null);
+                    setSelectedCollection(null);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="transition-colors duration-300 cursor-pointer uppercase font-medium hover:text-white"
                 >
-                  SHOP
-                  <svg
-                    className={`w-2.5 h-2.5 transition-transform duration-300 ${isMegaMenuOpen ? "rotate-180 text-white" : "text-white/50"}`}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
+                  HOME
                 </button>
-              </div>
-            </div>
-
-            {/* Logo Center */}
-            <div className="flex-1 flex justify-center md:flex-initial">
-              <Image
-                src="/logo.png"
-                alt="Gharib"
-                width={220}
-                height={55}
-                className="h-11 md:h-[48px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300"
-                priority
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedOlfactory(null);
-                  setSelectedBrand(null);
-                  setSelectedCollection(null);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              />
-            </div>
-
-            {/* Right Menu Items (Search bar, Contact, Bag) */}
-            <div className="hidden md:flex items-center gap-8 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 justify-end text-white/70">
-              {/* Better Search Bar Container */}
-              <div className="relative flex items-center">
-                <div className="relative flex items-center rounded-none px-4 py-1.5 w-[200px] lg:w-[240px] transition-all duration-300 bg-white/5 border border-white/10 hover:border-white/20 focus-within:border-amber-500/50">
-                  <svg className="w-3.5 h-3.5 mr-2 flex-shrink-0 transition-colors duration-300 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder={searchPlaceholder}
-                    className="bg-transparent text-[10px] tracking-widest uppercase outline-none w-full font-bold transition-colors duration-300 text-white placeholder-white/40"
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm("")}
-                      className="text-[9px] font-bold ml-1 cursor-pointer transition-colors duration-300 text-white/40 hover:text-white"
+                <a
+                  href="#about"
+                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
+                >
+                  ABOUT
+                </a>
+                <a
+                  href="#contact"
+                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
+                >
+                  CONTACT
+                </a>
+                {/* Shop trigger wrapper for Mega Menu */}
+                <div
+                  className="relative py-2 cursor-pointer"
+                  onMouseEnter={() => setIsMegaMenuOpen(true)}
+                  onMouseLeave={() => setIsMegaMenuOpen(false)}
+                >
+                  <button
+                    onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
+                    className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-white"
+                  >
+                    SHOP
+                    <svg
+                      className={`w-2.5 h-2.5 transition-transform duration-300 ${isMegaMenuOpen ? "rotate-180 text-white" : "text-white/50"}`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      viewBox="0 0 24 24"
                     >
-                      ✕
-                    </button>
-                  )}
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
                 </div>
+              </div>
 
-                {/* Intelligent Search Suggestions Dropdown */}
-                <AnimatePresence>
-                  {searchTerm.trim() !== "" && searchSuggestions.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 15 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 15 }}
-                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute top-full mt-2.5 right-0 w-[300px] md:w-[360px] bg-[#FAF6F0] border border-amber-800/15 shadow-[0_20px_50px_rgba(27,15,10,0.08)] z-50 overflow-hidden flex flex-col"
-                    >
-                      {/* Section Header */}
-                      <div className="px-4 py-2 bg-neutral-900/5 border-b border-amber-800/10 text-[9px] tracking-widest text-amber-800 font-extrabold uppercase">
-                        Real-time Suggestions
-                      </div>
+              {/* Logo Center */}
+              <div className="flex-1 flex justify-center md:flex-initial">
+                <Image
+                  src="/logo.png"
+                  alt="Gharib"
+                  width={220}
+                  height={55}
+                  className="h-11 md:h-[48px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300"
+                  priority
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedOlfactory(null);
+                    setSelectedBrand(null);
+                    setSelectedCollection(null);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                />
+              </div>
 
-                      {/* Suggestion List */}
-                      <div className="flex flex-col max-h-[320px] overflow-y-auto divide-y divide-amber-800/10 custom-scrollbar">
-                        {searchSuggestions.map((prod) => (
-                          <div
-                            key={prod.id}
+              {/* Right Menu Items (Search bar, Contact, Bag) */}
+              <div className="hidden md:flex items-center gap-8 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 justify-end text-white/70">
+                {/* Better Search Bar Container */}
+                <div className="relative flex items-center">
+                  <div className="relative flex items-center rounded-none px-4 py-1.5 w-[200px] lg:w-[240px] transition-all duration-300 bg-white/5 border border-white/10 hover:border-white/20 focus-within:border-amber-500/50">
+                    <svg className="w-3.5 h-3.5 mr-2 flex-shrink-0 transition-colors duration-300 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder={searchPlaceholder}
+                      className="bg-transparent text-[10px] tracking-widest uppercase outline-none w-full font-bold transition-colors duration-300 text-white placeholder-white/40"
+                    />
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm("")}
+                        className="text-[9px] font-bold ml-1 cursor-pointer transition-colors duration-300 text-white/40 hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Intelligent Search Suggestions Dropdown */}
+                  <AnimatePresence>
+                    {searchTerm.trim() !== "" && searchSuggestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 15 }}
+                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                        className="absolute top-full mt-2.5 right-0 w-[300px] md:w-[360px] bg-[#FAF6F0] border border-amber-800/15 shadow-[0_20px_50px_rgba(27,15,10,0.08)] z-50 overflow-hidden flex flex-col"
+                      >
+                        {/* Section Header */}
+                        <div className="px-4 py-2 bg-neutral-900/5 border-b border-amber-800/10 text-[9px] tracking-widest text-amber-800 font-extrabold uppercase">
+                          Real-time Suggestions
+                        </div>
+
+                        {/* Suggestion List */}
+                        <div className="flex flex-col max-h-[320px] overflow-y-auto divide-y divide-amber-800/10 custom-scrollbar">
+                          {searchSuggestions.map((prod) => (
+                            <div
+                              key={prod.id}
+                              onClick={() => {
+                                // Clear search suggestions overlay and filter to this product
+                                setSearchTerm(prod.name);
+                                // Trigger smooth scroll to catalog container `#new-in`
+                                const el = document.getElementById("new-in");
+                                if (el) el.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="p-3 flex items-center gap-3.5 hover:bg-neutral-900/5 transition-colors duration-200 cursor-pointer text-left group"
+                            >
+                              <div className="relative w-10 h-12 bg-neutral-900/5 flex-shrink-0 flex items-center justify-center p-1 border border-neutral-800/5 overflow-hidden">
+                                <Image
+                                  src={prod.image}
+                                  alt={prod.name}
+                                  width={40}
+                                  height={48}
+                                  className="object-contain filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300"
+                                />
+                              </div>
+                              <div className="flex-grow flex flex-col justify-center min-w-0">
+                                <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
+                                  {prod.brand}
+                                </span>
+                                <span className="text-[11px] font-medium tracking-wide text-neutral-800 uppercase truncate mt-0.5 group-hover:text-amber-800 transition-colors duration-200">
+                                  {prod.name}
+                                </span>
+                                <span className="text-[9px] text-neutral-500 tracking-wider font-semibold uppercase mt-0.5">
+                                  {prod.olfactory} • Extrait de Parfum
+                                </span>
+                              </div>
+                              <div className="text-[12px] font-bold text-neutral-800 tracking-wider flex-shrink-0 pl-1">
+                                {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className="p-3.5 bg-neutral-900/5 border-t border-amber-800/10 flex items-center justify-between">
+                          <span className="text-[9px] tracking-widest text-neutral-500 font-semibold uppercase">
+                            Click to filter catalog view
+                          </span>
+                          <button
                             onClick={() => {
-                              // Clear search suggestions overlay and filter to this product
-                              setSearchTerm(prod.name);
-                              // Trigger smooth scroll to catalog container `#new-in`
                               const el = document.getElementById("new-in");
                               if (el) el.scrollIntoView({ behavior: "smooth" });
                             }}
-                            className="p-3 flex items-center gap-3.5 hover:bg-neutral-900/5 transition-colors duration-200 cursor-pointer text-left group"
+                            className="text-[9px] tracking-widest text-amber-800 hover:text-amber-900 font-extrabold uppercase transition-colors"
                           >
-                            <div className="relative w-10 h-12 bg-neutral-900/5 flex-shrink-0 flex items-center justify-center p-1 border border-neutral-800/5 overflow-hidden">
-                              <Image
-                                src={prod.image}
-                                alt={prod.name}
-                                width={40}
-                                height={48}
-                                className="object-contain filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300"
-                              />
-                            </div>
-                            <div className="flex-grow flex flex-col justify-center min-w-0">
-                              <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
-                                {prod.brand}
-                              </span>
-                              <span className="text-[11px] font-medium tracking-wide text-neutral-800 uppercase truncate mt-0.5 group-hover:text-amber-800 transition-colors duration-200">
-                                {prod.name}
-                              </span>
-                              <span className="text-[9px] text-neutral-500 tracking-wider font-semibold uppercase mt-0.5">
-                                {prod.olfactory} • Extrait de Parfum
-                              </span>
-                            </div>
-                            <div className="text-[12px] font-bold text-neutral-800 tracking-wider flex-shrink-0 pl-1">
-                              {prod.price}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                            View All ✧
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
-                      {/* Footer Actions */}
-                      <div className="p-3.5 bg-neutral-900/5 border-t border-amber-800/10 flex items-center justify-between">
-                        <span className="text-[9px] tracking-widest text-neutral-500 font-semibold uppercase">
-                          Click to filter catalog view
-                        </span>
-                        <button
-                          onClick={() => {
-                            const el = document.getElementById("new-in");
-                            if (el) el.scrollIntoView({ behavior: "smooth" });
-                          }}
-                          className="text-[9px] tracking-widest text-amber-800 hover:text-amber-900 font-extrabold uppercase transition-colors"
-                        >
-                          View All ✧
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* ═══════════════════════════════════════════════════
+                {/* ═══════════════════════════════════════════════════
                   DESKTOP: Perpetual Luxury Motion Icons
                   Always-playing continuous looping animations
                   using animate + repeat: Infinity
               ═══════════════════════════════════════════════════ */}
 
-              {/* User Profile / Sign In — Static icon, no animation */}
-              <button
-                onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
-                className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform"
-              >
-                <div className="relative flex items-center justify-center w-[38px] h-[38px]">
-                  <svg
-                    className="w-[28px] h-[28px] relative z-10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    strokeWidth="1.5"
-                  >
-                    <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" fill="none" />
-                    <circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.7)" strokeLinecap="round" fill="none" />
-                    <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  </svg>
-
-                  {userEmail && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
-                  )}
-                </div>
-              </button>
-
-              {/* Wishlist — Living heartbeat + twinkling sparkles */}
-              <motion.button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedOlfactory(null);
-                  setSelectedBrand(null);
-                  setSelectedCollection(null);
-                  setTimeout(() => {
-                    const el = document.getElementById("offers");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                  }, 100);
-                }}
-                className="relative flex items-center justify-center cursor-pointer py-1.5"
-                whileTap={{ scale: 0.92 }}
-              >
-                <motion.div
-                  className="relative flex items-center justify-center w-[38px] h-[38px]"
-                  animate={{ y: [0, -2, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                >
-                  {/* Rose-gold breathing glow */}
-                  <motion.div
-                    className="absolute inset-0 rounded-full pointer-events-none"
-                    style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
-                    animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                  />
-
-                  <svg
-                    className="w-[28px] h-[28px] relative z-10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    strokeWidth="1.5"
-                  >
-                    {/* Heart — continuous heartbeat rhythm */}
-                    <motion.path
-                      d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                      animate={{
-                        scale: [1, 1.12, 1, 1.08, 1],
-                        stroke: ["rgba(255,255,255,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(255,255,255,0.55)"],
-                      }}
-                      transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                      style={{ transformOrigin: "center center" }}
-                    />
-                    {/* Sparkle #1 — top-right twinkle */}
-                    <motion.path
-                      d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
-                      fill="#f59e0b"
-                      stroke="none"
-                      animate={{
-                        scale: [0, 1.2, 0],
-                        opacity: [0, 0.9, 0],
-                        rotate: [0, 180],
-                      }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                    />
-                    {/* Sparkle #2 — bottom-left echo twinkle */}
-                    <motion.path
-                      d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
-                      fill="#f59e0b"
-                      stroke="none"
-                      animate={{
-                        scale: [0, 1, 0],
-                        opacity: [0, 0.6, 0],
-                        rotate: [0, -180],
-                      }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
-                    />
-                  </svg>
-
-                  {favorites.length > 0 && (
-                    <motion.span
-                      className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                      animate={{ scale: [1, 1.15, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      {favorites.length}
-                    </motion.span>
-                  )}
-                </motion.div>
-              </motion.button>
-
-              {/* Cart/Bag — Bouncing handle + breathing body + pulsing dot */}
-              <motion.button
-                onClick={() => setIsCartOpen(true)}
-                className="relative flex items-center justify-center cursor-pointer py-1.5"
-                whileTap={{ scale: 0.92 }}
-              >
-                <motion.div
-                  className="relative flex items-center justify-center w-[38px] h-[38px]"
-                  animate={{ y: [0, -2, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                >
-                  {/* Amber breathing glow */}
-                  <motion.div
-                    className="absolute inset-0 rounded-full pointer-events-none"
-                    style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
-                    animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  />
-
-                  <svg
-                    className="w-[28px] h-[28px] relative z-10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    strokeWidth="1.5"
-                  >
-                    {/* Bag body — subtle breathing scale */}
-                    <motion.path
-                      d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                      style={{ transformOrigin: "center bottom" }}
-                      animate={{
-                        scaleY: [1, 1.03, 1, 0.97, 1],
-                        stroke: ["rgba(255,255,255,0.55)", "rgba(255,255,255,0.75)", "rgba(255,255,255,0.55)"],
-                      }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                    />
-                    {/* Handle — elastic bounce */}
-                    <motion.path
-                      d="M8 8V7a4 4 0 018 0v1"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                      animate={{
-                        y: [0, -2, 0.5, 0],
-                        stroke: ["rgba(255,255,255,0.55)", "#d4a053", "#f59e0b", "rgba(255,255,255,0.55)"],
-                      }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                    />
-                    {/* Gold center dot — pulsing in/out */}
-                    <motion.circle
-                      cx="12" cy="14.5" r="2"
-                      fill="#f59e0b"
-                      stroke="none"
-                      animate={{
-                        scale: [0, 1, 1, 0],
-                        opacity: [0, 0.8, 0.8, 0],
-                      }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                    />
-                    {/* Expanding ring echo */}
-                    <motion.circle
-                      cx="12" cy="14.5" r="4"
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth="0.5"
-                      animate={{
-                        scale: [0, 1.5, 0],
-                        opacity: [0, 0.35, 0],
-                      }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-                    />
-                  </svg>
-
-                  <motion.span
-                    className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                    animate={{ scale: [1, 1.15, 1] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                  >
-                    {cartCount}
-                  </motion.span>
-                </motion.div>
-              </motion.button>
-            </div>
-
-            {/* MOBILE: Action Bar & Toggler */}
-            <div className="flex md:hidden items-center gap-4 text-white">
-              {/* Mobile Search */}
-              <div className="relative flex items-center">
+                {/* User Profile / Sign In — Static icon, no animation */}
                 <button
-                  onClick={() => setIsSearchOpen(!isSearchOpen)}
-                  className="p-1 transition-colors text-white/70 hover:text-white cursor-pointer"
-                  aria-label="Toggle Search"
+                  onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
+                  className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </button>
-                <AnimatePresence>
-                  {isSearchOpen && (
-                    <motion.input
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: 100, opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder={searchPlaceholder}
-                      className="ml-1 border-b text-[10px] tracking-widest uppercase py-0.5 outline-none font-bold bg-transparent w-[90px] transition-colors duration-300 border-white/30 focus:border-white text-white placeholder-white/40"
-                    />
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Mobile User Profile */}
-              <button
-                onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
-                className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-white"
-                aria-label="Sign In"
-              >
-                <div className="relative flex items-center justify-center w-[36px] h-[36px]">
-                  <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                    <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" fill="none" />
-                    <circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.7)" strokeLinecap="round" fill="none" />
-                    <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  </svg>
-                  {userEmail && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
-                  )}
-                </div>
-              </button>
-
-              {/* Mobile Wishlist */}
-              <motion.button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedOlfactory(null);
-                  setSelectedBrand(null);
-                  setSelectedCollection(null);
-                  setTimeout(() => {
-                    const el = document.getElementById("offers");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                  }, 100);
-                }}
-                className="relative flex items-center justify-center cursor-pointer py-1 text-white"
-                whileTap={{ scale: 0.92 }}
-                aria-label="Wishlist"
-              >
-                <motion.div
-                  className="relative flex items-center justify-center w-[36px] h-[36px]"
-                  animate={{ y: [0, -2, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                >
-                  <motion.div
-                    className="absolute inset-0 rounded-full pointer-events-none"
-                    style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
-                    animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                  />
-                  <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                    <motion.path
-                      d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                  <div className="relative flex items-center justify-center w-[38px] h-[38px]">
+                    <svg
+                      className="w-[28px] h-[28px] relative z-10"
+                      viewBox="0 0 24 24"
                       fill="none"
-                      animate={{
-                        scale: [1, 1.12, 1, 1.08, 1],
-                        stroke: ["rgba(255,255,255,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(255,255,255,0.55)"],
-                      }}
-                      transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                      style={{ transformOrigin: "center center" }}
-                    />
-                    <motion.path
-                      d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
-                      fill="#f59e0b"
-                      stroke="none"
-                      animate={{ scale: [0, 1.2, 0], opacity: [0, 0.9, 0], rotate: [0, 180] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                    />
-                    <motion.path
-                      d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
-                      fill="#f59e0b"
-                      stroke="none"
-                      animate={{ scale: [0, 1, 0], opacity: [0, 0.6, 0], rotate: [0, -180] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
-                    />
-                  </svg>
-                  {favorites.length > 0 && (
-                    <motion.span
-                      className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                      animate={{ scale: [1, 1.15, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      strokeWidth="1.5"
                     >
-                      {favorites.length}
-                    </motion.span>
-                  )}
-                </motion.div>
-              </motion.button>
+                      <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" fill="none" />
+                      <circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.7)" strokeLinecap="round" fill="none" />
+                      <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    </svg>
 
-              {/* Mobile Cart */}
-              <motion.button
-                onClick={() => setIsCartOpen(true)}
-                className="relative flex items-center justify-center cursor-pointer py-1 text-white"
-                whileTap={{ scale: 0.92 }}
-                aria-label="Cart"
-              >
-                <motion.div
-                  className="relative flex items-center justify-center w-[36px] h-[36px]"
-                  animate={{ y: [0, -2, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                    {userEmail && (
+                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Wishlist — Living heartbeat + twinkling sparkles */}
+                <motion.button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedOlfactory(null);
+                    setSelectedBrand(null);
+                    setSelectedCollection(null);
+                    setTimeout(() => {
+                      const el = document.getElementById("offers");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }, 100);
+                  }}
+                  className="relative flex items-center justify-center cursor-pointer py-1.5"
+                  whileTap={{ scale: 0.92 }}
                 >
                   <motion.div
-                    className="absolute inset-0 rounded-full pointer-events-none"
-                    style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
-                    animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  />
-                  <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                    <motion.path
-                      d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                      style={{ transformOrigin: "center bottom" }}
-                      animate={{
-                        scaleY: [1, 1.03, 1, 0.97, 1],
-                        stroke: ["rgba(255,255,255,0.55)", "rgba(255,255,255,0.75)", "rgba(255,255,255,0.55)"],
-                      }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                    />
-                    <motion.path
-                      d="M8 8V7a4 4 0 018 0v1"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                      animate={{
-                        y: [0, -2, 0.5, 0],
-                        stroke: ["rgba(255,255,255,0.55)", "#d4a053", "#f59e0b", "rgba(255,255,255,0.55)"],
-                      }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                    />
-                    <motion.circle
-                      cx="12" cy="14.5" r="2"
-                      fill="#f59e0b"
-                      stroke="none"
-                      animate={{ scale: [0, 1, 1, 0], opacity: [0, 0.8, 0.8, 0] }}
+                    className="relative flex items-center justify-center w-[38px] h-[38px]"
+                    animate={{ y: [0, -2, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                  >
+                    {/* Rose-gold breathing glow */}
+                    <motion.div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
+                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
                       transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
                     />
-                    <motion.circle
-                      cx="12" cy="14.5" r="4"
+
+                    <svg
+                      className="w-[28px] h-[28px] relative z-10"
+                      viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth="0.5"
-                      animate={{ scale: [0, 1.5, 0], opacity: [0, 0.35, 0] }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+                      strokeWidth="1.5"
+                    >
+                      {/* Heart — continuous heartbeat rhythm */}
+                      <motion.path
+                        d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        animate={{
+                          scale: [1, 1.12, 1, 1.08, 1],
+                          stroke: ["rgba(255,255,255,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(255,255,255,0.55)"],
+                        }}
+                        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                        style={{ transformOrigin: "center center" }}
+                      />
+                      {/* Sparkle #1 — top-right twinkle */}
+                      <motion.path
+                        d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
+                        fill="#f59e0b"
+                        stroke="none"
+                        animate={{
+                          scale: [0, 1.2, 0],
+                          opacity: [0, 0.9, 0],
+                          rotate: [0, 180],
+                        }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+                      />
+                      {/* Sparkle #2 — bottom-left echo twinkle */}
+                      <motion.path
+                        d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
+                        fill="#f59e0b"
+                        stroke="none"
+                        animate={{
+                          scale: [0, 1, 0],
+                          opacity: [0, 0.6, 0],
+                          rotate: [0, -180],
+                        }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
+                      />
+                    </svg>
+
+                    {favorites.length > 0 && (
+                      <motion.span
+                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
+                        animate={{ scale: [1, 1.15, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        {favorites.length}
+                      </motion.span>
+                    )}
+                  </motion.div>
+                </motion.button>
+
+                {/* Cart/Bag — Bouncing handle + breathing body + pulsing dot */}
+                <motion.button
+                  onClick={() => setIsCartOpen(true)}
+                  className="relative flex items-center justify-center cursor-pointer py-1.5"
+                  whileTap={{ scale: 0.92 }}
+                >
+                  <motion.div
+                    className="relative flex items-center justify-center w-[38px] h-[38px]"
+                    animate={{ y: [0, -2, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                  >
+                    {/* Amber breathing glow */}
+                    <motion.div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
+                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
+                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
                     />
-                  </svg>
-                  {cartCount > 0 && (
+
+                    <svg
+                      className="w-[28px] h-[28px] relative z-10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      strokeWidth="1.5"
+                    >
+                      {/* Bag body — subtle breathing scale */}
+                      <motion.path
+                        d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        style={{ transformOrigin: "center bottom" }}
+                        animate={{
+                          scaleY: [1, 1.03, 1, 0.97, 1],
+                          stroke: ["rgba(255,255,255,0.55)", "rgba(255,255,255,0.75)", "rgba(255,255,255,0.55)"],
+                        }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                      {/* Handle — elastic bounce */}
+                      <motion.path
+                        d="M8 8V7a4 4 0 018 0v1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        animate={{
+                          y: [0, -2, 0.5, 0],
+                          stroke: ["rgba(255,255,255,0.55)", "#d4a053", "#f59e0b", "rgba(255,255,255,0.55)"],
+                        }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                      />
+                      {/* Gold center dot — pulsing in/out */}
+                      <motion.circle
+                        cx="12" cy="14.5" r="2"
+                        fill="#f59e0b"
+                        stroke="none"
+                        animate={{
+                          scale: [0, 1, 1, 0],
+                          opacity: [0, 0.8, 0.8, 0],
+                        }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                      />
+                      {/* Expanding ring echo */}
+                      <motion.circle
+                        cx="12" cy="14.5" r="4"
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="0.5"
+                        animate={{
+                          scale: [0, 1.5, 0],
+                          opacity: [0, 0.35, 0],
+                        }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+                      />
+                    </svg>
+
                     <motion.span
                       className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
                       animate={{ scale: [1, 1.15, 1] }}
@@ -1612,22 +1535,270 @@ export default function Home() {
                     >
                       {cartCount}
                     </motion.span>
-                  )}
-                </motion.div>
-              </motion.button>
+                  </motion.div>
+                </motion.button>
 
-              {/* Mobile Toggle Button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="flex flex-col gap-1.5 p-2 cursor-pointer hover:opacity-80 transition-opacity text-white"
-                aria-label="Toggle Menu"
-              >
-                <span className="w-6 h-0.5 bg-white"></span>
-                <span className="w-4 h-0.5 self-end bg-white"></span>
-              </button>
-            </div>
-          </nav>
-        </div>
+                {/* Premium Currency Selector */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
+                    className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest hover:text-white transition-colors duration-300 uppercase cursor-pointer text-white/70 py-1.5"
+                  >
+                    <span>
+                      {activeCurrency === "AED" && "🇦🇪 AED"}
+                      {activeCurrency === "SAR" && "🇸🇦 SAR"}
+                      {activeCurrency === "QAR" && "🇶🇦 QAR"}
+                      {activeCurrency === "KWD" && "🇰🇼 KWD"}
+                      {activeCurrency === "BHD" && "🇧🇭 BHD"}
+                      {activeCurrency === "OMR" && "🇴🇲 OMR"}
+                      {activeCurrency === "USD" && "🇺🇸 USD"}
+                      {activeCurrency === "EUR" && "🇪🇺 EUR"}
+                      {activeCurrency === "GBP" && "🇬🇧 GBP"}
+                      {activeCurrency === "INR" && "🇮🇳 INR"}
+                    </span>
+                    <span className="text-[7px] opacity-60">▼</span>
+                  </button>
+
+                  <AnimatePresence>
+                    {isCurrencyDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute right-0 top-full mt-2.5 bg-[#FAF6F0] border border-amber-800/15 p-2 shadow-xl z-50 flex flex-col gap-1 w-64 font-sans-luxury"
+                      >
+                        {[
+                          { code: "AED", label: "🇦🇪 AED - UAE Dirham" },
+                          { code: "SAR", label: "🇸🇦 SAR - Saudi Riyal" },
+                          { code: "QAR", label: "🇶🇦 QAR - Qatari Riyal" },
+                          { code: "KWD", label: "🇰🇼 KWD - Kuwaiti Dinar" },
+                          { code: "BHD", label: "🇧🇭 BHD - Bahraini Dinar" },
+                          { code: "OMR", label: "🇴🇲 OMR - Omani Rial" },
+                          { code: "USD", label: "🇺🇸 USD - US Dollar" },
+                          { code: "EUR", label: "🇪🇺 EUR - Euro" },
+                          { code: "GBP", label: "🇬🇧 GBP - British Pound" },
+                          { code: "INR", label: "🇮🇳 INR - Indian Rupee" }
+                        ].map((curr) => (
+                          <button
+                            key={curr.code}
+                            onClick={() => {
+                              setActiveCurrency(curr.code);
+                              localStorage.setItem("gharib_active_currency", curr.code);
+                              setIsCurrencyDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
+                                ? "bg-amber-800/10 text-amber-800"
+                                : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
+                              }`}
+                          >
+                            <span>{curr.label}</span>
+                            {activeCurrency === curr.code && (
+                              <span className="text-amber-800 text-[8px]">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* MOBILE: Action Bar & Toggler */}
+              <div className="flex md:hidden items-center gap-4 text-white">
+                {/* Mobile Search */}
+                <div className="relative flex items-center">
+                  <button
+                    onClick={() => setIsSearchOpen(!isSearchOpen)}
+                    className="p-1 transition-colors text-white/70 hover:text-white cursor-pointer"
+                    aria-label="Toggle Search"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </button>
+                  <AnimatePresence>
+                    {isSearchOpen && (
+                      <motion.input
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: 100, opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder={searchPlaceholder}
+                        className="ml-1 border-b text-[10px] tracking-widest uppercase py-0.5 outline-none font-bold bg-transparent w-[90px] transition-colors duration-300 border-white/30 focus:border-white text-white placeholder-white/40"
+                      />
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Mobile User Profile */}
+                <button
+                  onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
+                  className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-white"
+                  aria-label="Sign In"
+                >
+                  <div className="relative flex items-center justify-center w-[36px] h-[36px]">
+                    <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
+                      <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" fill="none" />
+                      <circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.7)" strokeLinecap="round" fill="none" />
+                      <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                    </svg>
+                    {userEmail && (
+                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Mobile Wishlist */}
+                <motion.button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedOlfactory(null);
+                    setSelectedBrand(null);
+                    setSelectedCollection(null);
+                    setTimeout(() => {
+                      const el = document.getElementById("offers");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }, 100);
+                  }}
+                  className="relative flex items-center justify-center cursor-pointer py-1 text-white"
+                  whileTap={{ scale: 0.92 }}
+                  aria-label="Wishlist"
+                >
+                  <motion.div
+                    className="relative flex items-center justify-center w-[36px] h-[36px]"
+                    animate={{ y: [0, -2, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                  >
+                    <motion.div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
+                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
+                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                    />
+                    <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
+                      <motion.path
+                        d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        animate={{
+                          scale: [1, 1.12, 1, 1.08, 1],
+                          stroke: ["rgba(255,255,255,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(255,255,255,0.55)"],
+                        }}
+                        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                        style={{ transformOrigin: "center center" }}
+                      />
+                      <motion.path
+                        d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
+                        fill="#f59e0b"
+                        stroke="none"
+                        animate={{ scale: [0, 1.2, 0], opacity: [0, 0.9, 0], rotate: [0, 180] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+                      />
+                      <motion.path
+                        d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
+                        fill="#f59e0b"
+                        stroke="none"
+                        animate={{ scale: [0, 1, 0], opacity: [0, 0.6, 0], rotate: [0, -180] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
+                      />
+                    </svg>
+                    {favorites.length > 0 && (
+                      <motion.span
+                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
+                        animate={{ scale: [1, 1.15, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        {favorites.length}
+                      </motion.span>
+                    )}
+                  </motion.div>
+                </motion.button>
+
+                {/* Mobile Cart */}
+                <motion.button
+                  onClick={() => setIsCartOpen(true)}
+                  className="relative flex items-center justify-center cursor-pointer py-1 text-white"
+                  whileTap={{ scale: 0.92 }}
+                  aria-label="Cart"
+                >
+                  <motion.div
+                    className="relative flex items-center justify-center w-[36px] h-[36px]"
+                    animate={{ y: [0, -2, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                  >
+                    <motion.div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
+                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
+                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                    />
+                    <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
+                      <motion.path
+                        d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        style={{ transformOrigin: "center bottom" }}
+                        animate={{
+                          scaleY: [1, 1.03, 1, 0.97, 1],
+                          stroke: ["rgba(255,255,255,0.55)", "rgba(255,255,255,0.75)", "rgba(255,255,255,0.55)"],
+                        }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                      <motion.path
+                        d="M8 8V7a4 4 0 018 0v1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        animate={{
+                          y: [0, -2, 0.5, 0],
+                          stroke: ["rgba(255,255,255,0.55)", "#d4a053", "#f59e0b", "rgba(255,255,255,0.55)"],
+                        }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                      />
+                      <motion.circle
+                        cx="12" cy="14.5" r="2"
+                        fill="#f59e0b"
+                        stroke="none"
+                        animate={{ scale: [0, 1, 1, 0], opacity: [0, 0.8, 0.8, 0] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                      />
+                      <motion.circle
+                        cx="12" cy="14.5" r="4"
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="0.5"
+                        animate={{ scale: [0, 1.5, 0], opacity: [0, 0.35, 0] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+                      />
+                    </svg>
+                    {cartCount > 0 && (
+                      <motion.span
+                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
+                        animate={{ scale: [1, 1.15, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                      >
+                        {cartCount}
+                      </motion.span>
+                    )}
+                  </motion.div>
+                </motion.button>
+
+                {/* Mobile Toggle Button */}
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="flex flex-col gap-1.5 p-2 cursor-pointer hover:opacity-80 transition-opacity text-white"
+                  aria-label="Toggle Menu"
+                >
+                  <span className="w-6 h-0.5 bg-white"></span>
+                  <span className="w-4 h-0.5 self-end bg-white"></span>
+                </button>
+              </div>
+            </nav>
+          </div>
 
           {/* Shop Mega Menu Dropdown */}
           <AnimatePresence>
@@ -1643,11 +1814,11 @@ export default function Home() {
               >
                 {/* Glowing top gold hairline strip */}
                 <div className="absolute top-0 left-0 w-full h-[1.5px] bg-gradient-to-r from-transparent via-amber-700/20 to-transparent z-20 pointer-events-none"></div>
- 
+
                 {/* Layered warm-gold luxury ambient backlighting */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-radial from-amber-600/[0.04] via-transparent to-transparent blur-[90px] pointer-events-none z-0"></div>
                 <div className="absolute inset-0 bg-radial from-amber-700/[0.01] via-transparent to-transparent pointer-events-none z-0"></div>
- 
+
                 <div className="max-w-[1440px] mx-auto px-12 py-14 grid grid-cols-1 md:grid-cols-4 gap-10 text-left border-t border-amber-800/10 relative z-10">
                   {/* Column 1: COLLECTIONS */}
                   <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
@@ -1670,7 +1841,7 @@ export default function Home() {
                           >
                             {/* Vertical accent glow line on the left on hover */}
                             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-0 bg-amber-600 transition-all duration-300 group-hover:h-[80%]"></span>
- 
+
                             <span className="text-[13px] font-extrabold tracking-[0.18em] text-neutral-800 group-hover:text-amber-800 transition-colors duration-300 flex items-center gap-2">
                               <span className="text-amber-600 group-hover:scale-110 transition-all duration-300 text-[10px]">✧</span>
                               {col.title}
@@ -1701,7 +1872,7 @@ export default function Home() {
                       </li>
                     </ul>
                   </motion.div>
- 
+
                   {/* Column 2: OLFACTORY FAMILIES */}
                   <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
                     <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
@@ -1723,12 +1894,12 @@ export default function Home() {
                         >
                           {/* Ambient radial glow container */}
                           <div className={`absolute inset-0 bg-gradient-to-r ${item.glow} opacity-0 group-hover/olf:opacity-100 transition-all duration-700 pointer-events-none`}></div>
- 
+
                           {/* Sensory Gold-Rimmed Icon Ring */}
                           <div className="relative w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-base z-10 group-hover/olf:border-amber-500/40 group-hover/olf:bg-amber-500/20 group-hover/olf:scale-[1.15] transition-all duration-300">
                             {item.symbol}
                           </div>
- 
+
                           <div className="flex-grow flex flex-col min-w-0 z-10">
                             <span className="text-[13px] font-extrabold tracking-[0.15em] text-neutral-800 group-hover/olf:text-amber-800 transition-colors duration-300 uppercase">
                               {item.label}
@@ -1737,7 +1908,7 @@ export default function Home() {
                               {item.desc}
                             </span>
                           </div>
- 
+
                           <span className="text-[10px] text-neutral-400 group-hover/olf:text-amber-600 group-hover/olf:translate-x-1.5 transition-all duration-300 flex-shrink-0">
                             ✧
                           </span>
@@ -1745,7 +1916,7 @@ export default function Home() {
                       ))}
                     </div>
                   </motion.div>
- 
+
                   {/* Column 3: AUTEUR BRANDS */}
                   <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
                     <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
@@ -1776,7 +1947,7 @@ export default function Home() {
                               <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
                               <span>{bname.replace(" PARFUMS PRIVES", "")}</span>
                             </div>
- 
+
                             {/* Classy location origin tags */}
                             <span className="text-[8.5px] text-neutral-500 group-hover:text-amber-800 tracking-[0.25em] font-bold uppercase transition-colors select-none">
                               {bname === "FILIPPO SORCINELLI" ? "ITALY" : bname === "INITIO PARFUMS PRIVES" ? "PARIS" : bname === "TOM FORD" ? "NEW YORK" : bname === "RABANNE" ? "FRANCE" : "GRASSE"}
@@ -1786,7 +1957,7 @@ export default function Home() {
                       ))}
                     </ul>
                   </motion.div>
- 
+
                   {/* Column 4: CINEMATIC SPOTLIGHT */}
                   <motion.div
                     variants={megaMenuColumnVariants}
@@ -1795,11 +1966,11 @@ export default function Home() {
                     {/* Background Halo */}
                     <div className="absolute inset-0 bg-gradient-to-b from-amber-500/[0.01] to-transparent pointer-events-none z-0"></div>
                     <div className="absolute top-8 left-1/2 -translate-x-1/2 w-48 h-48 bg-radial from-amber-500/[0.05] to-transparent rounded-full blur-[35px] pointer-events-none z-0"></div>
- 
+
                     <div className="absolute top-3 right-3 text-[7.5px] tracking-[0.3em] font-extrabold text-amber-800 uppercase bg-[#FAF6F0] border border-amber-800/20 px-2 py-1 z-10 shadow-[0_2px_8px_rgba(27,15,10,0.03)]">
                       FEATURED ✧
                     </div>
- 
+
                     <motion.div
                       inherit={false}
                       variants={{}}
@@ -1823,7 +1994,7 @@ export default function Home() {
                         className="object-contain z-10 filter drop-shadow-[0_12px_22px_rgba(27,15,10,0.05)] group-hover/spot:scale-105 transition-transform duration-700"
                       />
                     </motion.div>
- 
+
                     <div className="flex flex-col text-left z-10 mt-auto font-sans-luxury">
                       <span className="text-[9.5px] font-black tracking-[0.3em] text-amber-700 uppercase">
                         FILIPPO SORCINELLI
@@ -1834,7 +2005,7 @@ export default function Home() {
                       <p className="text-[9.5px] leading-relaxed text-neutral-500 group-hover/spot:text-neutral-700 mt-2.5 tracking-[0.12em] uppercase line-clamp-2">
                         Artistic volcanic incense formulation with raw metallic cap.
                       </p>
- 
+
                       <button
                         onClick={() => {
                           setSelectedBrand("FILIPPO SORCINELLI");
@@ -1893,7 +2064,7 @@ export default function Home() {
                 {/* Product Price & Name */}
                 <div className={`transition-all duration-500 ${isAnimating ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"} min-w-[130px]`}>
                   <div className="text-[26px] font-serif-luxury font-medium tracking-wide">
-                    {activeProduct.price}
+                    {formatCurrency(parseFloat(activeProduct.price.replace("$", "")) || 0)}
                   </div>
                   <div className="text-xs tracking-[0.2em] font-medium text-white/50 uppercase mt-0.5">
                     {activeProduct.title}
@@ -2004,7 +2175,7 @@ export default function Home() {
                       <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
                         <div>
                           <span className="text-[14px] font-serif-luxury font-medium block">
-                            {prod.price}
+                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
                           </span>
                           <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
                             {prod.title}
@@ -2048,7 +2219,7 @@ export default function Home() {
                       <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
                         <div>
                           <span className="text-[14px] font-serif-luxury font-medium block">
-                            {prod.price}
+                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
                           </span>
                           <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
                             {prod.title}
@@ -2092,7 +2263,7 @@ export default function Home() {
                       <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
                         <div>
                           <span className="text-[14px] font-serif-luxury font-medium block">
-                            {prod.price}
+                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
                           </span>
                           <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
                             {prod.title}
@@ -2326,6 +2497,7 @@ export default function Home() {
                         onSelectSize={selectSize}
                         onAddToCart={handleAddToCart}
                         badgeText={prod.isFeaturedLarge ? "FEATURED ART" : selectedOlfactory ? selectedOlfactory.toUpperCase() : selectedBrand ? selectedBrand.replace(" PARFUMS PRIVES", "") : "CURATED"}
+                        formatCurrency={formatCurrency}
                       />
                     );
                   })}
@@ -2367,6 +2539,7 @@ export default function Home() {
                     onSelectSize={selectSize}
                     onAddToCart={handleAddToCart}
                     badgeText={prod.isFeaturedLarge ? "FEATURED ART" : "NEW IN"}
+                    formatCurrency={formatCurrency}
                   />
                 );
               })}
@@ -2521,6 +2694,7 @@ export default function Home() {
                     onSelectSize={selectSize}
                     onAddToCart={handleAddToCart}
                     badgeText={prod.isFeaturedLarge ? "BESTSELLER FEATURE" : "BESTSELLER"}
+                    formatCurrency={formatCurrency}
                   />
                 );
               })}
@@ -2649,6 +2823,7 @@ export default function Home() {
                         onSelectSize={selectSize}
                         onAddToCart={handleAddToCart}
                         badgeText="EXCLUSIVE OFFER"
+                        formatCurrency={formatCurrency}
                       />
                     );
                   })}
@@ -2696,6 +2871,7 @@ export default function Home() {
                     onSelectSize={selectSize}
                     onAddToCart={handleAddToCart}
                     badgeText={prod.isFeaturedLarge ? "ATELIER FEATURE" : "ATELIER ARCHIVE"}
+                    formatCurrency={formatCurrency}
                   />
                 );
               })}
@@ -2857,9 +3033,68 @@ export default function Home() {
 
           <div className="flex items-center gap-8">
             {/* Currency Selector */}
-            <div className="flex items-center gap-2 cursor-pointer hover:text-black transition-colors">
-              <span>Currency:</span>
-              <span className="text-black font-extrabold">USD ($)</span>
+            <div className="relative">
+              <div
+                onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
+                className="flex items-center gap-2 cursor-pointer hover:text-black transition-colors"
+              >
+                <span>Currency:</span>
+                <span className="text-black font-extrabold flex items-center gap-1">
+                  {activeCurrency === "AED" && "🇦🇪 AED"}
+                  {activeCurrency === "SAR" && "🇸🇦 SAR"}
+                  {activeCurrency === "QAR" && "🇶🇦 QAR"}
+                  {activeCurrency === "KWD" && "🇰🇼 KWD"}
+                  {activeCurrency === "BHD" && "🇧🇭 BHD"}
+                  {activeCurrency === "OMR" && "🇴🇲 OMR"}
+                  {activeCurrency === "USD" && "🇺🇸 USD"}
+                  {activeCurrency === "EUR" && "🇪🇺 EUR"}
+                  {activeCurrency === "GBP" && "🇬🇧 GBP"}
+                  {activeCurrency === "INR" && "🇮🇳 INR"}
+                  <span className="text-[7px] opacity-60 ml-0.5">▼</span>
+                </span>
+              </div>
+
+              <AnimatePresence>
+                {isCurrencyDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute right-0 bottom-full mb-2.5 bg-[#FAF6F0] border border-amber-800/15 p-2 shadow-xl z-50 flex flex-col gap-1 w-64 font-sans-luxury"
+                  >
+                    {[
+                      { code: "AED", label: "🇦🇪 AED - UAE Dirham" },
+                      { code: "SAR", label: "🇸🇦 SAR - Saudi Riyal" },
+                      { code: "QAR", label: "🇶🇦 QAR - Qatari Riyal" },
+                      { code: "KWD", label: "🇰🇼 KWD - Kuwaiti Dinar" },
+                      { code: "BHD", label: "🇧🇭 BHD - Bahraini Dinar" },
+                      { code: "OMR", label: "🇴🇲 OMR - Omani Rial" },
+                      { code: "USD", label: "🇺🇸 USD - US Dollar" },
+                      { code: "EUR", label: "🇪🇺 EUR - Euro" },
+                      { code: "GBP", label: "🇬🇧 GBP - British Pound" },
+                      { code: "INR", label: "🇮🇳 INR - Indian Rupee" }
+                    ].map((curr) => (
+                      <button
+                        key={curr.code}
+                        onClick={() => {
+                          setActiveCurrency(curr.code);
+                          localStorage.setItem("gharib_active_currency", curr.code);
+                          setIsCurrencyDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
+                            ? "bg-amber-800/10 text-amber-800"
+                            : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
+                          }`}
+                      >
+                        <span>{curr.label}</span>
+                        {activeCurrency === curr.code && (
+                          <span className="text-amber-800 text-[8px]">✓</span>
+                        )}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Social handles */}
@@ -2953,7 +3188,7 @@ export default function Home() {
                   </div>
                 ) : (
                   cartItems.map((item, idx) => {
-                    const priceNum = parseInt(item.product.price.replace("$", "")) || 0;
+                    const priceNum = parseFloat(String(item.product.price).replace("$", "")) || 0;
                     const itemTotal = priceNum * item.quantity;
 
                     return (
@@ -3021,7 +3256,7 @@ export default function Home() {
 
                             {/* Price display */}
                             <span className="text-xs font-serif text-amber-800 font-semibold tracking-wider">
-                              ${itemTotal}
+                              {formatCurrency(itemTotal)}
                             </span>
                           </div>
                         </div>
@@ -3038,7 +3273,7 @@ export default function Home() {
                     <div className="flex justify-between items-center text-[10px] tracking-widest uppercase text-neutral-500">
                       <span>Valued Subtotal</span>
                       <span className="font-mono text-neutral-800 font-bold">
-                        ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
+                        {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-[9px] tracking-widest uppercase text-amber-700/80">
@@ -3052,7 +3287,7 @@ export default function Home() {
                     <div className="flex justify-between items-center text-xs tracking-[0.15em] uppercase font-bold text-neutral-950 pt-2">
                       <span>ESTIMATED TOTAL</span>
                       <span className="font-mono text-amber-800 text-sm font-extrabold">
-                        ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
+                        {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
                       </span>
                     </div>
                   </div>
@@ -3134,7 +3369,7 @@ export default function Home() {
                   ) : (
                     <div className="flex flex-col gap-6">
                       {cartItems.map((item, idx) => {
-                        const priceNum = parseInt(item.product.price.replace("$", "")) || 0;
+                        const priceNum = parseFloat(String(item.product.price).replace("$", "")) || 0;
                         return (
                           <motion.div
                             key={`full-${item.product.id}-${item.selectedSize}`}
@@ -3202,10 +3437,10 @@ export default function Home() {
                                 {/* Price computation */}
                                 <div className="text-right">
                                   <span className="text-[9px] uppercase tracking-widest text-neutral-400 block mb-0.5 font-mono">
-                                    {item.quantity} x {item.product.price}
+                                    {item.quantity} x {formatCurrency(parseFloat(String(item.product.price).replace("$", "")) || 0)}
                                   </span>
                                   <span className="text-sm font-serif text-amber-800 font-semibold tracking-wider">
-                                    ${priceNum * item.quantity}
+                                    {formatCurrency(priceNum * item.quantity)}
                                   </span>
                                 </div>
                               </div>
@@ -3275,7 +3510,7 @@ export default function Home() {
                       <div className="flex justify-between items-center text-neutral-500">
                         <span>Items Subtotal</span>
                         <span className="font-mono text-neutral-800 font-bold">
-                          ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
+                          {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-neutral-500">
@@ -3310,7 +3545,7 @@ export default function Home() {
                       <div className="border-t border-[#EAE3DB] pt-4 flex justify-between items-center text-xs tracking-[0.15em] font-extrabold text-neutral-950 mt-2">
                         <span>ESTIMATED TOTAL</span>
                         <span className="font-mono text-amber-800 text-base font-extrabold">
-                          ${cartItems.reduce((sum, item) => sum + (parseInt(item.product.price.replace("$", "")) || 0) * item.quantity, 0)}.00
+                          {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
                         </span>
                       </div>
                     </div>

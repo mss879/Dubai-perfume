@@ -30,6 +30,52 @@ export default function CheckoutPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  // Currency Engine States
+  const [activeCurrency, setActiveCurrency] = useState("AED");
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({
+    AED: 1.0,
+    USD: 0.2722,
+    EUR: 0.2514,
+    GBP: 0.2154,
+    SAR: 1.0208,
+    QAR: 0.9912,
+    KWD: 0.0838,
+    BHD: 0.1027,
+    OMR: 0.1048,
+    INR: 22.68
+  });
+
+  // Global Price Formatter Utility
+  const formatCurrency = (aedAmount: number, targetCurrency: string = activeCurrency) => {
+    const rate = exchangeRates[targetCurrency] || 1.0;
+    const converted = aedAmount * rate;
+    
+    const symbols: Record<string, string> = {
+      AED: "AED",
+      USD: "$",
+      EUR: "€",
+      GBP: "£",
+      SAR: "SAR",
+      QAR: "QAR",
+      KWD: "KWD",
+      BHD: "BHD",
+      OMR: "OMR",
+      INR: "₹"
+    };
+    
+    const symbol = symbols[targetCurrency] || "$";
+    const decimals = ["AED", "SAR", "QAR", "OMR", "BHD", "KWD"].includes(targetCurrency) ? 0 : 2;
+    const formattedVal = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    }).format(converted);
+    
+    if (["AED", "SAR", "QAR", "OMR", "BHD", "KWD"].includes(targetCurrency)) {
+      return `${formattedVal} ${symbol}`;
+    }
+    return `${symbol}${formattedVal}`;
+  };
+
   // Form Fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -101,6 +147,16 @@ export default function CheckoutPage() {
         sessionStorage.setItem("gharib_abandoned_cart_id", sessionCartId);
       }
       setAbandonedCartId(sessionCartId);
+
+      // 3. Load active currency and cached rates
+      const storedCurrency = localStorage.getItem("gharib_active_currency");
+      if (storedCurrency) {
+        setActiveCurrency(storedCurrency);
+      }
+      const cachedRates = sessionStorage.getItem("gharib_exchange_rates");
+      if (cachedRates) {
+        setExchangeRates(JSON.parse(cachedRates));
+      }
     }
     setLoading(false);
   }, []);
@@ -113,6 +169,7 @@ export default function CheckoutPage() {
 
     const timer = setTimeout(async () => {
       try {
+        const totalVal = getTotal();
         const payload = {
           id: abandonedCartId,
           email: email.trim(),
@@ -133,9 +190,12 @@ export default function CheckoutPage() {
             quantity: item.quantity,
             unit_price: parseFloat(String(item.product.price).replace("$", "")) || 0
           })),
-          total_price: getTotal(),
+          total_price: totalVal,
           converted: false,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          currency: activeCurrency,
+          exchange_rate: exchangeRates[activeCurrency] || 1.0,
+          converted_total: formatCurrency(totalVal, activeCurrency)
         };
 
         await clientSafeSupabase
@@ -201,7 +261,10 @@ export default function CheckoutPage() {
         status: "pending",
         shipping_address: shippingAddress,
         tracking_number: null,
-        tracking_url: null
+        tracking_url: null,
+        currency: activeCurrency,
+        exchange_rate: exchangeRates[activeCurrency] || 1.0,
+        converted_total: formatCurrency(totalAmount, activeCurrency)
       };
 
       const { error: orderError } = await clientSafeSupabase
@@ -816,7 +879,7 @@ export default function CheckoutPage() {
                         </div>
                       </div>
                       <span className="text-[11px] font-bold font-sans text-amber-800 tracking-wider">
-                        ${(parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity}.00
+                        {formatCurrency((parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity)}
                       </span>
                     </div>
                   ))}
@@ -827,12 +890,12 @@ export default function CheckoutPage() {
               <div className="flex flex-col gap-3 text-[9px] tracking-widest font-black uppercase border-b border-[#E5DFD3] pb-5 mb-5 text-[#5C4E46]">
                 <div className="flex justify-between">
                   <span>CART SUB-TOTAL</span>
-                  <span className="font-mono text-amber-900">${getSubtotal()}.00</span>
+                  <span className="font-mono text-amber-900">{formatCurrency(getSubtotal())}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>WHITE-GLOVE SHIPPING</span>
                   <span className="font-mono text-amber-900">
-                    {getShipping() === 0 ? "FREE" : `$${getShipping()}.00`}
+                    {getShipping() === 0 ? "FREE" : formatCurrency(getShipping())}
                   </span>
                 </div>
               </div>
@@ -841,7 +904,7 @@ export default function CheckoutPage() {
               <div className="flex justify-between items-center text-xs tracking-widest font-extrabold text-[#1C120C]">
                 <span>TOTAL INVESTMENT</span>
                 <span className="font-mono text-amber-800 text-lg font-black">
-                  ${getTotal()}.00
+                  {formatCurrency(getTotal())}
                 </span>
               </div>
             </div>

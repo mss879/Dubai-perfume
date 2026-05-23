@@ -577,7 +577,7 @@ function AdminDashboardContent() {
                   <TrendingUp className="w-4 h-4 text-amber-500" />
                 </div>
                 <h3 className="text-2xl font-serif-luxury text-amber-200 tracking-wide font-medium">
-                  $31,580.00
+                  31,580 AED
                 </h3>
                 <div className="flex items-center gap-1 mt-2 text-[9px] tracking-wider font-bold text-green-400 uppercase">
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -808,7 +808,14 @@ function AdminDashboardContent() {
                           {new Date(order.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}
                         </td>
                         <td className="p-4 text-right text-amber-200 font-bold font-sans">
-                          ${parseFloat(order.total_price).toFixed(2)}
+                          <div className="flex flex-col items-end">
+                            <span>{parseFloat(order.total_price).toLocaleString()} AED</span>
+                            {order.currency && order.currency !== "AED" && order.converted_total && (
+                              <span className="text-[8px] text-[#EAE3DB]/40 tracking-wider mt-0.5 uppercase">
+                                ({order.converted_total})
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-4 text-center">
                           <span className={`text-[7px] tracking-widest px-2.5 py-1 border font-black ${
@@ -897,7 +904,14 @@ function AdminDashboardContent() {
                         <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/30 uppercase block mb-3">ITEMIZED DECANTS</span>
                         <div className="flex justify-between items-center py-2 border-b border-white/[0.03]">
                           <span>Bespoke Extrait signature decant (100ml)</span>
-                          <span className="font-sans text-amber-200">${parseFloat(selectedOrder.total_price).toFixed(2)}</span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-sans text-amber-200 font-bold">{parseFloat(selectedOrder.total_price).toLocaleString()} AED</span>
+                            {selectedOrder.currency && selectedOrder.currency !== "AED" && selectedOrder.converted_total && (
+                              <span className="text-[8px] text-[#EAE3DB]/40 tracking-wider mt-0.5 uppercase">
+                                ({selectedOrder.converted_total})
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1066,7 +1080,7 @@ function AdminDashboardContent() {
                           {p.sizes.join(" • ")}
                         </td>
                         <td className="p-4 text-right text-amber-200 font-bold font-sans">
-                          ${parseFloat(p.price).toFixed(2)}
+                          {parseFloat(p.price).toLocaleString()} AED
                         </td>
                         
                         <td className="p-4 text-center">
@@ -1158,7 +1172,7 @@ function AdminDashboardContent() {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">DECANT BASE PRICE ($)</label>
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">DECANT BASE PRICE (AED)</label>
                           <input 
                             type="number" 
                             step="0.01"
@@ -1782,7 +1796,14 @@ function AdminDashboardContent() {
                         </td>
                         
                         <td className="p-4 text-right text-amber-800 font-bold font-sans text-xs">
-                          ${parseFloat(String(ac.total_price || 0)).toFixed(2)}
+                          <div className="flex flex-col items-end">
+                            <span>{parseFloat(String(ac.total_price || 0)).toLocaleString()} AED</span>
+                            {ac.currency && ac.currency !== "AED" && ac.converted_total && (
+                              <span className="text-[7.5px] text-[#7C6E65]/60 tracking-wider mt-0.5 uppercase">
+                                ({ac.converted_total})
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td className="p-4 text-center">
@@ -1879,7 +1900,7 @@ function AdminDashboardContent() {
                 <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-600" />
                 <span className="text-[7.5px] tracking-[0.2em] text-[#7C6E65] uppercase font-black block mb-2">PERIOD GROSS REVENUE</span>
                 <span className="text-2xl font-black font-sans text-amber-800 tracking-tight">
-                  ${reportData.totalRevenue.toLocaleString()}.00
+                  {reportData.totalRevenue.toLocaleString()} AED
                 </span>
                 <p className="text-[8px] text-[#7C6E65] tracking-widest uppercase font-bold mt-2.5">
                   FROM {reportData.ordersCount} REGISTERED TRANSACTIONS
@@ -1891,7 +1912,7 @@ function AdminDashboardContent() {
                 <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-600" />
                 <span className="text-[7.5px] tracking-[0.2em] text-[#7C6E65] uppercase font-black block mb-2">AVERAGE ORDER VALUE (AOV)</span>
                 <span className="text-2xl font-black font-sans text-amber-800 tracking-tight">
-                  ${Math.round(reportData.aov)}.00
+                  {Math.round(reportData.aov).toLocaleString()} AED
                 </span>
                 <p className="text-[8px] text-[#7C6E65] tracking-widest uppercase font-bold mt-2.5">
                   AVERAGE INVESTMENT VALUE PER SCENT
@@ -1999,7 +2020,14 @@ function AdminDashboardContent() {
                             </td>
 
                             <td className="p-4 text-right text-amber-800 font-bold font-sans text-xs">
-                              ${parseFloat(String(o.total_price || 0)).toFixed(2)}
+                              <div className="flex flex-col items-end">
+                                <span>{parseFloat(String(o.total_price || 0)).toLocaleString()} AED</span>
+                                {o.currency && o.currency !== "AED" && o.converted_total && (
+                                  <span className="text-[7.5px] text-[#7C6E65]/60 tracking-wider mt-0.5 uppercase">
+                                    ({o.converted_total})
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             <td className="p-4 pr-6 text-center text-[#7C6E65] text-[9px] font-sans">
