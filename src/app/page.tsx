@@ -465,8 +465,8 @@ const ProductCard: React.FC<{
                   key={sz}
                   onClick={() => onSelectSize(prod.id, sz)}
                   className={`px-3.5 py-2 text-[10px] font-mono tracking-widest uppercase transition-all duration-300 cursor-pointer font-bold border rounded-none ${activeSize === sz
-                      ? "bg-black border-black text-white shadow-sm"
-                      : "bg-white border-[#EAE3DB] text-neutral-600 hover:border-black hover:text-black"
+                    ? "bg-black border-black text-white shadow-sm"
+                    : "bg-white border-[#EAE3DB] text-neutral-600 hover:border-black hover:text-black"
                     }`}
                 >
                   {sz}
@@ -512,6 +512,9 @@ export default function Home() {
 
   // Main Storefront UI Staggered Entrance Reveal State
   const [revealInterface, setRevealInterface] = useState(false);
+
+  // Scroll visibility state for sticky light navbar
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const activeProduct = PRODUCTS[activeIndex];
 
@@ -904,6 +907,20 @@ export default function Home() {
     return () => clearTimeout(introTimer);
   }, []);
 
+  // Scroll detection for sticky light-theme navbar
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 80) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const handlePrev = () => {
     if (isAnimating) return;
     setIsAnimating(true);
@@ -995,13 +1012,13 @@ export default function Home() {
                 >
                   ABOUT
                 </a>
-                <a
-                  href="#contact"
+                <Link
+                  href="/contact"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors"
                 >
                   CONTACT
-                </a>
+                </Link>
               </div>
 
               {/* Collections Grid */}
@@ -1105,6 +1122,845 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      {/* Premium Sticky Light-Theme Navbar */}
+      <AnimatePresence>
+        {isScrolled && (
+          <motion.header
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed top-0 left-0 right-0 z-40 bg-[#FAF6F0]/95 backdrop-blur-md text-neutral-800 shadow-[0_2px_15px_rgba(27,15,10,0.06)] border-b border-amber-800/10 font-sans-luxury"
+          >
+            <div className="w-full">
+              <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
+                {/* Left Menu Items (Home, About, Shop with Dropdown) */}
+                <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-neutral-800/70">
+                  <button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedOlfactory(null);
+                      setSelectedBrand(null);
+                      setSelectedCollection(null);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="transition-colors duration-300 cursor-pointer uppercase font-medium hover:text-amber-800"
+                  >
+                    HOME
+                  </button>
+                  <a
+                    href="#about"
+                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
+                  >
+                    ABOUT
+                  </a>
+                  <Link
+                    href="/contact"
+                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
+                  >
+                    CONTACT
+                  </Link>
+                  {/* Shop trigger wrapper for Mega Menu */}
+                  <div
+                    className="relative py-2 cursor-pointer"
+                    onMouseEnter={() => setIsMegaMenuOpen(true)}
+                    onMouseLeave={() => setIsMegaMenuOpen(false)}
+                  >
+                    <button
+                      onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
+                      className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-amber-800"
+                    >
+                      SHOP
+                      <svg
+                        className={`w-2.5 h-2.5 transition-transform duration-300 ${isMegaMenuOpen ? "rotate-180 text-amber-800" : "text-neutral-800/40"}`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Logo Center */}
+                <div className="flex-1 flex justify-center md:flex-initial">
+                  <img
+                    src="/logo.png"
+                    alt="Gharib"
+                    className="h-10 md:h-[42px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300 mix-blend-multiply"
+                    style={{ mixBlendMode: 'multiply' }}
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedOlfactory(null);
+                      setSelectedBrand(null);
+                      setSelectedCollection(null);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                  />
+                </div>
+
+                {/* Right Menu Items (Search bar, Contact, Bag) */}
+                <div className="hidden md:flex items-center gap-8 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 justify-end text-neutral-800/70">
+                  {/* Better Search Bar Container */}
+                  <div className="relative flex items-center">
+                    <div className="relative flex items-center rounded-none px-4 py-1.5 w-[200px] lg:w-[240px] transition-all duration-300 bg-neutral-900/5 border border-neutral-900/10 hover:border-neutral-900/20 focus-within:border-amber-800/50">
+                      <svg className="w-3.5 h-3.5 mr-2 flex-shrink-0 transition-colors duration-300 text-neutral-800/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder={searchPlaceholder}
+                        className="bg-transparent text-[10px] tracking-widest uppercase outline-none w-full font-bold transition-colors duration-300 text-neutral-800 placeholder-neutral-800/40"
+                      />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm("")}
+                          className="text-[9px] font-bold ml-1 cursor-pointer transition-colors duration-300 text-neutral-800/40 hover:text-neutral-900"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Intelligent Search Suggestions Dropdown */}
+                    <AnimatePresence>
+                      {searchTerm.trim() !== "" && searchSuggestions.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 15 }}
+                          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                          className="absolute top-full mt-2.5 right-0 w-[300px] md:w-[360px] bg-[#FAF6F0] border border-amber-800/15 shadow-[0_20px_50px_rgba(27,15,10,0.08)] z-50 overflow-hidden flex flex-col text-neutral-800"
+                        >
+                          {/* Section Header */}
+                          <div className="px-4 py-2 bg-neutral-900/5 border-b border-amber-800/10 text-[9px] tracking-widest text-amber-800 font-extrabold uppercase">
+                            Real-time Suggestions
+                          </div>
+
+                          {/* Suggestion List */}
+                          <div className="flex flex-col max-h-[320px] overflow-y-auto divide-y divide-amber-800/10 custom-scrollbar">
+                            {searchSuggestions.map((prod) => (
+                              <div
+                                key={prod.id}
+                                onClick={() => {
+                                  setSearchTerm(prod.name);
+                                  const el = document.getElementById("new-in");
+                                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                                }}
+                                className="p-3 flex items-center gap-3.5 hover:bg-neutral-900/5 transition-colors duration-200 cursor-pointer text-left group"
+                              >
+                                <div className="relative w-10 h-12 bg-neutral-900/5 flex-shrink-0 flex items-center justify-center p-1 border border-neutral-800/5 overflow-hidden">
+                                  <Image
+                                    src={prod.image}
+                                    alt={prod.name}
+                                    width={40}
+                                    height={48}
+                                    className="object-contain filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300"
+                                  />
+                                </div>
+                                <div className="flex-grow flex flex-col justify-center min-w-0">
+                                  <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
+                                    {prod.brand}
+                                  </span>
+                                  <span className="text-[11px] font-medium tracking-wide text-neutral-800 uppercase truncate mt-0.5 group-hover:text-amber-800 transition-colors duration-200">
+                                    {prod.name}
+                                  </span>
+                                  <span className="text-[9px] text-neutral-500 tracking-wider font-semibold uppercase mt-0.5">
+                                    {prod.olfactory} • Extrait de Parfum
+                                  </span>
+                                </div>
+                                <div className="text-[12px] font-bold text-neutral-800 tracking-wider flex-shrink-0 pl-1">
+                                  {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Footer Actions */}
+                          <div className="p-3.5 bg-neutral-900/5 border-t border-amber-800/10 flex items-center justify-between">
+                            <span className="text-[9px] tracking-widest text-neutral-500 font-semibold uppercase">
+                              Click to filter catalog view
+                            </span>
+                            <button
+                              onClick={() => {
+                                const el = document.getElementById("new-in");
+                                if (el) el.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="text-[9px] tracking-widest text-amber-800 hover:text-amber-900 font-extrabold uppercase transition-colors"
+                            >
+                              View All ✧
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* User Profile / Sign In */}
+                  <button
+                    onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
+                    className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform text-neutral-800"
+                  >
+                    <div className="relative flex items-center justify-center w-[38px] h-[38px]">
+                      <svg
+                        className="w-[28px] h-[28px] relative z-10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        strokeWidth="1.5"
+                      >
+                        <circle cx="12" cy="12" r="9" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" fill="none" />
+                        <circle cx="12" cy="10" r="3" stroke="rgba(27,15,10,0.7)" strokeLinecap="round" fill="none" />
+                        <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                      {userEmail && (
+                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Wishlist */}
+                  <motion.button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedOlfactory(null);
+                      setSelectedBrand(null);
+                      setSelectedCollection(null);
+                      setTimeout(() => {
+                        const el = document.getElementById("offers");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      }, 100);
+                    }}
+                    className="relative flex items-center justify-center cursor-pointer py-1.5 text-neutral-800"
+                    whileTap={{ scale: 0.92 }}
+                  >
+                    <motion.div
+                      className="relative flex items-center justify-center w-[38px] h-[38px]"
+                      animate={{ y: [0, -2, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                    >
+                      <motion.div
+                        className="absolute inset-0 rounded-full pointer-events-none"
+                        style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
+                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                      />
+
+                      <svg
+                        className="w-[28px] h-[28px] relative z-10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        strokeWidth="1.5"
+                      >
+                        <motion.path
+                          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          animate={{
+                            scale: [1, 1.12, 1, 1.08, 1],
+                            stroke: ["rgba(27,15,10,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(27,15,10,0.55)"],
+                          }}
+                          transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                          style={{ transformOrigin: "center center" }}
+                        />
+                        <motion.path
+                          d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
+                          fill="#f59e0b"
+                          stroke="none"
+                          animate={{
+                            scale: [0, 1.2, 0],
+                            opacity: [0, 0.9, 0],
+                            rotate: [0, 180],
+                          }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+                        />
+                        <motion.path
+                          d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
+                          fill="#f59e0b"
+                          stroke="none"
+                          animate={{
+                            scale: [0, 1, 0],
+                            opacity: [0, 0.6, 0],
+                            rotate: [0, -180],
+                          }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
+                        />
+                      </svg>
+
+                      {favorites.length > 0 && (
+                        <motion.span
+                          className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
+                          animate={{ scale: [1, 1.15, 1] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          {favorites.length}
+                        </motion.span>
+                      )}
+                    </motion.div>
+                  </motion.button>
+
+                  {/* Cart/Bag */}
+                  <motion.button
+                    onClick={() => setIsCartOpen(true)}
+                    className="relative flex items-center justify-center cursor-pointer py-1.5 text-neutral-800"
+                    whileTap={{ scale: 0.92 }}
+                  >
+                    <motion.div
+                      className="relative flex items-center justify-center w-[38px] h-[38px]"
+                      animate={{ y: [0, -2, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                    >
+                      <motion.div
+                        className="absolute inset-0 rounded-full pointer-events-none"
+                        style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
+                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                      />
+
+                      <svg
+                        className="w-[28px] h-[28px] relative z-10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        strokeWidth="1.5"
+                      >
+                        <motion.path
+                          d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          style={{ transformOrigin: "center bottom" }}
+                          animate={{
+                            scaleY: [1, 1.03, 1, 0.97, 1],
+                            stroke: ["rgba(27,15,10,0.55)", "rgba(27,15,10,0.75)", "rgba(27,15,10,0.55)"],
+                          }}
+                          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                        />
+                        <motion.path
+                          d="M8 8V7a4 4 0 018 0v1"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          animate={{
+                            y: [0, -2, 0.5, 0],
+                            stroke: ["rgba(27,15,10,0.55)", "#d4a053", "#f59e0b", "rgba(27,15,10,0.55)"],
+                          }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                        />
+                        <motion.circle
+                          cx="12" cy="14.5" r="2"
+                          fill="#f59e0b"
+                          stroke="none"
+                          animate={{
+                            scale: [0, 1, 1, 0],
+                            opacity: [0, 0.8, 0.8, 0],
+                          }}
+                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                        />
+                        <motion.circle
+                          cx="12" cy="14.5" r="4"
+                          fill="none"
+                          stroke="#f59e0b"
+                          strokeWidth="0.5"
+                          animate={{
+                            scale: [0, 1.5, 0],
+                            opacity: [0, 0.35, 0],
+                          }}
+                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+                        />
+                      </svg>
+
+                      <motion.span
+                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
+                        animate={{ scale: [1, 1.15, 1] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                      >
+                        {cartCount}
+                      </motion.span>
+                    </motion.div>
+                  </motion.button>
+
+                  {/* Premium Currency Selector */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
+                      className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest hover:text-black transition-colors duration-300 uppercase cursor-pointer text-neutral-800/70 py-1.5"
+                    >
+                      <span>
+                        {activeCurrency === "AED" && "🇦🇪 AED"}
+                        {activeCurrency === "SAR" && "🇸🇦 SAR"}
+                        {activeCurrency === "QAR" && "🇶🇦 QAR"}
+                        {activeCurrency === "KWD" && "🇰🇼 KWD"}
+                        {activeCurrency === "BHD" && "🇧🇭 BHD"}
+                        {activeCurrency === "OMR" && "🇴🇲 OMR"}
+                        {activeCurrency === "USD" && "🇺🇸 USD"}
+                        {activeCurrency === "EUR" && "🇪🇺 EUR"}
+                        {activeCurrency === "GBP" && "🇬🇧 GBP"}
+                        {activeCurrency === "INR" && "🇮🇳 INR"}
+                      </span>
+                      <span className="text-[7px] opacity-60">▼</span>
+                    </button>
+
+                    <AnimatePresence>
+                      {isCurrencyDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute right-0 top-full mt-2.5 bg-[#FAF6F0] border border-amber-800/15 p-2 shadow-xl z-50 flex flex-col gap-1 w-64 font-sans-luxury"
+                        >
+                          {[
+                            { code: "AED", label: "🇦🇪 AED - UAE Dirham" },
+                            { code: "SAR", label: "🇸🇦 SAR - Saudi Riyal" },
+                            { code: "QAR", label: "🇶🇦 QAR - Qatari Riyal" },
+                            { code: "KWD", label: "🇰🇼 KWD - Kuwaiti Dinar" },
+                            { code: "BHD", label: "🇧🇭 BHD - Bahraini Dinar" },
+                            { code: "OMR", label: "🇴🇲 OMR - Omani Rial" },
+                            { code: "USD", label: "🇺🇸 USD - US Dollar" },
+                            { code: "EUR", label: "🇪🇺 EUR - Euro" },
+                            { code: "GBP", label: "🇬🇧 GBP - British Pound" },
+                            { code: "INR", label: "🇮🇳 INR - Indian Rupee" }
+                          ].map((curr) => (
+                            <button
+                              key={curr.code}
+                              onClick={() => {
+                                setActiveCurrency(curr.code);
+                                localStorage.setItem("gharib_active_currency", curr.code);
+                                setIsCurrencyDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
+                                ? "bg-amber-800/10 text-amber-800"
+                                : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
+                                }`}
+                            >
+                              <span>{curr.label}</span>
+                              {activeCurrency === curr.code && (
+                                <span className="text-amber-800 text-[8px]">✓</span>
+                              )}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {/* MOBILE: Action Bar & Toggler */}
+                <div className="flex md:hidden items-center gap-4 text-neutral-800">
+                  {/* Mobile Search */}
+                  <div className="relative flex items-center">
+                    <button
+                      onClick={() => setIsSearchOpen(!isSearchOpen)}
+                      className="p-1 transition-colors text-neutral-800/70 hover:text-neutral-900 cursor-pointer"
+                      aria-label="Toggle Search"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
+                    <AnimatePresence>
+                      {isSearchOpen && (
+                        <motion.input
+                          initial={{ width: 0, opacity: 0 }}
+                          animate={{ width: 100, opacity: 1 }}
+                          exit={{ width: 0, opacity: 0 }}
+                          type="text"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          placeholder={searchPlaceholder}
+                          className="ml-1 border-b text-[10px] tracking-widest uppercase py-0.5 outline-none font-bold bg-transparent w-[90px] transition-colors duration-300 border-neutral-800/30 focus:border-neutral-800 text-neutral-800 placeholder-neutral-800/40"
+                        />
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Mobile User Profile */}
+                  <button
+                    onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
+                    className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-neutral-800"
+                    aria-label="Sign In"
+                  >
+                    <div className="relative flex items-center justify-center w-[36px] h-[36px]">
+                      <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
+                        <circle cx="12" cy="12" r="9" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" fill="none" />
+                        <circle cx="12" cy="10" r="3" stroke="rgba(27,15,10,0.7)" strokeLinecap="round" fill="none" />
+                        <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                      {userEmail && (
+                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Mobile Wishlist */}
+                  <motion.button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedOlfactory(null);
+                      setSelectedBrand(null);
+                      setSelectedCollection(null);
+                      setTimeout(() => {
+                        const el = document.getElementById("offers");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      }, 100);
+                    }}
+                    className="relative flex items-center justify-center cursor-pointer py-1 text-neutral-800"
+                    whileTap={{ scale: 0.92 }}
+                    aria-label="Wishlist"
+                  >
+                    <motion.div
+                      className="relative flex items-center justify-center w-[36px] h-[36px]"
+                      animate={{ y: [0, -2, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                    >
+                      <motion.div
+                        className="absolute inset-0 rounded-full pointer-events-none"
+                        style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
+                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                      />
+                      <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
+                        <motion.path
+                          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          animate={{
+                            scale: [1, 1.12, 1, 1.08, 1],
+                            stroke: ["rgba(27,15,10,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(27,15,10,0.55)"],
+                          }}
+                          transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+                          style={{ transformOrigin: "center center" }}
+                        />
+                        <motion.path
+                          d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
+                          fill="#f59e0b"
+                          stroke="none"
+                          animate={{ scale: [0, 1.2, 0], opacity: [0, 0.9, 0], rotate: [0, 180] }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+                        />
+                        <motion.path
+                          d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
+                          fill="#f59e0b"
+                          stroke="none"
+                          animate={{ scale: [0, 1, 0], opacity: [0, 0.6, 0], rotate: [0, -180] }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
+                        />
+                      </svg>
+                      {favorites.length > 0 && (
+                        <motion.span
+                          className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
+                          animate={{ scale: [1, 1.15, 1] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                          {favorites.length}
+                        </motion.span>
+                      )}
+                    </motion.div>
+                  </motion.button>
+
+                  {/* Mobile Cart */}
+                  <motion.button
+                    onClick={() => setIsCartOpen(true)}
+                    className="relative flex items-center justify-center cursor-pointer py-1 text-neutral-800"
+                    whileTap={{ scale: 0.92 }}
+                    aria-label="Cart"
+                  >
+                    <motion.div
+                      className="relative flex items-center justify-center w-[36px] h-[36px]"
+                      animate={{ y: [0, -2, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                    >
+                      <motion.div
+                        className="absolute inset-0 rounded-full pointer-events-none"
+                        style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
+                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
+                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                      />
+                      <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
+                        <motion.path
+                          d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          style={{ transformOrigin: "center bottom" }}
+                          animate={{
+                            scaleY: [1, 1.03, 1, 0.97, 1],
+                            stroke: ["rgba(27,15,10,0.55)", "rgba(27,15,10,0.75)", "rgba(27,15,10,0.55)"],
+                          }}
+                          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                        />
+                        <motion.path
+                          d="M8 8V7a4 4 0 018 0v1"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          animate={{
+                            y: [0, -2, 0.5, 0],
+                            stroke: ["rgba(27,15,10,0.55)", "#d4a053", "#f59e0b", "rgba(27,15,10,0.55)"],
+                          }}
+                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                        />
+                        <motion.circle
+                          cx="12" cy="14.5" r="2"
+                          fill="#f59e0b"
+                          stroke="none"
+                          animate={{ scale: [0, 1, 1, 0], opacity: [0, 0.8, 0.8, 0] }}
+                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                        />
+                        <motion.circle
+                          cx="12" cy="14.5" r="4"
+                          fill="none"
+                          stroke="#f59e0b"
+                          strokeWidth="0.5"
+                          animate={{ scale: [0, 1.5, 0], opacity: [0, 0.35, 0] }}
+                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+                        />
+                      </svg>
+                      {cartCount > 0 && (
+                        <motion.span
+                          className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
+                          animate={{ scale: [1, 1.15, 1] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                        >
+                          {cartCount}
+                        </motion.span>
+                      )}
+                    </motion.div>
+                  </motion.button>
+
+                  {/* Mobile Toggle Button */}
+                  <button
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="flex flex-col gap-1.5 p-2 cursor-pointer hover:opacity-80 transition-opacity text-neutral-800"
+                    aria-label="Toggle Menu"
+                  >
+                    <span className="w-6 h-0.5 bg-neutral-800"></span>
+                    <span className="w-4 h-0.5 self-end bg-neutral-800"></span>
+                  </button>
+                </div>
+              </nav>
+            </div>
+
+            {/* Shop Mega Menu Dropdown inside sticky header */}
+            <AnimatePresence>
+              {isMegaMenuOpen && (
+                <motion.div
+                  variants={megaMenuContainerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  onMouseEnter={() => setIsMegaMenuOpen(true)}
+                  onMouseLeave={() => setIsMegaMenuOpen(false)}
+                  className="absolute top-full left-0 w-full bg-[#FAF6F0] border-b border-amber-800/15 z-40 overflow-hidden shadow-[0_35px_80px_rgba(46,34,25,0.08)] text-neutral-800"
+                >
+                  <div className="absolute top-0 left-0 w-full h-[1.5px] bg-gradient-to-r from-transparent via-amber-700/20 to-transparent z-20 pointer-events-none"></div>
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-radial from-amber-600/[0.04] via-transparent to-transparent blur-[90px] pointer-events-none z-0"></div>
+                  <div className="absolute inset-0 bg-radial from-amber-700/[0.01] via-transparent to-transparent pointer-events-none z-0"></div>
+
+                  <div className="max-w-[1440px] mx-auto px-12 py-14 grid grid-cols-1 md:grid-cols-4 gap-10 text-left border-t border-amber-800/10 relative z-10">
+                    {/* Column 1: COLLECTIONS */}
+                    <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
+                      <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
+                        COLLECTIONS
+                      </span>
+                      <ul className="flex flex-col gap-6">
+                        {MEGA_MENU_COLLECTIONS.map((col) => (
+                          <li key={col.id}>
+                            <button
+                              onClick={() => {
+                                setSelectedCollection(col.id as any);
+                                setSelectedBrand(null);
+                                setSelectedOlfactory(null);
+                                setIsMegaMenuOpen(false);
+                                const el = document.getElementById("new-in");
+                                if (el) el.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="transition-all duration-300 uppercase cursor-pointer flex flex-col group text-left w-full relative pl-2 hover:pl-4"
+                            >
+                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-0 bg-amber-600 transition-all duration-300 group-hover:h-[80%]"></span>
+                              <span className="text-[13px] font-extrabold tracking-[0.18em] text-neutral-800 group-hover:text-amber-800 transition-colors duration-300 flex items-center gap-2">
+                                <span className="text-amber-600 group-hover:scale-110 transition-all duration-300 text-[10px]">✧</span>
+                                {col.title}
+                              </span>
+                              <span className="text-[9.5px] leading-relaxed text-neutral-500 group-hover:text-neutral-800 tracking-[0.12em] pl-4 mt-1.5 font-medium transition-colors duration-300">
+                                {col.desc}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                        {/* Special: All Fragrances link at the bottom */}
+                        <li className="border-t border-amber-800/10 pt-5 mt-1">
+                          <button
+                            onClick={() => {
+                              setSearchTerm("");
+                              setSelectedCollection(null);
+                              setSelectedBrand(null);
+                              setSelectedOlfactory(null);
+                              setIsMegaMenuOpen(false);
+                              const el = document.getElementById("new-in");
+                              if (el) el.scrollIntoView({ behavior: "smooth" });
+                            }}
+                            className="hover:text-amber-800 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 group text-left w-full text-[13px] font-black tracking-[0.2em] text-neutral-800 pl-2 hover:pl-4"
+                          >
+                            <span className="text-amber-600 group-hover:rotate-180 transition-transform duration-500">✧</span>
+                            ALL FRAGRANCES
+                          </button>
+                        </li>
+                      </ul>
+                    </motion.div>
+
+                    {/* Column 2: OLFACTORY FAMILIES */}
+                    <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
+                      <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
+                        OLFACTORY FAMILIES
+                      </span>
+                      <div className="grid grid-cols-1 gap-3.5">
+                        {MEGA_MENU_OLFACTORY.map((item) => (
+                          <button
+                            key={item.label}
+                            onClick={() => {
+                              setSelectedOlfactory(item.label);
+                              setSelectedBrand(null);
+                              setSelectedCollection(null);
+                              setIsMegaMenuOpen(false);
+                              const el = document.getElementById("new-in");
+                              if (el) el.scrollIntoView({ behavior: "smooth" });
+                            }}
+                            className="relative overflow-hidden bg-white/75 hover:bg-gradient-to-b hover:from-white hover:to-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-5 transition-all duration-300 group/olf flex items-center gap-4 text-left w-full rounded-none cursor-pointer shadow-[0_2px_8px_rgba(27,15,10,0.01)] hover:shadow-[0_15px_30px_rgba(27,15,10,0.04),_0_0_15px_rgba(180,100,50,0.02)]"
+                          >
+                            <div className={`absolute inset-0 bg-gradient-to-r ${item.glow} opacity-0 group-hover/olf:opacity-100 transition-all duration-700 pointer-events-none`}></div>
+                            <div className="relative w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-base z-10 group-hover/olf:border-amber-500/40 group-hover/olf:bg-amber-500/20 group-hover/olf:scale-[1.15] transition-all duration-300">
+                              {item.symbol}
+                            </div>
+                            <div className="flex-grow flex flex-col min-w-0 z-10">
+                              <span className="text-[13px] font-extrabold tracking-[0.15em] text-neutral-800 group-hover/olf:text-amber-800 transition-colors duration-300 uppercase">
+                                {item.label}
+                              </span>
+                              <span className="text-[9px] text-neutral-500 group-hover/olf:text-neutral-700 tracking-[0.12em] font-medium mt-1 transition-colors duration-300 leading-relaxed">
+                                {item.desc}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-neutral-400 group-hover/olf:text-amber-600 group-hover/olf:translate-x-1.5 transition-all duration-300 flex-shrink-0">
+                              ✧
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+
+                    {/* Column 3: AUTEUR BRANDS */}
+                    <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
+                      <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
+                        AUTEUR BRANDS
+                      </span>
+                      <ul className="flex flex-col text-xs font-bold tracking-widest text-neutral-800">
+                        {[
+                          "FILIPPO SORCINELLI",
+                          "INITIO PARFUMS PRIVES",
+                          "TOM FORD",
+                          "RABANNE",
+                          "JULIETTE HAS A GUN",
+                          "HFC",
+                        ].map((bname) => (
+                          <li key={bname} className="border-b border-amber-800/10 last:border-0 py-3.5 first:pt-0">
+                            <button
+                              onClick={() => {
+                                setSelectedBrand(bname);
+                                setSelectedOlfactory(null);
+                                setSelectedCollection(null);
+                                setIsMegaMenuOpen(false);
+                                const el = document.getElementById("new-in");
+                                if (el) el.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
+                                <span>{bname.replace(" PARFUMS PRIVES", "")}</span>
+                              </div>
+                              <span className="text-[8.5px] text-neutral-500 group-hover:text-amber-800 tracking-[0.25em] font-bold uppercase transition-colors select-none">
+                                {bname === "FILIPPO SORCINELLI" ? "ITALY" : bname === "INITIO PARFUMS PRIVES" ? "PARIS" : bname === "TOM FORD" ? "NEW YORK" : bname === "RABANNE" ? "FRANCE" : "GRASSE"}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.div>
+
+                    {/* Column 4: CINEMATIC SPOTLIGHT */}
+                    <motion.div
+                      variants={megaMenuColumnVariants}
+                      className="flex flex-col bg-white hover:bg-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-6 relative overflow-hidden group/spot shadow-[0_4px_20px_rgba(27,15,10,0.02)] hover:shadow-[0_25px_60px_rgba(180,100,50,0.06)] transition-all duration-500 rounded-none"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-b from-amber-500/[0.01] to-transparent pointer-events-none z-0"></div>
+                      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-48 h-48 bg-radial from-amber-500/[0.05] to-transparent rounded-full blur-[35px] pointer-events-none z-0"></div>
+
+                      <div className="absolute top-3 right-3 text-[7.5px] tracking-[0.3em] font-extrabold text-amber-800 uppercase bg-[#FAF6F0] border border-amber-800/20 px-2 py-1 z-10 shadow-[0_2px_8px_rgba(27,15,10,0.03)]">
+                        FEATURED ✧
+                      </div>
+
+                      <motion.div
+                        inherit={false}
+                        variants={{}}
+                        whileHover={{ y: -6, rotate: 1 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        className="relative w-full h-[140px] flex items-center justify-center mb-5 cursor-pointer z-10"
+                        onClick={() => {
+                          setSelectedBrand("FILIPPO SORCINELLI");
+                          setSelectedOlfactory(null);
+                          setSelectedCollection(null);
+                          setIsMegaMenuOpen(false);
+                          const el = document.getElementById("new-in");
+                          if (el) el.scrollIntoView({ behavior: "smooth" });
+                        }}
+                      >
+                        <Image
+                          src="/catalog_sorcinelli_epicentro.png"
+                          alt="Epicentro Filippo Sorcinelli"
+                          width={95}
+                          height={115}
+                          className="object-contain z-10 filter drop-shadow-[0_12px_22px_rgba(27,15,10,0.05)] group-hover/spot:scale-105 transition-transform duration-700"
+                        />
+                      </motion.div>
+
+                      <div className="flex flex-col text-left z-10 mt-auto font-sans-luxury">
+                        <span className="text-[9.5px] font-black tracking-[0.3em] text-amber-700 uppercase">
+                          FILIPPO SORCINELLI
+                        </span>
+                        <h4 className="text-[16px] font-serif-luxury font-semibold text-neutral-800 tracking-wider uppercase mt-1.5 line-clamp-1 group-hover/spot:text-amber-800 transition-colors">
+                          EPICENTRO
+                        </h4>
+                        <p className="text-[9.5px] leading-relaxed text-neutral-500 group-hover/spot:text-neutral-700 mt-2.5 tracking-[0.12em] uppercase line-clamp-2">
+                          Artistic volcanic incense formulation with raw metallic cap.
+                        </p>
+
+                        <button
+                          onClick={() => {
+                            setSelectedBrand("FILIPPO SORCINELLI");
+                            setSelectedOlfactory(null);
+                            setSelectedCollection(null);
+                            setIsMegaMenuOpen(false);
+                            const el = document.getElementById("new-in");
+                            if (el) el.scrollIntoView({ behavior: "smooth" });
+                          }}
+                          className="mt-5 w-full bg-neutral-900 text-white hover:bg-amber-950 hover:text-white font-extrabold tracking-[0.25em] text-[9.5px] py-4 transition-all duration-300 text-center cursor-pointer shadow-[0_10px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(180,100,50,0.12)] border border-neutral-900 hover:border-amber-950 uppercase relative overflow-hidden group-hover/spot:bg-neutral-800"
+                        >
+                          <span className="relative z-10">ACQUIRE SCENT — $326.00</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.header>
+        )}
+      </AnimatePresence>
+
       {/* Premium Cinematic Preloader */}
       <AnimatePresence>
         {showIntro && (
@@ -1189,12 +2045,12 @@ export default function Home() {
                 >
                   ABOUT
                 </a>
-                <a
-                  href="#contact"
+                <Link
+                  href="/contact"
                   className="transition-colors duration-300 uppercase font-medium hover:text-white"
                 >
                   CONTACT
-                </a>
+                </Link>
                 {/* Shop trigger wrapper for Mega Menu */}
                 <div
                   className="relative py-2 cursor-pointer"
@@ -1587,8 +2443,8 @@ export default function Home() {
                               setIsCurrencyDropdownOpen(false);
                             }}
                             className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
-                                ? "bg-amber-800/10 text-amber-800"
-                                : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
+                              ? "bg-amber-800/10 text-amber-800"
+                              : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
                               }`}
                           >
                             <span>{curr.label}</span>
@@ -2157,7 +3013,12 @@ export default function Home() {
             </motion.div>
 
             {/* Scrolling Track Container */}
-            <div className="w-full md:flex-grow overflow-hidden flex items-center relative min-h-[110px] bg-transparent">
+            <motion.div
+              initial={{ y: 30, opacity: 0 }}
+              animate={revealInterface ? { y: 0, opacity: 1 } : { y: 30, opacity: 0 }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
+              className="w-full md:flex-grow overflow-hidden flex items-center relative min-h-[110px] bg-transparent"
+            >
               <div className="animate-marquee-track flex divide-x divide-white/10">
                 {/* Loop 1 */}
                 {PRODUCTS.map((prod, index) => {
@@ -2291,7 +3152,7 @@ export default function Home() {
                   );
                 })}
               </div>
-            </div>
+            </motion.div>
           </div>
         </footer>
       </div>
@@ -3082,8 +3943,8 @@ export default function Home() {
                           setIsCurrencyDropdownOpen(false);
                         }}
                         className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
-                            ? "bg-amber-800/10 text-amber-800"
-                            : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
+                          ? "bg-amber-800/10 text-amber-800"
+                          : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
                           }`}
                       >
                         <span>{curr.label}</span>
