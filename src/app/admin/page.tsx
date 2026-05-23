@@ -41,6 +41,27 @@ function AdminDashboardContent() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   
+  // Collections states
+  const [collections, setCollections] = useState<any[]>([]);
+  const [productCollections, setProductCollections] = useState<any[]>([]);
+  const [showAddCollection, setShowAddCollection] = useState(false);
+  const [selectedManageCollection, setSelectedManageCollection] = useState<any | null>(null);
+  const [manageSearchTerm, setManageSearchTerm] = useState("");
+
+  // Clean search filter when product mapping modal is closed
+  useEffect(() => {
+    if (!selectedManageCollection) {
+      setManageSearchTerm("");
+    }
+  }, [selectedManageCollection]);
+  
+  // New Collection Form States
+  const [newCollectionTitle, setNewCollectionTitle] = useState("");
+  const [newCollectionDescription, setNewCollectionDescription] = useState("");
+  const [newCollectionCoverImage, setNewCollectionCoverImage] = useState("/campaign-gold.png");
+  const [newCollectionType, setNewCollectionType] = useState("manual");
+  const [newCollectionRuleTag, setNewCollectionRuleTag] = useState("");
+
   // Drawer/Modal forms states
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -51,7 +72,11 @@ function AdminDashboardContent() {
   const [newProductName, setNewProductName] = useState("");
   const [newProductBrand, setNewProductBrand] = useState("GHARIB PRIVÉ");
   const [newProductPrice, setNewProductPrice] = useState("");
-  const [newProductSizes, setNewProductSizes] = useState("50ml, 100ml");
+  
+  // Overhauled sizes and tags
+  const [selectedSizesList, setSelectedSizesList] = useState<string[]>(["50ml", "100ml"]);
+  const [customSizeInput, setCustomSizeInput] = useState("");
+  const [newProductTags, setNewProductTags] = useState("");
   const [newProductOlfactory, setNewProductOlfactory] = useState("Woody & Oud");
   const [newProductTagline, setNewProductTagline] = useState("");
   const [newProductDescription, setNewProductDescription] = useState("");
@@ -84,6 +109,8 @@ function AdminDashboardContent() {
         const { data: tData } = await clientSafeSupabase.from("order_tracking").select("*");
         const { data: abData } = await clientSafeSupabase.from("abandoned_carts").select("*");
         const { data: oiData } = await clientSafeSupabase.from("order_items").select("*");
+        const { data: colData } = await clientSafeSupabase.from("collections").select("*");
+        const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
 
         setProducts(pData || []);
         setOrders(oData || []);
@@ -94,6 +121,8 @@ function AdminDashboardContent() {
         setTrackingLogs(tData || []);
         setAbandonedCarts(abData || []);
         setOrderItems(oiData || []);
+        setCollections(colData || []);
+        setProductCollections(pcData || []);
       } catch (err) {
         console.error("Dashboard seed retrieval failure", err);
       } finally {
@@ -115,10 +144,15 @@ function AdminDashboardContent() {
       triggerToast("Missing required perfume attributes.");
       return;
     }
+    if (selectedSizesList.length === 0) {
+      triggerToast("Please specify at least one flacon size.");
+      return;
+    }
 
     const price = parseFloat(newProductPrice);
-    const sizes = newProductSizes.split(",").map(s => s.trim());
+    const sizes = selectedSizesList;
     const nextId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 110;
+    const parsedTags = newProductTags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
 
     const newPerfume = {
       id: nextId,
@@ -130,6 +164,7 @@ function AdminDashboardContent() {
       description: newProductDescription || "An avante-garde olfactory masterpiece designed for elite collections.",
       tagline: newProductTagline || "Signature Extrait",
       olfactory_group: newProductOlfactory,
+      tags: parsedTags,
       is_new: true,
       is_bestseller: false,
       is_featured_large: false
@@ -150,6 +185,10 @@ function AdminDashboardContent() {
       setProducts(prev => [newPerfume, ...prev]);
       setInventory(prev => [...newInventoryRows, ...prev]);
 
+      // Refetch mapping states since local storage/trigger mapped matching smart collections automatically!
+      const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
+      setProductCollections(pcData || []);
+
       triggerToast(`Successfully registered ${newProductName} under brand ${newProductBrand}.`);
       setShowAddProduct(false);
       
@@ -158,8 +197,57 @@ function AdminDashboardContent() {
       setNewProductPrice("");
       setNewProductTagline("");
       setNewProductDescription("");
+      setNewProductTags("");
+      setSelectedSizesList(["50ml", "100ml"]);
     } catch (err) {
       triggerToast("Failed to write to database kernel.");
+    }
+  };
+
+  const getProductsInCollection = (collectionId: string) => {
+    const mappings = productCollections.filter((pc: any) => pc.collection_id === collectionId);
+    return products.filter((p: any) => mappings.some((m: any) => m.product_id === p.id));
+  };
+
+  const handleCreateCollection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCollectionTitle) {
+      triggerToast("Collection title is required.");
+      return;
+    }
+    const id = newCollectionTitle.toLowerCase().replace(/\s+/g, "-");
+    
+    const rules = newCollectionType === "automated" 
+      ? [{ field: "tag", relation: "equals", value: newCollectionRuleTag.trim().toLowerCase() }]
+      : [];
+
+    const newCol = {
+      id,
+      title: newCollectionTitle,
+      description: newCollectionDescription || "A curated luxury selection.",
+      cover_image: newCollectionCoverImage || "/campaign-gold.png",
+      type: newCollectionType,
+      rules
+    };
+
+    try {
+      await clientSafeSupabase.from("collections").insert(newCol);
+      setCollections(prev => [...prev, newCol]);
+      
+      // Sync mappings state immediately
+      const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
+      setProductCollections(pcData || []);
+
+      triggerToast(`Successfully created ${newCollectionType} collection: ${newCollectionTitle}`);
+      setShowAddCollection(false);
+      
+      // Reset inputs
+      setNewCollectionTitle("");
+      setNewCollectionDescription("");
+      setNewCollectionRuleTag("");
+      setNewCollectionType("manual");
+    } catch (err) {
+      triggerToast("Failed to create collection.");
     }
   };
 
@@ -1015,12 +1103,19 @@ function AdminDashboardContent() {
             {/* ADD PRODUCT DRAWER MODAL */}
             <AnimatePresence>
               {showAddProduct && (
-                <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6">
+                <div 
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setShowAddProduct(false);
+                    }
+                  }}
+                  className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6 cursor-pointer"
+                >
                   <motion.div 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[500px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative"
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[500px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative cursor-default"
                   >
                     <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
                     <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
@@ -1029,7 +1124,7 @@ function AdminDashboardContent() {
                       <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase">
                         ADD NEW LUXURY SCENT
                       </h4>
-                      <button onClick={() => setShowAddProduct(false)} className="text-[#EAE3DB]/40 hover:text-white">
+                      <button onClick={() => setShowAddProduct(false)} className="text-[#EAE3DB]/40 hover:text-white cursor-pointer">
                         <X className="w-5 h-5" />
                       </button>
                     </div>
@@ -1090,14 +1185,84 @@ function AdminDashboardContent() {
                         </div>
                       </div>
 
+                      {/* Overhauled flacon sizes with visual pills and custom input */}
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">FLACON SIZES (SELECT PROTOCOL)</label>
+                        <div className="flex flex-wrap gap-2 mb-1">
+                          {["30ml", "50ml", "75ml", "90ml", "100ml", "250ml"].map(size => {
+                            const isSelected = selectedSizesList.includes(size);
+                            return (
+                              <button
+                                key={size}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedSizesList(prev => prev.filter(s => s !== size));
+                                  } else {
+                                    setSelectedSizesList(prev => [...prev, size]);
+                                  }
+                                }}
+                                className={`px-3 py-1.5 text-[8px] font-black tracking-widest transition-all cursor-pointer ${
+                                  isSelected 
+                                    ? "bg-[#8C6239] text-white border border-[#8C6239]" 
+                                    : "bg-white/5 text-[#EAE3DB]/60 border border-white/[0.08] hover:border-amber-600/35 hover:text-white"
+                                }`}
+                              >
+                                {size}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="text"
+                            placeholder="CUSTOM SIZE (E.G. 15ML)"
+                            value={customSizeInput}
+                            onChange={(e) => setCustomSizeInput(e.target.value)}
+                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2 outline-none focus:border-amber-500 font-bold uppercase text-[8.5px] tracking-widest flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const val = customSizeInput.trim().toUpperCase();
+                              if (val && !selectedSizesList.includes(val)) {
+                                setSelectedSizesList(prev => [...prev, val]);
+                                setCustomSizeInput("");
+                              }
+                            }}
+                            className="bg-[#8C6239] hover:bg-[#9E734A] text-white text-[8px] font-black tracking-widest px-4 py-2 flex-shrink-0 cursor-pointer"
+                          >
+                            + ADD CUSTOM
+                          </button>
+                        </div>
+                        
+                        {selectedSizesList.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            <span className="text-[7px] text-[#EAE3DB]/40 font-black self-center mr-1">SELECTED:</span>
+                            {selectedSizesList.map(size => (
+                              <span 
+                                key={size} 
+                                onClick={() => setSelectedSizesList(prev => prev.filter(s => s !== size))}
+                                className="text-[6.5px] border border-amber-600/35 bg-amber-950/20 text-amber-400 px-2 py-0.5 font-black tracking-widest uppercase cursor-pointer hover:bg-red-950/30 hover:border-red-500/20 hover:text-red-400 flex items-center gap-1"
+                                title="Click to remove"
+                              >
+                                {size} <X className="w-1.5 h-1.5" />
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product Tags input for automated collection matching */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">FLACON SIZES (COMMA SEPARATED)</label>
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">SEARCH TAGS (COMMA SEPARATED)</label>
                         <input 
                           type="text" 
-                          value={newProductSizes}
-                          onChange={(e) => setNewProductSizes(e.target.value)}
-                          required
-                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                          value={newProductTags}
+                          onChange={(e) => setNewProductTags(e.target.value)}
+                          placeholder="e.g. memoir, noble, wood, oud"
+                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[9px] tracking-widest placeholder-[#EAE3DB]/20"
                         />
                       </div>
 
@@ -1125,7 +1290,7 @@ function AdminDashboardContent() {
 
                       <button
                         type="submit"
-                        className="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-black tracking-[0.25em] py-4 w-full mt-4"
+                        className="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-black tracking-[0.25em] py-4 w-full mt-4 cursor-pointer"
                       >
                         PUBLISH TO GLOBAL CATALOGUE
                       </button>
@@ -1256,85 +1421,43 @@ function AdminDashboardContent() {
         )}
 
         {/* ========================================================
-            TAB: PURCHASE ORDERS & TRANSFERS
+            TAB: STOCK TRANSFERS
             ======================================================== */}
-        {(currentTab === "purchase_orders" || currentTab === "transfers") && (
-          <div className="flex grid grid-cols-1 lg:grid-cols-2 gap-8">
-            
-            {/* Purchase orders */}
-            <div className="bg-white/[0.015] border border-white/[0.04] p-6">
-              <div className="mb-6 flex justify-between items-center">
-                <div>
-                  <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
-                    SUPPLY LOGISTICS
-                  </span>
-                  <h3 className="text-[12px] font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
-                    PURCHASE ORDERS
-                  </h3>
-                </div>
-                <span className="text-[7px] border border-amber-600/35 bg-amber-950/20 text-amber-400 px-2 py-0.5 font-black">ACTIVE DRAUGHTS</span>
+        {currentTab === "transfers" && (
+          <div className="bg-white border border-[#E5DFD3] p-6 shadow-[0_4px_20px_rgba(140,98,57,0.02)] max-w-3xl">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
+                  LOGISTICS BACKPLANE
+                </span>
+                <h3 className="text-[12px] font-serif-luxury text-[#1C120C] uppercase tracking-wider">
+                  STOCK TRANSFERS
+                </h3>
               </div>
-
-              <div className="flex flex-col gap-4">
-                
-                <div className="bg-[#090503] border border-white/[0.04] p-4 flex justify-between items-center">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] tracking-widest font-black text-amber-400 uppercase">PO-GSL-France</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/40 font-bold uppercase">Grasse Scent Labs, France</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/80 font-bold uppercase">Material: 500 Flacons + 10L Essential Oud</span>
-                  </div>
-                  <span className="text-[8px] border border-yellow-800/40 bg-yellow-950/20 text-yellow-400 px-2 py-1 font-bold">IN TRANSIT</span>
-                </div>
-
-                <div className="bg-[#090503] border border-white/[0.04] p-4 flex justify-between items-center">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] tracking-widest font-black text-amber-400 uppercase">PO-DLP-Boxes</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/40 font-bold uppercase">Dubai Luxury Packaging, UAE</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/80 font-bold uppercase">Material: 1000 Embossed Velvet Cases</span>
-                  </div>
-                  <span className="text-[8px] border border-green-800/40 bg-green-950/20 text-green-400 px-2 py-1 font-bold">ARRIVED SECUR</span>
-                </div>
-
-              </div>
+              <span className="text-[7px] border border-amber-600/35 bg-amber-500/10 text-amber-800 px-2 py-0.5 font-black">INTER-DEPOT</span>
             </div>
 
-            {/* Transfers */}
-            <div className="bg-white/[0.015] border border-white/[0.04] p-6">
-              <div className="mb-6 flex justify-between items-center">
-                <div>
-                  <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
-                    LOGISTICS BACKPLANE
-                  </span>
-                  <h3 className="text-[12px] font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
-                    STOCK TRANSFERS
-                  </h3>
+            <div className="flex flex-col gap-4">
+              
+              <div className="bg-[#FAF9F6] border border-[#E5DFD3] p-4 flex justify-between items-center">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] tracking-widest font-black text-amber-800 uppercase font-mono">XFER-00129</span>
+                  <span className="text-[8.5px] text-[#7C6E65] font-bold uppercase">From: Dubai Freezone Warehouse</span>
+                  <span className="text-[8.5px] text-[#2A1A0F] font-bold uppercase">To: Jumeirah Luxury Scent Boutique</span>
                 </div>
-                <span className="text-[7px] border border-amber-600/35 bg-amber-950/20 text-amber-400 px-2 py-0.5 font-black font-serif">INTER-DEPOT</span>
+                <span className="text-[8px] border border-green-600/35 bg-green-500/10 text-green-700 px-2 py-1 font-bold">COMPLETED</span>
               </div>
 
-              <div className="flex flex-col gap-4">
-                
-                <div className="bg-[#090503] border border-white/[0.04] p-4 flex justify-between items-center">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] tracking-widest font-black text-amber-400 uppercase">XFER-00129</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/40 font-bold uppercase">From: Dubai Freezone Warehouse</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/80 font-bold uppercase">To: Jumeirah Luxury Scent Boutique</span>
-                  </div>
-                  <span className="text-[8px] border border-green-800/40 bg-green-950/20 text-green-400 px-2 py-1 font-bold">COMPLETED</span>
+              <div className="bg-[#FAF9F6] border border-[#E5DFD3] p-4 flex justify-between items-center">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] tracking-widest font-black text-amber-800 uppercase font-mono">XFER-00130</span>
+                  <span className="text-[8.5px] text-[#7C6E65] font-bold uppercase">From: Jebel Ali Depot</span>
+                  <span className="text-[8.5px] text-[#2A1A0F] font-bold uppercase">To: Dubai Mall Scent Pavilion</span>
                 </div>
-
-                <div className="bg-[#090503] border border-white/[0.04] p-4 flex justify-between items-center">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] tracking-widest font-black text-amber-400 uppercase">XFER-00130</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/40 font-bold uppercase">From: Jebel Ali Depot</span>
-                    <span className="text-[8.5px] text-[#EAE3DB]/80 font-bold uppercase">To: Dubai Mall Scent Pavilion</span>
-                  </div>
-                  <span className="text-[8px] border border-blue-800/40 bg-blue-950/20 text-blue-400 px-2 py-1 font-bold">DISPATCHING</span>
-                </div>
-
+                <span className="text-[8px] border border-blue-600/35 bg-blue-500/10 text-blue-700 px-2 py-1 font-bold">DISPATCHING</span>
               </div>
+
             </div>
-
           </div>
         )}
 
@@ -2341,6 +2464,472 @@ function AdminDashboardContent() {
               </div>
 
             </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            TAB: COLLECTIONS REGISTRY
+            ======================================================== */}
+        {currentTab === "collections" && (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
+                  COLLECTION MATRIX CONTROL
+                </span>
+                <h2 className="text-xl font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
+                  COLLECTIONS REGISTRY
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setShowAddCollection(true)}
+                className="bg-amber-600 hover:bg-amber-500 text-white text-[8.5px] tracking-[0.25em] font-black uppercase px-4 py-3 flex items-center gap-2 rounded-none transition-all flex-shrink-0 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                CREATE NEW COLLECTION
+              </button>
+            </div>
+
+            {/* Collections Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {collections.map(col => {
+                const associatedProducts = getProductsInCollection(col.id);
+                return (
+                  <div key={col.id} className="bg-white/[0.015] border border-white/[0.04] p-5 flex flex-col justify-between relative group hover:border-amber-600/25 transition-all">
+                    
+                    <div className="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-amber-500/40" />
+                    <div className="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-amber-500/40" />
+                    
+                    <div>
+                      {/* Image cover */}
+                      <div className="w-full h-32 bg-amber-950/10 border border-white/[0.03] mb-4 overflow-hidden relative">
+                        <img 
+                          src={col.cover_image || "/campaign-gold.png"}
+                          alt={col.title}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          onError={(e: any) => { e.target.src = "/campaign-gold.png"; }}
+                        />
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          <span className={`text-[6.5px] font-black tracking-widest px-2 py-0.5 border ${
+                            (col.type || "manual") === "automated"
+                              ? "border-amber-600/35 bg-amber-950/80 text-amber-400"
+                              : "border-white/[0.08] bg-black/80 text-white"
+                          }`}>
+                            {(col.type || "manual").toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 mb-3">
+                        <h4 className="text-[11px] tracking-wider text-[#EAE3DB] font-serif-luxury font-bold uppercase">{col.title}</h4>
+                        <p className="text-[9px] text-[#EAE3DB]/60 font-sans tracking-wide leading-relaxed line-clamp-2">
+                          {col.description || "A curated luxury selection."}
+                        </p>
+                      </div>
+
+                      {/* Matching rules if automated */}
+                      {(col.type || "manual") === "automated" && col.rules && col.rules.length > 0 && (
+                        <div className="bg-white/[0.02] border border-white/[0.04] p-2.5 mb-4 text-[7.5px] font-black tracking-wider uppercase flex flex-col gap-1">
+                          <span className="text-amber-500/70">AUTOMATION LOGIC STATUS:</span>
+                          {col.rules.map((rule: any, idx: number) => (
+                            <span key={idx} className="text-[#EAE3DB]/80 block font-mono">
+                              • Product {rule.field} {rule.relation} '{rule.value}'
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Associated Products feedback list */}
+                      <div className="flex flex-col gap-1.5 border-t border-white/[0.04] pt-3.5 mb-5">
+                        <div className="flex justify-between items-center text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">
+                          <span>LINKED PRODUCTS ({associatedProducts.length})</span>
+                        </div>
+                        
+                        <div className="flex -space-x-2.5 overflow-hidden py-1">
+                          {associatedProducts.slice(0, 5).map(prod => (
+                            <div 
+                              key={prod.id} 
+                              className="inline-block h-6 w-6 rounded-full ring-2 ring-[#070301] bg-[#090503] overflow-hidden"
+                              title={`${prod.brand} - ${prod.name}`}
+                            >
+                              <img className="h-full w-full object-contain" src={prod.image_url} alt={prod.name} />
+                            </div>
+                          ))}
+                          {associatedProducts.length > 5 && (
+                            <div className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/5 ring-2 ring-[#070301] text-[6.5px] font-bold text-amber-500">
+                              +{associatedProducts.length - 5}
+                            </div>
+                          )}
+                          {associatedProducts.length === 0 && (
+                            <span className="text-[7px] text-[#EAE3DB]/30 font-black italic block">
+                              NO MAPPED FLACONS FOUND
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      {(col.type || "manual") === "manual" && (
+                        <button
+                          onClick={() => setSelectedManageCollection(col)}
+                          className="bg-white/5 hover:bg-white/10 text-white border border-white/[0.08] text-[7.5px] tracking-[0.2em] font-black uppercase py-2.5 px-3 flex-1 transition-all cursor-pointer"
+                        >
+                          MANAGE PRODUCTS
+                        </button>
+                      )}
+                      
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Are you sure you want to deregister this collection?`)) {
+                            try {
+                              await clientSafeSupabase.from("collections").delete().eq("id", col.id);
+                              setCollections(prev => prev.filter(c => c.id !== col.id));
+                              triggerToast(`Successfully removed collection: ${col.title}`);
+                            } catch (err) {
+                              triggerToast("Failed to delete collection from database.");
+                            }
+                          }
+                        }}
+                        className="border border-[#b91c1c]/20 hover:border-[#b91c1c]/40 text-[#b91c1c] hover:bg-[#b91c1c]/5 text-[7.5px] tracking-[0.2em] font-black uppercase py-2.5 px-3 cursor-pointer transition-all"
+                        title="Remove Collection"
+                      >
+                        DELETE
+                      </button>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ADD COLLECTION DRAWER MODAL */}
+            <AnimatePresence>
+              {showAddCollection && (
+                <div 
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setShowAddCollection(false);
+                    }
+                  }}
+                  className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6 cursor-pointer"
+                >
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[500px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative cursor-default"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase">
+                        CREATE NEW SCENT VAULT
+                      </h4>
+                      <button onClick={() => setShowAddCollection(false)} className="text-[#EAE3DB]/40 hover:text-white cursor-pointer">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleCreateCollection} className="flex flex-col gap-4 text-[10px] tracking-wider font-semibold uppercase">
+                      
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">COLLECTION TITLE</label>
+                        <input 
+                          type="text" 
+                          value={newCollectionTitle}
+                          onChange={(e) => setNewCollectionTitle(e.target.value)}
+                          required
+                          placeholder="e.g. Royal Oud Vault"
+                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">COLLECTION DESCRIPTION</label>
+                        <textarea 
+                          value={newCollectionDescription}
+                          onChange={(e) => setNewCollectionDescription(e.target.value)}
+                          placeholder="Describe this exclusive scent curation narrative..."
+                          rows={3}
+                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full resize-none font-sans"
+                        />
+                      </div>
+
+                      {/* Cover Image Upload & Custom Selection Console */}
+                      <div className="flex flex-col gap-3">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">COLLECTION COVER IMAGE SOURCE</label>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* File Uploader */}
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-[7px] text-amber-500/70 font-black">UPLOAD COVER ART FILE</span>
+                            <label className="bg-white/5 border-2 border-dashed border-white/[0.08] hover:border-amber-500/50 p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer relative h-28 select-none transition-all">
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+
+                                  const uploadToSupabase = async () => {
+                                    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                                    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+                                    const isRealActive = supabaseUrl && supabaseAnonKey;
+                                    
+                                    if (isRealActive) {
+                                      try {
+                                        triggerToast("Uploading to Supabase Vault...");
+                                        const fileExt = file.name.split('.').pop();
+                                        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+                                        const filePath = `covers/${fileName}`;
+
+                                        const { data, error } = await clientSafeSupabase.storage
+                                          .from('collection-covers')
+                                          .upload(filePath, file);
+
+                                        if (error) throw error;
+
+                                        const { data: { publicUrl } } = clientSafeSupabase.storage
+                                          .from('collection-covers')
+                                          .getPublicUrl(filePath);
+
+                                        setNewCollectionCoverImage(publicUrl);
+                                        triggerToast("Uploaded directly to Supabase storage!");
+                                        return;
+                                      } catch (err) {
+                                        console.error("Storage upload failed, falling back to Base64", err);
+                                      }
+                                    }
+
+                                    // Fallback to Base64
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      setNewCollectionCoverImage(reader.result as string);
+                                      triggerToast("Luxury cover art loaded (Base64 offline mode).");
+                                    };
+                                    reader.readAsDataURL(file);
+                                  };
+
+                                  uploadToSupabase();
+                                }}
+                              />
+                              {newCollectionCoverImage && newCollectionCoverImage.startsWith("data:") ? (
+                                <div className="absolute inset-1 bg-[#090503] flex items-center justify-center p-1.5 border border-[#8C6239]/20">
+                                  <img 
+                                    src={newCollectionCoverImage} 
+                                    alt="Upload preview" 
+                                    className="w-full h-full object-cover" 
+                                  />
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="text-[18px] text-amber-500/55">+</span>
+                                  <span className="text-[7.5px] text-[#EAE3DB]/60 tracking-widest font-black uppercase text-center">SELECT IMAGE</span>
+                                </>
+                              )}
+                            </label>
+                          </div>
+
+                          {/* Presets and custom URL */}
+                          <div className="flex flex-col justify-between gap-2">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[7px] text-[#EAE3DB]/50 font-black">CHOOSE LUXURY PRESET</span>
+                              <select
+                                value={newCollectionCoverImage.startsWith("data:") ? "/campaign-gold.png" : newCollectionCoverImage}
+                                onChange={(e) => setNewCollectionCoverImage(e.target.value)}
+                                className="bg-[#090503] border border-white/[0.08] px-3.5 py-2.5 text-[8.5px] outline-none focus:border-amber-500 font-bold uppercase w-full text-white cursor-pointer"
+                              >
+                                <option value="/campaign-gold.png">GOLD AMBIANCE</option>
+                                <option value="/campaign-purple.png">ROYAL PURPLE</option>
+                                <option value="/campaign-red-black.png">NOIR CARMINE</option>
+                                <option value="/campaign-silver.png">ARGENT LUSTRE</option>
+                              </select>
+                            </div>
+                            
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[7px] text-[#EAE3DB]/50 font-black">OR PASTE WEB URL</span>
+                              <input 
+                                type="text"
+                                placeholder="HTTPS://STORE.COM/IMAGE.PNG"
+                                value={newCollectionCoverImage.startsWith("data:") ? "" : newCollectionCoverImage}
+                                onChange={(e) => setNewCollectionCoverImage(e.target.value)}
+                                className="bg-white/5 border border-white/[0.08] px-3.5 py-2 text-[8px] outline-none focus:border-amber-500 font-bold uppercase w-full text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Collection Type Method */}
+                      <div className="flex grid grid-cols-1 gap-1.5">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">METHOD (ADD TYPE)</label>
+                          <select
+                            value={newCollectionType}
+                            onChange={(e) => setNewCollectionType(e.target.value)}
+                            className="bg-[#090503] border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-white cursor-pointer"
+                          >
+                            <option value="manual">MANUAL (SHOPIFY DIRECT)</option>
+                            <option value="automated">AUTOMATED (SMART TAG MATCH)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Automated Rules field */}
+                      {newCollectionType === "automated" && (
+                        <div className="border border-amber-600/30 bg-amber-950/10 p-4 flex flex-col gap-3">
+                          <span className="text-[8px] tracking-[0.2em] text-amber-400 font-black block">AUTOMATION PROTOCOL RULES</span>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[7px] tracking-widest text-[#EAE3DB]/40 font-black">MATCH PRODUCTS THAT MATCH THE FOLLOWING TAG</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. oud"
+                              value={newCollectionRuleTag}
+                              onChange={(e) => setNewCollectionRuleTag(e.target.value)}
+                              className="bg-white/5 border border-white/[0.08] px-3 py-2 outline-none focus:border-amber-500 font-bold uppercase text-[9px] tracking-widest w-full"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        className="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-black tracking-[0.25em] py-4 w-full mt-4 cursor-pointer"
+                      >
+                        PUBLISH COLLECTION TO STACK
+                      </button>
+
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* MANAGE MANUAL COLLECTION PRODUCTS OVERLAY MODAL */}
+            <AnimatePresence>
+              {selectedManageCollection && (
+                <div 
+                  onClick={() => setSelectedManageCollection(null)}
+                  className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6 cursor-pointer"
+                >
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[500px] max-h-[85vh] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative cursor-default flex flex-col justify-between"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase">
+                          MANAGE SCENT ASSIGNMENT
+                        </h4>
+                        <button onClick={() => setSelectedManageCollection(null)} className="text-[#EAE3DB]/40 hover:text-white cursor-pointer">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <span className="text-[8px] text-[#EAE3DB]/40 font-black block tracking-widest uppercase mb-5">
+                        VAULT COLLECTION: {selectedManageCollection.title.toUpperCase()} (MANUAL)
+                      </span>
+
+                      {/* Search Bar */}
+                      <div className="relative w-full mb-4">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#EAE3DB]/30">
+                          <Search className="w-3.5 h-3.5" />
+                        </span>
+                        <input 
+                          type="text" 
+                          value={manageSearchTerm}
+                          onChange={(e) => setManageSearchTerm(e.target.value)}
+                          placeholder="SEARCH SCENTS OR BRANDS..."
+                          className="bg-white/[0.02] border border-white/[0.08] focus:border-amber-500/50 rounded-none pl-9 pr-4 py-2 text-[9px] tracking-widest text-[#EAE3DB] outline-none placeholder-[#EAE3DB]/20 w-full font-bold uppercase"
+                        />
+                      </div>
+
+                      {/* Product list checklist */}
+                      <div className="flex flex-col gap-2.5 overflow-y-auto max-h-[38vh] pr-2 scrollbar-thin">
+                        {products
+                          .filter(prod => 
+                            prod.name.toLowerCase().includes(manageSearchTerm.toLowerCase()) ||
+                            prod.brand.toLowerCase().includes(manageSearchTerm.toLowerCase())
+                          )
+                          .map(prod => {
+                          const isAssigned = productCollections.some(
+                            (pc: any) => pc.product_id === prod.id && pc.collection_id === selectedManageCollection.id
+                          );
+                          return (
+                            <div 
+                              key={prod.id} 
+                              onClick={async () => {
+                                try {
+                                  if (isAssigned) {
+                                    await clientSafeSupabase
+                                      .from("product_collections")
+                                      .delete()
+                                      .match({ product_id: prod.id, collection_id: selectedManageCollection.id });
+                                    setProductCollections(prev => prev.filter(
+                                      (pc: any) => !(pc.product_id === prod.id && pc.collection_id === selectedManageCollection.id)
+                                    ));
+                                    triggerToast(`Deregistered ${prod.name} from collection.`);
+                                  } else {
+                                    const newMapping = { product_id: prod.id, collection_id: selectedManageCollection.id };
+                                    await clientSafeSupabase.from("product_collections").insert(newMapping);
+                                    setProductCollections(prev => [...prev, newMapping]);
+                                    triggerToast(`Successfully assigned ${prod.name} to collection.`);
+                                  }
+                                } catch (err) {
+                                  triggerToast("Assignment database write failed.");
+                                }
+                              }}
+                              className={`flex items-center justify-between p-3 border transition-all cursor-pointer ${
+                                isAssigned 
+                                  ? "border-amber-600/40 bg-amber-950/10" 
+                                  : "border-white/[0.04] hover:bg-white/[0.02]"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 bg-amber-950/20 border border-white/[0.04] p-1 flex items-center justify-center">
+                                  <img src={prod.image_url} alt={prod.name} className="w-full h-full object-contain" />
+                                </div>
+                                <div className="flex flex-col text-left">
+                                  <span className="text-[7.5px] text-amber-500 font-bold uppercase tracking-wider">{prod.brand}</span>
+                                  <span className="text-[#EAE3DB] text-[9.5px] uppercase font-bold tracking-wider">{prod.name}</span>
+                                </div>
+                              </div>
+                              
+                              <div className={`w-4 h-4 border flex items-center justify-center ${
+                                isAssigned 
+                                  ? "border-[#8C6239] bg-[#8C6239] text-white" 
+                                  : "border-white/[0.08]"
+                              }`}>
+                                {isAssigned && <Check className="w-3 h-3" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedManageCollection(null)}
+                      className="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-black tracking-[0.25em] py-3.5 w-full mt-6 cursor-pointer"
+                    >
+                      SAVE SCENT MAPPINGS
+                    </button>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
           </div>
         )}
 

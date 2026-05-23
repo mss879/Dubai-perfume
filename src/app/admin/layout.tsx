@@ -19,9 +19,17 @@ function AdminSidebarLinks() {
     { id: "dashboard", label: "Home Dashboard", icon: Home },
     { id: "orders", label: "Orders Registry", icon: ShoppingBag },
     { id: "reports", label: "Executive Reports", icon: ClipboardList },
-    { id: "products", label: "Products & Collections", icon: Tag },
+    { 
+      id: "products-group", 
+      label: "Products", 
+      icon: Tag, 
+      isGroup: true,
+      subItems: [
+        { id: "products", label: "Products Catalog" },
+        { id: "collections", label: "Collections Registry" }
+      ]
+    },
     { id: "inventory", label: "Inventory Tracker", icon: Layers },
-    { id: "purchase_orders", label: "Purchase Orders", icon: ClipboardList },
     { id: "transfers", label: "Stock Transfers", icon: GitCompare },
     { id: "gift_cards", label: "Gift Cards Vault", icon: Gift },
     { id: "customers", label: "Customers Catalog", icon: Users },
@@ -36,6 +44,36 @@ function AdminSidebarLinks() {
   return (
     <div className="flex flex-col gap-1">
       {links.map(link => {
+        if (link.isGroup) {
+          const LinkIcon = link.icon;
+          return (
+            <div key={link.id} className="flex flex-col mb-1 mt-1">
+              <div className="flex items-center gap-3 px-3.5 py-2.5 text-[9px] font-bold tracking-[0.15em] text-[#5C4E46] uppercase select-none">
+                <LinkIcon className="w-4 h-4 text-[#8C6239]" />
+                <span>{link.label}</span>
+              </div>
+              <div className="flex flex-col pl-4 border-l border-[#D8CFBF]/40 ml-5.5 gap-0.5">
+                {link.subItems.map(sub => {
+                  const isSubActive = currentTab === sub.id;
+                  return (
+                    <Link 
+                      key={sub.id}
+                      href={`/admin?tab=${sub.id}`} 
+                      className={`py-2 px-3.5 text-[8.5px] font-bold tracking-widest uppercase transition-all duration-200 block ${
+                        isSubActive 
+                          ? "text-[#8C6239] font-black border-l-2 border-[#8C6239] bg-[#8C6239]/5 pl-4" 
+                          : "text-[#5C4E46]/80 hover:text-[#1C120C] hover:bg-[#8C6239]/2 hover:pl-4 border-l-2 border-transparent"
+                      }`}
+                    >
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+
         const LinkIcon = link.icon;
         const isActive = currentTab === link.id;
         return (

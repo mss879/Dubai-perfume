@@ -13,26 +13,27 @@ export const supabase = isRealSupabaseConfigured
 
 // Mock Database Storage seeded with migrations mock data
 const SEED_PRODUCTS = [
-  { id: 101, brand: "GHARIB PRIVÉ", name: "Gold Memoir", price: 203.00, sizes: ["50ml", "100ml"], image_url: "/gold-memoir.png", description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.", tagline: "Aurum Noble Edition", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false },
-  { id: 102, brand: "GHARIB PRIVÉ", name: "Enchanted Blooms", price: 119.00, sizes: ["30ml", "50ml"], image_url: "/enchanted-blooms.png", description: "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.", tagline: "Aura Floral Collection", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false },
-  { id: 103, brand: "GHARIB PRIVÉ", name: "Mystic Oud", price: 169.00, sizes: ["50ml", "100ml"], image_url: "/mystic-oud.png", description: "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.", tagline: "Royal Spice Reserve", olfactory_group: "Woody & Oud", is_new: false, is_bestseller: true, is_featured_large: false },
-  { id: 104, brand: "GHARIB PRIVÉ", name: "Ocean Breeze", price: 145.00, sizes: ["50ml", "100ml"], image_url: "/ocean-breeze.png", description: "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.", tagline: "Aquamarine Coast Line", olfactory_group: "Fresh & Aquatic", is_new: true, is_bestseller: false, is_featured_large: false },
-  { id: 1, brand: "INITIO PARFUMS PRIVES", name: "Oud for greatness", price: 331.00, sizes: ["50ml", "90ml"], image_url: "/catalog_initio_oud.png", description: "A highly concentrated woody fragrance with saffron, lavender, and nutmeg, dry down to heavy dark agarwood oud.", tagline: "Sacred Geometry", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false },
-  { id: 2, brand: "JULIETTE HAS A GUN", name: "Juliette", price: 98.00, sizes: ["30ml", "50ml"], image_url: "/catalog_juliette_gun.png", description: "A beautiful floral-sensual blend that balances elegant red berries, white blossoms, and sweet woods.", tagline: "Femme Fatale Signature", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false },
-  { id: 3, brand: "RABANNE", name: "Phantom", price: 120.00, sizes: ["50ml", "100ml"], image_url: "/catalog_rabanne_phantom.png", description: "A fresh, futuristic composition featuring notes of lavender, creamy patchouli, vanilla, and sparkling vetiver.", tagline: "Metallic Modern Scent", olfactory_group: "Fresh & Aquatic", is_new: true, is_bestseller: false, is_featured_large: false },
-  { id: 4, brand: "HFC", name: "Devil's intrigue", price: 370.00, sizes: ["75ml"], image_url: "/catalog_hfc_devils.png", description: "Deep, dramatic amber oriental profile combining warm vanilla, fine sandalwood, and exotic floral touches.", tagline: "Hypnotic Indulgence", olfactory_group: "Amber & Oriental", is_new: false, is_bestseller: true, is_featured_large: false },
-  { id: 5, brand: "TOM FORD", name: "Lost Cherry eau de parfum", price: 326.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_tom_ford_cherry.png", description: "A full-bodied journey into the once-forbidden; a contrasting scent that reveals a tempting dichotomy of playful, candy-like gleam on the outside and luscious flesh on the inside.", tagline: "Gourmand Masterpiece", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false },
-  { id: 6, brand: "MOSCHINO", name: "Toy Boy", price: 43.12, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_moschino_teddy.png", description: "A unique, masculine fragrance blending dark woods, pink pepper, rose notes, and resinous amber highlights.", tagline: "Playful Sophistication", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false },
-  { id: 7, brand: "FILIPPO SORCINELLI", name: "Epicentro", price: 326.00, sizes: ["50ml", "100ml"], image_url: "/catalog_sorcinelli_epicentro.png", description: "Epicentro is an artistic perfume that represents a deep volcanic impact. Topped with a heavy raw silver metal crumpled sculpture that serves as both the cap and a piece of tactile art.", tagline: "Artistic Volcanic Shudder", olfactory_group: "Fresh & Aquatic", is_new: false, is_bestseller: true, is_featured_large: true },
-  { id: 8, brand: "FILIPPO SORCINELLI", name: "Eio_non_ho_mani_che_mi_accarezzino_il_volto", price: 235.00, sizes: ["100ml"], image_url: "/catalog_sorcinelli_leather.png", description: "An avante-garde olfactory masterpiece encased in a bottle wrapped dramatically in draped, textured organic matte black leather folds.", tagline: "Gothic Draped Incense", olfactory_group: "Amber & Oriental", is_new: true, is_bestseller: false, is_featured_large: true },
-  { id: 9, brand: "MARC-ANTOINE BARROIS", name: "Ganymede Extrait", price: 319.00, sizes: ["30ml", "50ml"], image_url: "/catalog_marc_barrois.png", description: "Deeply woody and metallic masterpiece with leather, saffron, mandarin, and heavy warm immortelle.", tagline: "Cosmic Leather Harmony", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false }
+  { id: 101, brand: "GHARIB PRIVÉ", name: "Gold Memoir", price: 203.00, sizes: ["50ml", "100ml"], image_url: "/gold-memoir.png", description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.", tagline: "Aurum Noble Edition", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["memoir", "noble", "wood", "oud"] },
+  { id: 102, brand: "GHARIB PRIVÉ", name: "Enchanted Blooms", price: 119.00, sizes: ["30ml", "50ml"], image_url: "/enchanted-blooms.png", description: "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.", tagline: "Aura Floral Collection", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["floral", "sweet", "jasmine", "blooms"] },
+  { id: 103, brand: "GHARIB PRIVÉ", name: "Mystic Oud", price: 169.00, sizes: ["50ml", "100ml"], image_url: "/mystic-oud.png", description: "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.", tagline: "Royal Spice Reserve", olfactory_group: "Woody & Oud", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["oriental", "oud", "spice", "mystic"] },
+  { id: 104, brand: "GHARIB PRIVÉ", name: "Ocean Breeze", price: 145.00, sizes: ["50ml", "100ml"], image_url: "/ocean-breeze.png", description: "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.", tagline: "Aquamarine Coast Line", olfactory_group: "Fresh & Aquatic", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["fresh", "aquatic", "marine", "ocean"] },
+  { id: 1, brand: "INITIO PARFUMS PRIVES", name: "Oud for greatness", price: 331.00, sizes: ["50ml", "90ml"], image_url: "/catalog_initio_oud.png", description: "A highly concentrated woody fragrance with saffron, lavender, and nutmeg, dry down to heavy dark agarwood oud.", tagline: "Sacred Geometry", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["wood", "oud", "greatness", "saffron"] },
+  { id: 2, brand: "JULIETTE HAS A GUN", name: "Juliette", price: 98.00, sizes: ["30ml", "50ml"], image_url: "/catalog_juliette_gun.png", description: "A beautiful floral-sensual blend that balances elegant red berries, white blossoms, and sweet woods.", tagline: "Femme Fatale Signature", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["floral", "sweet", "juliette", "rose"] },
+  { id: 3, brand: "RABANNE", name: "Phantom", price: 120.00, sizes: ["50ml", "100ml"], image_url: "/catalog_rabanne_phantom.png", description: "A fresh, futuristic composition featuring notes of lavender, creamy patchouli, vanilla, and sparkling vetiver.", tagline: "Metallic Modern Scent", olfactory_group: "Fresh & Aquatic", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["fresh", "aquatic", "phantom", "modern"] },
+  { id: 4, brand: "HFC", name: "Devil's intrigue", price: 370.00, sizes: ["75ml"], image_url: "/catalog_hfc_devils.png", description: "Deep, dramatic amber oriental profile combining warm vanilla, fine sandalwood, and exotic floral touches.", tagline: "Hypnotic Indulgence", olfactory_group: "Amber & Oriental", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["amber", "oriental", "devil", "sandalwood"] },
+  { id: 5, brand: "TOM FORD", name: "Lost Cherry eau de parfum", price: 326.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_tom_ford_cherry.png", description: "A full-bodied journey into the once-forbidden; a contrasting scent that reveals a tempting dichotomy of playful, candy-like gleam on the outside and luscious flesh on the inside.", tagline: "Gourmand Masterpiece", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["floral", "sweet", "cherry", "gourmand"] },
+  { id: 6, brand: "MOSCHINO", name: "Toy Boy", price: 43.12, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_moschino_teddy.png", description: "A unique, masculine fragrance blending dark woods, pink pepper, rose notes, and resinous amber highlights.", tagline: "Playful Sophistication", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["wood", "oud", "toy", "rose"] },
+  { id: 7, brand: "FILIPPO SORCINELLI", name: "Epicentro", price: 326.00, sizes: ["50ml", "100ml"], image_url: "/catalog_sorcinelli_epicentro.png", description: "Epicentro is an artistic perfume that represents a deep volcanic impact. Topped with a heavy raw silver metal crumpled sculpture that serves as both the cap and a piece of tactile art.", tagline: "Artistic Volcanic Shudder", olfactory_group: "Fresh & Aquatic", is_new: false, is_bestseller: true, is_featured_large: true, tags: ["fresh", "aquatic", "epicentro", "volcanic"] },
+  { id: 8, brand: "FILIPPO SORCINELLI", name: "Eio_non_ho_mani_che_mi_accarezzino_il_volto", price: 235.00, sizes: ["100ml"], image_url: "/catalog_sorcinelli_leather.png", description: "An avante-garde olfactory masterpiece encased in a bottle wrapped dramatically in draped, textured organic matte black leather folds.", tagline: "Gothic Draped Incense", olfactory_group: "Amber & Oriental", is_new: true, is_bestseller: false, is_featured_large: true, tags: ["amber", "oriental", "gothic", "incense"] },
+  { id: 9, brand: "MARC-ANTOINE BARROIS", name: "Ganymede Extrait", price: 319.00, sizes: ["30ml", "50ml"], image_url: "/catalog_marc_barrois.png", description: "Deeply woody and metallic masterpiece with leather, saffron, mandarin, and heavy warm immortelle.", tagline: "Cosmic Leather Harmony", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["wood", "oud", "ganymede", "leather"] }
 ];
 
 const SEED_COLLECTIONS = [
-  { id: "new", title: "New Arrivals", description: "Freshly decanted summer releases", cover_image: "/campaign-gold.png" },
-  { id: "bestsellers", title: "Bestsellers", description: "Our most coveted scent signatures", cover_image: "/campaign-purple.png" },
-  { id: "favorites", title: "Exclusive Offers", description: "Hand-selected custom vaults", cover_image: "/campaign-red-black.png" },
-  { id: "trending", title: "Trending", description: "Most wanted scent creations", cover_image: "/campaign-silver.png" }
+  { id: "new", title: "New Arrivals", description: "Freshly decanted summer releases", cover_image: "/campaign-gold.png", type: "manual", rules: [] },
+  { id: "bestsellers", title: "Bestsellers", description: "Our most coveted scent signatures", cover_image: "/campaign-purple.png", type: "manual", rules: [] },
+  { id: "favorites", title: "Exclusive Offers", description: "Hand-selected custom vaults", cover_image: "/campaign-red-black.png", type: "manual", rules: [] },
+  { id: "trending", title: "Trending", description: "Most wanted scent creations", cover_image: "/campaign-silver.png", type: "manual", rules: [] },
+  { id: "smart-ouds", title: "Automated Oud Vault", description: "Smart collection automatically populated with all fragrances containing the oud tag.", cover_image: "/campaign-gold.png", type: "automated", rules: [{ field: "tag", relation: "equals", value: "oud" }] }
 ];
 
 const SEED_INVENTORY = [
@@ -97,6 +98,35 @@ const SEED_TRACKING = [
   { id: 7, order_id: "ORD-9923", status: "Quality Control", location: "Dubai Blending Labs", description: "Scent profile approved by Gharib QC team.", updated_at: new Date(Date.now() - 86400000 * 3.5).toISOString() }
 ];
 
+const SEED_PRODUCT_COLLECTIONS = [
+  { product_id: 101, collection_id: "new" },
+  { product_id: 104, collection_id: "new" },
+  { product_id: 1, collection_id: "new" },
+  { product_id: 3, collection_id: "new" },
+  { product_id: 6, collection_id: "new" },
+  { product_id: 8, collection_id: "new" },
+  { product_id: 9, collection_id: "new" },
+  { product_id: 102, collection_id: "bestsellers" },
+  { product_id: 103, collection_id: "bestsellers" },
+  { product_id: 2, collection_id: "bestsellers" },
+  { product_id: 4, collection_id: "bestsellers" },
+  { product_id: 5, collection_id: "bestsellers" },
+  { product_id: 7, collection_id: "bestsellers" },
+  { product_id: 2, collection_id: "favorites" },
+  { product_id: 4, collection_id: "favorites" },
+  { product_id: 5, collection_id: "favorites" },
+  { product_id: 9, collection_id: "favorites" },
+  { product_id: 101, collection_id: "trending" },
+  { product_id: 1, collection_id: "trending" },
+  { product_id: 4, collection_id: "trending" },
+  { product_id: 7, collection_id: "trending" },
+  { product_id: 101, collection_id: "smart-ouds" },
+  { product_id: 103, collection_id: "smart-ouds" },
+  { product_id: 1, collection_id: "smart-ouds" },
+  { product_id: 6, collection_id: "smart-ouds" },
+  { product_id: 9, collection_id: "smart-ouds" }
+];
+
 // Seed browser storage if keys are absent
 const getLocalStorage = (key: string, defaultValue: any) => {
   if (typeof window === "undefined") return defaultValue;
@@ -114,8 +144,75 @@ const setLocalStorage = (key: string, value: any) => {
   }
 };
 
+
+// Sync functions to mimic database triggers for automated collections
+const syncMockAutomatedCollections = (product: any) => {
+  const collections = getLocalStorage("mock_collections", SEED_COLLECTIONS);
+  let mappings = getLocalStorage("mock_product_collections", SEED_PRODUCT_COLLECTIONS);
+  
+  // 1. Remove this product's links to automated collections
+  const automatedCollectionIds = collections.filter((c: any) => (c.type || "manual") === "automated").map((c: any) => c.id);
+  mappings = mappings.filter((m: any) => !(m.product_id === product.id && automatedCollectionIds.includes(m.collection_id)));
+  
+  // 2. For each automated collection, evaluate tags
+  collections.filter((c: any) => (c.type || "manual") === "automated").forEach((col: any) => {
+    let matches = false;
+    if (Array.isArray(col.rules)) {
+      col.rules.forEach((rule: any) => {
+        if (rule.field === "tag" && rule.relation === "equals") {
+          if (Array.isArray(product.tags) && product.tags.includes(rule.value)) {
+            matches = true;
+          }
+        }
+      });
+    }
+    
+    if (matches) {
+      if (!mappings.some((m: any) => m.product_id === product.id && m.collection_id === col.id)) {
+        mappings.push({ product_id: product.id, collection_id: col.id });
+      }
+    }
+  });
+  
+  setLocalStorage("mock_product_collections", mappings);
+};
+
+const syncMockProductsForCollection = (collection: any) => {
+  if ((collection.type || "manual") !== "automated") return;
+  const products = getLocalStorage("mock_products", SEED_PRODUCTS);
+  let mappings = getLocalStorage("mock_product_collections", SEED_PRODUCT_COLLECTIONS);
+  
+  // Clear existing mappings for this collection
+  mappings = mappings.filter((m: any) => m.collection_id !== collection.id);
+  
+  products.forEach((prod: any) => {
+    let matches = false;
+    if (Array.isArray(collection.rules)) {
+      collection.rules.forEach((rule: any) => {
+        if (rule.field === "tag" && rule.relation === "equals") {
+          if (Array.isArray(prod.tags) && prod.tags.includes(rule.value)) {
+            matches = true;
+          }
+        }
+      });
+    }
+    if (matches) {
+      mappings.push({ product_id: prod.id, collection_id: collection.id });
+    }
+  });
+  
+  setLocalStorage("mock_product_collections", mappings);
+};
+
 // Client-side Local Storage Database Orchestrator
 class MockSupabaseClient {
+  storage = {
+    from: (bucket: string) => ({
+      upload: async (path: string, file: any) => ({ data: { path }, error: null }),
+      getPublicUrl: (path: string) => ({ data: { publicUrl: "" } })
+    })
+  };
+
   auth = {
     signUp: async ({ email, password, options }: any) => {
       const customers = getLocalStorage("mock_customers", SEED_CUSTOMERS);
@@ -194,6 +291,7 @@ class MockSupabaseClient {
       switch (table) {
         case "products": return getLocalStorage("mock_products", SEED_PRODUCTS);
         case "collections": return getLocalStorage("mock_collections", SEED_COLLECTIONS);
+        case "product_collections": return getLocalStorage("mock_product_collections", SEED_PRODUCT_COLLECTIONS);
         case "inventory": return getLocalStorage("mock_inventory", SEED_INVENTORY);
         case "orders": return getLocalStorage("mock_orders", SEED_ORDERS);
         case "customers": return getLocalStorage("mock_customers", SEED_CUSTOMERS);
@@ -210,6 +308,7 @@ class MockSupabaseClient {
       switch (table) {
         case "products": setLocalStorage("mock_products", data); break;
         case "collections": setLocalStorage("mock_collections", data); break;
+        case "product_collections": setLocalStorage("mock_product_collections", data); break;
         case "inventory": setLocalStorage("mock_inventory", data); break;
         case "orders": setLocalStorage("mock_orders", data); break;
         case "customers": setLocalStorage("mock_customers", data); break;
@@ -232,6 +331,14 @@ class MockSupabaseClient {
         const updated = [...data, ...insertRows];
         setTableData(updated);
         data = updated;
+        
+        if (table === "products") {
+          insertRows.forEach(syncMockAutomatedCollections);
+        }
+        if (table === "collections") {
+          insertRows.forEach(syncMockProductsForCollection);
+        }
+        
         return queryBuilder;
       },
       upsert: (rows: any) => {
@@ -247,6 +354,14 @@ class MockSupabaseClient {
         });
         setTableData(updated);
         data = updated;
+        
+        if (table === "products") {
+          upsertRows.forEach(syncMockAutomatedCollections);
+        }
+        if (table === "collections") {
+          upsertRows.forEach(syncMockProductsForCollection);
+        }
+        
         return queryBuilder;
       },
       update: (values: any) => {
