@@ -213,6 +213,7 @@ interface CatalogProduct {
   isFeaturedLarge?: boolean;
   description?: string;
   olfactory?: string;
+  gender?: string;
 }
 
 const CATALOG_PRODUCTS: CatalogProduct[] = [
@@ -225,6 +226,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     image: "/catalog_initio_oud.png",
     isNew: true,
     olfactory: "Woody & Oud",
+    gender: "unisex",
   },
   {
     id: 2,
@@ -235,6 +237,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     image: "/catalog_juliette_gun.png",
     isBestSeller: true,
     olfactory: "Floral & Sweet",
+    gender: "women",
   },
   {
     id: 3,
@@ -245,6 +248,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     image: "/catalog_rabanne_phantom.png",
     isNew: true,
     olfactory: "Fresh & Aquatic",
+    gender: "men",
   },
   {
     id: 4,
@@ -255,6 +259,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     image: "/catalog_hfc_devils.png",
     isBestSeller: true,
     olfactory: "Amber & Oriental",
+    gender: "women",
   },
   {
     id: 5,
@@ -265,6 +270,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     image: "/catalog_tom_ford_cherry.png",
     isBestSeller: true,
     olfactory: "Floral & Sweet",
+    gender: "women",
   },
   {
     id: 6,
@@ -275,6 +281,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     image: "/catalog_moschino_teddy.png",
     isNew: true,
     olfactory: "Woody & Oud",
+    gender: "men",
   },
   {
     id: 7,
@@ -287,6 +294,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     isFeaturedLarge: true,
     description: "Epicentro is an artistic perfume that represents a deep volcanic impact. Topped with a heavy raw silver metal crumpled sculpture that serves as both the cap and a piece of tactile art, reflecting the dramatic nature of Filippo Sorcinelli's olfactory expressions.",
     olfactory: "Fresh & Aquatic",
+    gender: "unisex",
   },
   {
     id: 8,
@@ -299,6 +307,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     isFeaturedLarge: true,
     description: "An avante-garde olfactory masterpiece encased in a bottle wrapped dramatically in draped, textured organic matte black leather folds. The scent is a heavy gothic mixture of warm incense, cedarwood, and resinous leather accord.",
     olfactory: "Amber & Oriental",
+    gender: "unisex",
   },
   {
     id: 9,
@@ -309,6 +318,7 @@ const CATALOG_PRODUCTS: CatalogProduct[] = [
     image: "/catalog_marc_barrois.png",
     isNew: true,
     olfactory: "Woody & Oud",
+    gender: "unisex",
   }
 ];
 
@@ -380,114 +390,149 @@ const MEGA_MENU_OLFACTORY = [
 const ProductCard: React.FC<{
   prod: CatalogProduct;
   isFav: boolean;
+  isBuyLater: boolean;
+  isLoggedIn: boolean;
   activeSize: string;
   onToggleFavorite: (id: number) => void;
+  onToggleBuyLater: (id: number) => void;
   onSelectSize: (id: number, size: string) => void;
   onAddToCart: (id: number) => void;
   badgeText?: string;
   formatCurrency: (aedAmount: number) => string;
-}> = ({ prod, isFav, activeSize, onToggleFavorite, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
+}> = ({ prod, isFav, isBuyLater, isLoggedIn, activeSize, onToggleFavorite, onToggleBuyLater, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
 
+  const router = useRouter();
 
   return (
     <div
-      className="border border-[#EAE3DB]/70 bg-white hover:border-amber-700/30 hover:shadow-[0_24px_55px_rgba(27,15,10,0.08)] group transition-all duration-500 flex flex-col justify-between rounded-none overflow-hidden h-full relative"
+      className="group relative border border-[#EAE3DB] bg-white hover:border-amber-700/40 hover:shadow-[0_24px_55px_rgba(28,18,12,0.06)] transition-all duration-500 rounded-none overflow-hidden flex flex-col justify-between h-full"
     >
       {/* Decorative gold hairline accents that appear on card hover */}
-      <div className="absolute inset-0 border border-amber-600/0 group-hover:border-amber-600/10 pointer-events-none transition-colors duration-500 z-10"></div>
+      <div className="absolute inset-0 border border-amber-600/0 group-hover:border-amber-600/10 pointer-events-none transition-all duration-500 z-20"></div>
 
       {/* Image Container */}
-      <div className="bg-gradient-to-b from-[#FAF9F6] via-[#FCFBF9] to-[#FAF9F6] relative flex items-center justify-center p-0 w-full aspect-[4/5] overflow-hidden border-b border-[#EAE3DB]/30">
+      <div className="bg-[#F6F5F2] relative flex items-center justify-center p-0 w-full aspect-square overflow-hidden border-b border-[#EAE3DB]/50">
 
         {/* Luxury Badge */}
         {badgeText && (
-          <span className="absolute top-4 left-4 bg-black text-white text-[7px] font-bold tracking-[0.25em] uppercase px-3 py-1.5 rounded-none z-20 shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/10">
+          <span className="absolute top-3 left-3 bg-black/90 backdrop-blur-md text-white text-[7px] font-bold tracking-[0.25em] uppercase px-2.5 py-1 z-20 border border-white/5">
             {badgeText}
           </span>
         )}
 
-        {/* Favorite Trigger */}
-        <button
-          onClick={() => onToggleFavorite(prod.id)}
-          className="absolute top-4 right-4 z-20 w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm border border-[#EAE3DB] text-black hover:bg-black hover:border-black hover:text-white hover:scale-105 active:scale-95 transition-all duration-300 rounded-full cursor-pointer shadow-sm animate-fade-in"
-        >
-          <svg
-            className={`w-3.5 h-3.5 transition-transform duration-300 ${isFav ? "fill-red-600 text-red-600 scale-110" : "text-black hover:scale-110"}`}
-            fill={isFav ? "currentColor" : "none"}
-            stroke={isFav ? "none" : "currentColor"}
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-          >
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-          </svg>
-        </button>
+        {/* Favorite & Buy Later Triggers (Only visible when logged in) */}
+        {isLoggedIn && (
+          <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button
+              onClick={() => onToggleFavorite(prod.id)}
+              className="w-7 h-7 flex items-center justify-center bg-white/95 border border-neutral-100 text-neutral-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 hover:scale-105 active:scale-95 transition-all duration-200 rounded-full cursor-pointer shadow-sm"
+              title={isFav ? "Remove from Favorites" : "Add to Favorites"}
+            >
+              <svg
+                className={`w-3 h-3 transition-colors duration-200 ${isFav ? "fill-red-600 text-red-600" : ""}`}
+                fill={isFav ? "currentColor" : "none"}
+                stroke={isFav ? "none" : "currentColor"}
+                strokeWidth="2.2"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+            </button>
 
-        {/* Subtle Ambient Radial Glow Behind Bottle */}
+            <button
+              onClick={() => onToggleBuyLater(prod.id)}
+              className="w-7 h-7 flex items-center justify-center bg-white/95 border border-neutral-100 text-neutral-600 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-100 hover:scale-105 active:scale-95 transition-all duration-200 rounded-full cursor-pointer shadow-sm"
+              title={isBuyLater ? "Remove from Buy Later" : "Save to Buy Later"}
+            >
+              <svg
+                className={`w-3 h-3 transition-colors duration-200 ${isBuyLater ? "fill-amber-600 text-amber-600" : ""}`}
+                fill={isBuyLater ? "currentColor" : "none"}
+                stroke={isBuyLater ? "none" : "currentColor"}
+                strokeWidth="2.2"
+                viewBox="0 0 24 24"
+              >
+                <path d="M5 3h14a2 2 0 0 1 2 2v16l-9-4-9 4V5a2 2 0 0 1 2-2z" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Subtle Ambient Glow */}
         <div className="absolute inset-0 bg-radial from-amber-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
 
         {/* Main Bottle Image */}
-        <div className="relative w-full h-full transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.05] flex items-center justify-center">
+        <div className="relative w-full h-full transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03] flex items-center justify-center">
           <Image
             src={prod.image}
             alt={prod.name}
             fill
-            className="object-cover p-0 filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] group-hover:drop-shadow-[0_18px_32px_rgba(82,42,22,0.12)] transition-all duration-700"
+            className="object-cover p-0 transition-all duration-700"
             priority
           />
         </div>
       </div>
 
       {/* Details Box */}
-      <div className="p-6 flex-grow flex flex-col justify-between text-left bg-white transition-all duration-500 font-sans-luxury">
-
-        {/* Brand & Name */}
+      <div className="p-4 flex-grow flex flex-col justify-between text-left bg-white transition-all duration-500 font-sans-luxury">
+        {/* Brand & Name Row */}
         <div>
-          <span className="text-[9px] tracking-[0.3em] font-extrabold text-amber-800 uppercase block mb-1 pl-[0.15em]">
+          <span className="text-[8px] tracking-[0.25em] font-extrabold text-amber-800 uppercase block mb-1">
             {prod.brand}
           </span>
-          <h3 className="text-[17px] font-serif font-bold text-neutral-950 uppercase tracking-wide leading-snug line-clamp-1 group-hover:text-amber-900 transition-colors duration-300">
+          <h3 className="text-[13px] font-bold text-neutral-950 uppercase tracking-wider line-clamp-1 group-hover:text-amber-900 transition-colors duration-300 font-sans-luxury">
             {prod.name}
           </h3>
-          <span className="text-[9px] text-[#8C8276] tracking-[0.2em] uppercase block mt-1.5 font-bold pl-[0.15em]">
-            EXTRAIT DE PARFUM
-          </span>
         </div>
 
-        {/* Sizes & Purchase Row */}
-        <div className="mt-6 border-t border-neutral-100 pt-5 flex flex-col gap-5">
+        {/* Pricing & CTA Buttons on the same row */}
+        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-neutral-100">
+          <span className="text-[13px] font-serif font-extrabold text-[#2A1A0F] tracking-widest">
+            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
+          </span>
 
-          {/* Sizing Controls */}
-          <div className="flex flex-col gap-2.5">
-            <span className="text-[10px] tracking-[0.2em] text-[#8C8276] uppercase font-bold pl-[0.1em]">Select Volume</span>
-            <div className="flex items-center gap-2">
-              {prod.sizes.map((sz) => (
-                <button
-                  key={sz}
-                  onClick={() => onSelectSize(prod.id, sz)}
-                  className={`px-3.5 py-2 text-[10px] font-mono tracking-widest uppercase transition-all duration-300 cursor-pointer font-bold border rounded-none ${activeSize === sz
-                    ? "bg-black border-black text-white shadow-sm"
-                    : "bg-white border-[#EAE3DB] text-neutral-600 hover:border-black hover:text-black"
-                    }`}
-                >
-                  {sz}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Pricing & CTA Button */}
-          <div className="flex items-center justify-between mt-1 pt-4 border-t border-neutral-100">
-            <div className="flex flex-col">
-              <span className="text-[10px] tracking-[0.2em] text-[#8C8276] uppercase font-bold">RETAIL PRICE</span>
-              <span className="text-lg font-serif font-extrabold text-neutral-950 tracking-wide mt-0.5">
-                {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
+            {/* Basket Icon Button with Slide-Up Hover Effect */}
             <button
               onClick={() => onAddToCart(prod.id)}
-              className="bg-black hover:bg-amber-950 text-white text-[9px] font-black tracking-[0.25em] uppercase px-5 py-3.5 transition-all duration-300 rounded-none cursor-pointer border border-black hover:border-amber-950 active:scale-95 shadow-[0_4px_12px_rgba(0,0,0,0.06)] active:shadow-sm"
+              className="w-7 h-7 flex items-center justify-center border border-neutral-200 hover:border-black text-neutral-700 hover:text-black bg-transparent hover:bg-neutral-50 transition-all duration-300 rounded-none cursor-pointer active:scale-95 group/basket overflow-hidden relative"
+              title="Add to Basket"
             >
-              ADD TO BAG
+              <div className="relative w-3.5 h-3.5 overflow-hidden flex flex-col justify-center items-center">
+                <svg
+                  className="w-3.5 h-3.5 absolute transition-all duration-300 transform group-hover/basket:-translate-y-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                <svg
+                  className="w-3.5 h-3.5 absolute text-amber-700 transition-all duration-300 transform translate-y-5 group-hover/basket:translate-y-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+              </div>
+            </button>
+
+            {/* Buy Now Text Button with Shine and Slide Background Effect */}
+            <button
+              onClick={() => {
+                onAddToCart(prod.id);
+                router.push("/checkout");
+              }}
+              className="bg-black text-white text-[8px] font-black tracking-[0.2em] hover:tracking-[0.28em] uppercase px-3 py-1.5 transition-all duration-500 rounded-none cursor-pointer border border-black active:scale-95 shadow-sm relative overflow-hidden group/buynow flex items-center justify-center"
+            >
+              {/* Background gradient slide-up fill */}
+              <span className="absolute inset-0 bg-gradient-to-r from-amber-950 to-amber-800 translate-y-full group-hover/buynow:translate-y-0 transition-transform duration-500 ease-out z-0"></span>
+              {/* Shine Sweep Reflection */}
+              <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 -translate-x-[150%] group-hover/buynow:translate-x-[150%] transition-transform duration-1000 ease-in-out z-0"></span>
+
+              <span className="relative z-10">BUY NOW</span>
             </button>
           </div>
         </div>
@@ -495,6 +540,8 @@ const ProductCard: React.FC<{
     </div>
   );
 };
+
+import { clientSafeSupabase } from "./lib/supabase";
 
 interface CartItem {
   product: CatalogProduct;
@@ -520,7 +567,8 @@ export default function Home() {
 
   // Catalog e-commerce states
   const [activeCatalogTab, setActiveCatalogTab] = useState<"all" | "new" | "bestsellers" | "favorites">("all");
-  const [favorites, setFavorites] = useState<number[]>([2, 4, 5, 9]); // default pre-liked standard perfume bottles for symmetrical grid
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [buyLater, setBuyLater] = useState<number[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({
     1: "50ml",
     2: "30ml",
@@ -779,9 +827,285 @@ export default function Home() {
   const [selectedOlfactory, setSelectedOlfactory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<"all" | "new" | "bestsellers" | "favorites" | "offers" | "trending" | null>(null);
+  const [selectedGender, setSelectedGender] = useState<string | null>(null);
+  const [selectedMenuGender, setSelectedMenuGender] = useState<string | null>(null);
   const [searchSuggestions, setSearchSuggestions] = useState<CatalogProduct[]>([]);
   const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMegaMenuOpen) {
+      setSelectedMenuGender(null);
+    }
+  }, [isMegaMenuOpen]);
+
+  const renderMegaMenuContent = () => {
+    if (!selectedMenuGender) {
+      return (
+        <div className="max-w-[1440px] mx-auto px-12 py-12 relative z-10 font-sans-luxury">
+          <div className="border-b border-amber-800/10 pb-5 mb-8 flex justify-between items-baseline">
+            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase pl-[0.1em]">
+              SELECT COLLECTION GENDER
+            </span>
+            <button
+              onClick={() => {
+                setSelectedGender(null);
+                setIsMegaMenuOpen(false);
+                const el = document.getElementById("new-in");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="text-[10px] tracking-widest text-neutral-500 hover:text-amber-800 uppercase font-black transition-colors cursor-pointer"
+            >
+              Skip to All Fragrances →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {[
+              { id: "men", title: "MEN", desc: "Intense, woody, and smoky formulations.", img: "/men-perfume.jpg" },
+              { id: "women", title: "WOMEN", desc: "Sensual, floral, and sweet blends.", img: "/women-perfume.jpg" }
+            ].map((gender) => (
+              <div
+                key={gender.id}
+                onClick={() => setSelectedMenuGender(gender.id)}
+                className="group relative h-[280px] overflow-hidden border border-amber-800/10 cursor-pointer shadow-lg hover:shadow-[0_20px_40px_rgba(27,15,10,0.12)] hover:border-amber-600/35 transition-all duration-500 flex flex-col justify-end p-6"
+              >
+                <div
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+                  style={{ backgroundImage: `url(${gender.img})` }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent transition-opacity duration-300 group-hover:opacity-90" />
+                <div className="relative z-10 flex flex-col gap-1 text-left">
+                  <span className="text-[10px] font-black tracking-[0.25em] text-amber-500 uppercase">
+                    COLLECTION
+                  </span>
+                  <h3 className="text-xl font-black tracking-[0.15em] text-white">
+                    {gender.title}
+                  </h3>
+                  <p className="text-[9.5px] leading-relaxed text-neutral-300 tracking-wider font-medium mt-1 uppercase">
+                    {gender.desc}
+                  </p>
+                </div>
+                <span className="absolute top-4 right-4 text-white text-[12px] opacity-0 group-hover:opacity-100 group-hover:translate-x-1.5 transition-all duration-300">
+                  ✧ Select →
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="max-w-[1440px] mx-auto px-12 py-10 relative z-10 flex flex-col font-sans-luxury">
+        <div className="flex items-center gap-4 border-b border-amber-800/10 pb-5 mb-8 w-full">
+          <button
+            onClick={() => setSelectedMenuGender(null)}
+            className="text-[10.5px] tracking-[0.25em] font-black text-neutral-500 hover:text-amber-800 uppercase transition-colors flex items-center gap-2 cursor-pointer"
+          >
+            ← BACK TO GENDER
+          </button>
+          <span className="text-neutral-300">|</span>
+          <span className="text-[10.5px] tracking-[0.25em] font-black text-amber-800 uppercase">
+            ACTIVE FILTER: {selectedMenuGender === "unisex" ? "UNISEX / SHARED" : selectedMenuGender}'S FRAGRANCES
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 text-left">
+          <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
+            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block pl-[0.1em]">
+              COLLECTIONS
+            </span>
+            <ul className="flex flex-col gap-6">
+              {MEGA_MENU_COLLECTIONS.map((col) => (
+                <li key={col.id}>
+                  <button
+                    onClick={() => {
+                      setSelectedGender(selectedMenuGender);
+                      setSelectedCollection(col.id as any);
+                      setSelectedBrand(null);
+                      setSelectedOlfactory(null);
+                      setIsMegaMenuOpen(false);
+                      const el = document.getElementById("new-in");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="transition-all duration-300 uppercase cursor-pointer flex flex-col group text-left w-full relative pl-2 hover:pl-4"
+                  >
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-0 bg-amber-600 transition-all duration-300 group-hover:h-[80%]"></span>
+                    <span className="text-[13px] font-extrabold tracking-[0.18em] text-neutral-800 group-hover:text-amber-800 transition-colors duration-300 flex items-center gap-2">
+                      <span className="text-amber-600 group-hover:scale-110 transition-all duration-300 text-[10px]">✧</span>
+                      {col.title}
+                    </span>
+                    <span className="text-[9.5px] leading-relaxed text-neutral-500 group-hover:text-neutral-800 tracking-[0.12em] pl-4 mt-1.5 font-medium transition-colors duration-300">
+                      {col.desc}
+                    </span>
+                  </button>
+                </li>
+              ))}
+              <li className="border-t border-amber-800/10 pt-5 mt-1">
+                <button
+                  onClick={() => {
+                    setSelectedGender(selectedMenuGender);
+                    setSearchTerm("");
+                    setSelectedCollection(null);
+                    setSelectedBrand(null);
+                    setSelectedOlfactory(null);
+                    setIsMegaMenuOpen(false);
+                    const el = document.getElementById("new-in");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="hover:text-amber-800 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 group text-left w-full text-[13px] font-black tracking-[0.2em] text-neutral-800 pl-2 hover:pl-4"
+                >
+                  <span className="text-amber-600 group-hover:rotate-180 transition-transform duration-500">✧</span>
+                  ALL FRAGRANCES
+                </button>
+              </li>
+            </ul>
+          </motion.div>
+
+          <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
+            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block pl-[0.1em]">
+              OLFACTORY FAMILIES
+            </span>
+            <div className="grid grid-cols-1 gap-3.5">
+              {MEGA_MENU_OLFACTORY.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => {
+                    setSelectedGender(selectedMenuGender);
+                    setSelectedOlfactory(item.label);
+                    setSelectedBrand(null);
+                    setSelectedCollection(null);
+                    setIsMegaMenuOpen(false);
+                    const el = document.getElementById("new-in");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="relative overflow-hidden bg-white/75 hover:bg-gradient-to-b hover:from-white hover:to-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-5 transition-all duration-300 group/olf flex items-center gap-4 text-left w-full rounded-none cursor-pointer shadow-[0_2px_8px_rgba(27,15,10,0.01)] hover:shadow-[0_15px_30px_rgba(27,15,10,0.04),_0_0_15px_rgba(180,100,50,0.02)]"
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-r ${item.glow} opacity-0 group-hover/olf:opacity-100 transition-all duration-700 pointer-events-none`}></div>
+                  <div className="relative w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-base z-10 group-hover/olf:border-amber-500/40 group-hover/olf:bg-amber-500/20 group-hover/olf:scale-[1.15] transition-all duration-300">
+                    {item.symbol}
+                  </div>
+                  <div className="flex-grow flex flex-col min-w-0 z-10">
+                    <span className="text-[13px] font-extrabold tracking-[0.15em] text-neutral-800 group-hover/olf:text-amber-800 transition-colors duration-300 uppercase">
+                      {item.label}
+                    </span>
+                    <span className="text-[9px] text-neutral-500 group-hover/olf:text-neutral-700 tracking-[0.12em] font-medium mt-1 transition-colors duration-300 leading-relaxed">
+                      {item.desc}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-neutral-400 group-hover/olf:text-amber-600 group-hover/olf:translate-x-1.5 transition-all duration-300 flex-shrink-0">
+                    ✧
+                  </span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
+            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block pl-[0.1em]">
+              AUTEUR BRANDS
+            </span>
+            <ul className="flex flex-col text-xs font-bold tracking-widest text-neutral-800">
+              {[
+                "FILIPPO SORCINELLI",
+                "INITIO PARFUMS PRIVES",
+                "TOM FORD",
+                "RABANNE",
+                "JULIETTE HAS A GUN",
+                "HFC",
+              ].map((bname) => (
+                <li key={bname} className="border-b border-amber-800/10 last:border-0 py-3.5 first:pt-0">
+                  <button
+                    onClick={() => {
+                      setSelectedGender(selectedMenuGender);
+                      setSelectedBrand(bname);
+                      setSelectedOlfactory(null);
+                      setSelectedCollection(null);
+                      setIsMegaMenuOpen(false);
+                      const el = document.getElementById("new-in");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
+                      <span>{bname.replace(" PARFUMS PRIVES", "")}</span>
+                    </div>
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-amber-600">✧</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+
+          <motion.div
+            variants={megaMenuColumnVariants}
+            className="flex flex-col bg-white hover:bg-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-6 relative overflow-hidden group/spot shadow-[0_4px_20px_rgba(27,15,10,0.02)] hover:shadow-[0_25px_60px_rgba(180,100,50,0.06)] transition-all duration-500 rounded-none"
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-amber-500/[0.01] to-transparent pointer-events-none z-0"></div>
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-48 h-48 bg-radial from-amber-500/[0.05] to-transparent rounded-full blur-[35px] pointer-events-none z-0"></div>
+
+            <div className="absolute top-3 right-3 text-[7.5px] tracking-[0.3em] font-extrabold text-amber-800 uppercase bg-[#FAF6F0] border border-amber-800/20 px-2 py-1 z-10 shadow-[0_2px_8px_rgba(27,15,10,0.03)]">
+              FEATURED ✧
+            </div>
+
+            <motion.div
+              inherit={false}
+              variants={{}}
+              whileHover={{ y: -6, rotate: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="relative w-full h-[140px] flex items-center justify-center mb-5 cursor-pointer z-10"
+              onClick={() => {
+                setSelectedGender(selectedMenuGender);
+                setSelectedBrand("FILIPPO SORCINELLI");
+                setSelectedOlfactory(null);
+                setSelectedCollection(null);
+                setIsMegaMenuOpen(false);
+                const el = document.getElementById("new-in");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              <Image
+                src="/catalog_sorcinelli_epicentro.png"
+                alt="Epicentro Filippo Sorcinelli"
+                width={95}
+                height={115}
+                className="object-contain z-10 filter drop-shadow-[0_12px_22px_rgba(27,15,10,0.05)] group-hover/spot:scale-105 transition-transform duration-700"
+              />
+            </motion.div>
+
+            <div className="flex flex-col text-left z-10 mt-auto font-sans-luxury">
+              <span className="text-[9.5px] font-black tracking-[0.3em] text-amber-700 uppercase">
+                FILIPPO SORCINELLI
+              </span>
+              <h4 className="text-[16px] font-serif-luxury font-semibold text-neutral-800 tracking-wider uppercase mt-1.5 line-clamp-1 group-hover/spot:text-amber-800 transition-colors">
+                EPICENTRO
+              </h4>
+              <p className="text-[9.5px] leading-relaxed text-neutral-500 group-hover/spot:text-neutral-700 mt-2.5 tracking-[0.12em] uppercase line-clamp-2">
+                Artistic volcanic incense formulation with raw metallic cap.
+              </p>
+
+              <button
+                onClick={() => {
+                  setSelectedGender(selectedMenuGender);
+                  setSelectedBrand("FILIPPO SORCINELLI");
+                  setSelectedOlfactory(null);
+                  setSelectedCollection(null);
+                  setIsMegaMenuOpen(false);
+                  const el = document.getElementById("new-in");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="mt-5 w-full bg-neutral-900 text-white hover:bg-amber-950 hover:text-white font-extrabold tracking-[0.25em] text-[9.5px] py-4 transition-all duration-300 text-center cursor-pointer shadow-[0_10px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(180,100,50,0.12)] border border-neutral-900 hover:border-amber-950 uppercase relative overflow-hidden group-hover/spot:bg-neutral-800"
+              >
+                <span className="relative z-10">ACQUIRE SCENT — $326.00</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    );
+  };
 
   // Sync auth state on mount
   useEffect(() => {
@@ -799,7 +1123,36 @@ export default function Home() {
     }
   }, []);
 
-  const isFiltered = searchTerm.trim() !== "" || selectedOlfactory !== null || selectedBrand !== null || selectedCollection !== null;
+  // Fetch wishlist when user email is loaded / changed
+  useEffect(() => {
+    const loadWishlist = async () => {
+      if (!userEmail) {
+        setFavorites([]);
+        setBuyLater([]);
+        return;
+      }
+      try {
+        const { data, error } = await clientSafeSupabase
+          .from("wishlists")
+          .select("*");
+
+        if (data && !error) {
+          const userId = localStorage.getItem("userId") || "";
+          const userWishlist = data.filter((item: any) => item.customer_id === userId);
+
+          const favs = userWishlist.filter((item: any) => item.wishlist_type === "favorite").map((item: any) => item.product_id);
+          const laters = userWishlist.filter((item: any) => item.wishlist_type === "buy_later").map((item: any) => item.product_id);
+          setFavorites(favs);
+          setBuyLater(laters);
+        }
+      } catch (err) {
+        console.error("Error loading wishlist:", err);
+      }
+    };
+    loadWishlist();
+  }, [userEmail]);
+
+  const isFiltered = searchTerm.trim() !== "" || selectedOlfactory !== null || selectedBrand !== null || selectedCollection !== null || selectedGender !== null;
 
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -818,20 +1171,91 @@ export default function Home() {
   const [subscribedEmail, setSubscribedEmail] = useState("");
   const [isSubscribed, setIsSubscribed] = useState(false);
 
-  const toggleFavorite = (id: number) => {
-    setFavorites(prev =>
-      prev.includes(id) ? prev.filter(favId => favId !== id) : [...prev, id]
-    );
+  const toggleFavorite = async (id: number) => {
+    if (!userEmail) {
+      router.push("/signin");
+      return;
+    }
 
-    // Tiny toast notification for favorite
+    const isAdding = !favorites.includes(id);
+    const userId = localStorage.getItem("userId") || "";
     const prod = CATALOG_PRODUCTS.find(p => p.id === id);
-    if (prod) {
-      const isAdding = !favorites.includes(id);
-      triggerNotification(
-        isAdding
-          ? `Added ${prod.brand} - ${prod.name} to your Exclusive Offers.`
-          : `Removed ${prod.brand} from your Exclusive Offers.`
-      );
+
+    if (isAdding) {
+      const { error } = await clientSafeSupabase
+        .from("wishlists")
+        .insert({
+          customer_id: userId,
+          product_id: id,
+          wishlist_type: "favorite"
+        });
+
+      if (!error) {
+        setFavorites(prev => [...prev, id]);
+        if (prod) {
+          triggerNotification(`Added ${prod.brand} - ${prod.name} to your Favorites.`);
+        }
+      }
+    } else {
+      const { error } = await clientSafeSupabase
+        .from("wishlists")
+        .delete()
+        .match({
+          customer_id: userId,
+          product_id: id,
+          wishlist_type: "favorite"
+        });
+
+      if (!error) {
+        setFavorites(prev => prev.filter(favId => favId !== id));
+        if (prod) {
+          triggerNotification(`Removed ${prod.brand} - ${prod.name} from your Favorites.`);
+        }
+      }
+    }
+  };
+
+  const toggleBuyLater = async (id: number) => {
+    if (!userEmail) {
+      router.push("/signin");
+      return;
+    }
+
+    const isAdding = !buyLater.includes(id);
+    const userId = localStorage.getItem("userId") || "";
+    const prod = CATALOG_PRODUCTS.find(p => p.id === id);
+
+    if (isAdding) {
+      const { error } = await clientSafeSupabase
+        .from("wishlists")
+        .insert({
+          customer_id: userId,
+          product_id: id,
+          wishlist_type: "buy_later"
+        });
+
+      if (!error) {
+        setBuyLater(prev => [...prev, id]);
+        if (prod) {
+          triggerNotification(`Added ${prod.brand} - ${prod.name} to Save to Buy Later.`);
+        }
+      }
+    } else {
+      const { error } = await clientSafeSupabase
+        .from("wishlists")
+        .delete()
+        .match({
+          customer_id: userId,
+          product_id: id,
+          wishlist_type: "buy_later"
+        });
+
+      if (!error) {
+        setBuyLater(prev => prev.filter(laterId => laterId !== id));
+        if (prod) {
+          triggerNotification(`Removed ${prod.brand} - ${prod.name} from Save to Buy Later.`);
+        }
+      }
     }
   };
 
@@ -1019,6 +1443,13 @@ export default function Home() {
                 >
                   CONTACT
                 </Link>
+                <Link
+                  href="/blogs"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors"
+                >
+                  BLOGS
+                </Link>
               </div>
 
               {/* Collections Grid */}
@@ -1133,7 +1564,7 @@ export default function Home() {
             className="fixed top-0 left-0 right-0 z-40 bg-[#FAF6F0]/95 backdrop-blur-md text-neutral-800 shadow-[0_2px_15px_rgba(27,15,10,0.06)] border-b border-amber-800/10 font-sans-luxury"
           >
             <div className="w-full">
-              <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
+              <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-4 flex items-center justify-between relative">
                 {/* Left Menu Items (Home, About, Shop with Dropdown) */}
                 <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-neutral-800/70">
                   <button
@@ -1160,6 +1591,12 @@ export default function Home() {
                   >
                     CONTACT
                   </Link>
+                  <Link
+                    href="/blogs"
+                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
+                  >
+                    BLOGS
+                  </Link>
                   {/* Shop trigger wrapper for Mega Menu */}
                   <div
                     className="relative py-2 cursor-pointer"
@@ -1185,11 +1622,11 @@ export default function Home() {
                 </div>
 
                 {/* Logo Center */}
-                <div className="flex-1 flex justify-center md:flex-initial">
+                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                   <img
                     src="/logo.png"
                     alt="Gharib"
-                    className="h-10 md:h-[42px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300 mix-blend-multiply"
+                    className="h-14 md:h-[62px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300 mix-blend-multiply"
                     style={{ mixBlendMode: 'multiply' }}
                     onClick={() => {
                       setSearchTerm("");
@@ -1303,36 +1740,32 @@ export default function Home() {
                   {/* User Profile / Sign In */}
                   <button
                     onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
-                    className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform text-neutral-800"
+                    className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform"
                   >
-                    <div className="relative flex items-center justify-center w-[38px] h-[38px]">
-                      <svg
-                        className="w-[28px] h-[28px] relative z-10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        strokeWidth="1.5"
-                      >
-                        <circle cx="12" cy="12" r="9" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" fill="none" />
-                        <circle cx="12" cy="10" r="3" stroke="rgba(27,15,10,0.7)" strokeLinecap="round" fill="none" />
-                        <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      </svg>
-                      {userEmail && (
-                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
-                      )}
-                    </div>
+                    {userEmail ? (
+                      <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full bg-amber-600/10 border border-amber-500/30 shadow-[0_0_12px_rgba(217,119,6,0.15)] text-amber-800">
+                        <span className="text-[13px] font-serif font-black tracking-wide relative z-10">
+                          {userEmail.split('@')[0][0].toUpperCase()}
+                        </span>
+                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full border border-neutral-300/60 hover:border-neutral-500 text-neutral-600 hover:text-neutral-800">
+                        <svg className="w-[20px] h-[20px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
+                          <circle cx="12" cy="8" r="4" strokeLinecap="round" />
+                          <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
+                        </svg>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#FAF6F0] border border-neutral-800/25 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
+                          🔒
+                        </span>
+                      </div>
+                    )}
                   </button>
 
                   {/* Wishlist */}
                   <motion.button
                     onClick={() => {
-                      setSearchTerm("");
-                      setSelectedOlfactory(null);
-                      setSelectedBrand(null);
-                      setSelectedCollection(null);
-                      setTimeout(() => {
-                        const el = document.getElementById("offers");
-                        if (el) el.scrollIntoView({ behavior: "smooth" });
-                      }, 100);
+                      router.push("/wishlist");
                     }}
                     className="relative flex items-center justify-center cursor-pointer py-1.5 text-neutral-800"
                     whileTap={{ scale: 0.92 }}
@@ -1583,29 +2016,30 @@ export default function Home() {
                     className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-neutral-800"
                     aria-label="Sign In"
                   >
-                    <div className="relative flex items-center justify-center w-[36px] h-[36px]">
-                      <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                        <circle cx="12" cy="12" r="9" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" fill="none" />
-                        <circle cx="12" cy="10" r="3" stroke="rgba(27,15,10,0.7)" strokeLinecap="round" fill="none" />
-                        <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      </svg>
-                      {userEmail && (
-                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
-                      )}
-                    </div>
+                    {userEmail ? (
+                      <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full bg-amber-600/10 border border-amber-500/30 shadow-[0_0_12px_rgba(217,119,6,0.15)] text-amber-800">
+                        <span className="text-[12px] font-serif font-black tracking-wide relative z-10">
+                          {userEmail.split('@')[0][0].toUpperCase()}
+                        </span>
+                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full border border-neutral-300/60 hover:border-neutral-500 text-neutral-600 hover:text-neutral-800">
+                        <svg className="w-[18px] h-[18px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
+                          <circle cx="12" cy="8" r="4" strokeLinecap="round" />
+                          <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
+                        </svg>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#FAF6F0] border border-neutral-800/25 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
+                          🔒
+                        </span>
+                      </div>
+                    )}
                   </button>
 
                   {/* Mobile Wishlist */}
                   <motion.button
                     onClick={() => {
-                      setSearchTerm("");
-                      setSelectedOlfactory(null);
-                      setSelectedBrand(null);
-                      setSelectedCollection(null);
-                      setTimeout(() => {
-                        const el = document.getElementById("offers");
-                        if (el) el.scrollIntoView({ behavior: "smooth" });
-                      }, 100);
+                      router.push("/wishlist");
                     }}
                     className="relative flex items-center justify-center cursor-pointer py-1 text-neutral-800"
                     whileTap={{ scale: 0.92 }}
@@ -1761,199 +2195,8 @@ export default function Home() {
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-radial from-amber-600/[0.04] via-transparent to-transparent blur-[90px] pointer-events-none z-0"></div>
                   <div className="absolute inset-0 bg-radial from-amber-700/[0.01] via-transparent to-transparent pointer-events-none z-0"></div>
 
-                  <div className="max-w-[1440px] mx-auto px-12 py-14 grid grid-cols-1 md:grid-cols-4 gap-10 text-left border-t border-amber-800/10 relative z-10">
-                    {/* Column 1: COLLECTIONS */}
-                    <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-                      <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
-                        COLLECTIONS
-                      </span>
-                      <ul className="flex flex-col gap-6">
-                        {MEGA_MENU_COLLECTIONS.map((col) => (
-                          <li key={col.id}>
-                            <button
-                              onClick={() => {
-                                setSelectedCollection(col.id as any);
-                                setSelectedBrand(null);
-                                setSelectedOlfactory(null);
-                                setIsMegaMenuOpen(false);
-                                const el = document.getElementById("new-in");
-                                if (el) el.scrollIntoView({ behavior: "smooth" });
-                              }}
-                              className="transition-all duration-300 uppercase cursor-pointer flex flex-col group text-left w-full relative pl-2 hover:pl-4"
-                            >
-                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-0 bg-amber-600 transition-all duration-300 group-hover:h-[80%]"></span>
-                              <span className="text-[13px] font-extrabold tracking-[0.18em] text-neutral-800 group-hover:text-amber-800 transition-colors duration-300 flex items-center gap-2">
-                                <span className="text-amber-600 group-hover:scale-110 transition-all duration-300 text-[10px]">✧</span>
-                                {col.title}
-                              </span>
-                              <span className="text-[9.5px] leading-relaxed text-neutral-500 group-hover:text-neutral-800 tracking-[0.12em] pl-4 mt-1.5 font-medium transition-colors duration-300">
-                                {col.desc}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                        {/* Special: All Fragrances link at the bottom */}
-                        <li className="border-t border-amber-800/10 pt-5 mt-1">
-                          <button
-                            onClick={() => {
-                              setSearchTerm("");
-                              setSelectedCollection(null);
-                              setSelectedBrand(null);
-                              setSelectedOlfactory(null);
-                              setIsMegaMenuOpen(false);
-                              const el = document.getElementById("new-in");
-                              if (el) el.scrollIntoView({ behavior: "smooth" });
-                            }}
-                            className="hover:text-amber-800 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 group text-left w-full text-[13px] font-black tracking-[0.2em] text-neutral-800 pl-2 hover:pl-4"
-                          >
-                            <span className="text-amber-600 group-hover:rotate-180 transition-transform duration-500">✧</span>
-                            ALL FRAGRANCES
-                          </button>
-                        </li>
-                      </ul>
-                    </motion.div>
+                  {renderMegaMenuContent()}
 
-                    {/* Column 2: OLFACTORY FAMILIES */}
-                    <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-                      <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
-                        OLFACTORY FAMILIES
-                      </span>
-                      <div className="grid grid-cols-1 gap-3.5">
-                        {MEGA_MENU_OLFACTORY.map((item) => (
-                          <button
-                            key={item.label}
-                            onClick={() => {
-                              setSelectedOlfactory(item.label);
-                              setSelectedBrand(null);
-                              setSelectedCollection(null);
-                              setIsMegaMenuOpen(false);
-                              const el = document.getElementById("new-in");
-                              if (el) el.scrollIntoView({ behavior: "smooth" });
-                            }}
-                            className="relative overflow-hidden bg-white/75 hover:bg-gradient-to-b hover:from-white hover:to-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-5 transition-all duration-300 group/olf flex items-center gap-4 text-left w-full rounded-none cursor-pointer shadow-[0_2px_8px_rgba(27,15,10,0.01)] hover:shadow-[0_15px_30px_rgba(27,15,10,0.04),_0_0_15px_rgba(180,100,50,0.02)]"
-                          >
-                            <div className={`absolute inset-0 bg-gradient-to-r ${item.glow} opacity-0 group-hover/olf:opacity-100 transition-all duration-700 pointer-events-none`}></div>
-                            <div className="relative w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-base z-10 group-hover/olf:border-amber-500/40 group-hover/olf:bg-amber-500/20 group-hover/olf:scale-[1.15] transition-all duration-300">
-                              {item.symbol}
-                            </div>
-                            <div className="flex-grow flex flex-col min-w-0 z-10">
-                              <span className="text-[13px] font-extrabold tracking-[0.15em] text-neutral-800 group-hover/olf:text-amber-800 transition-colors duration-300 uppercase">
-                                {item.label}
-                              </span>
-                              <span className="text-[9px] text-neutral-500 group-hover/olf:text-neutral-700 tracking-[0.12em] font-medium mt-1 transition-colors duration-300 leading-relaxed">
-                                {item.desc}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-neutral-400 group-hover/olf:text-amber-600 group-hover/olf:translate-x-1.5 transition-all duration-300 flex-shrink-0">
-                              ✧
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-
-                    {/* Column 3: AUTEUR BRANDS */}
-                    <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-                      <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
-                        AUTEUR BRANDS
-                      </span>
-                      <ul className="flex flex-col text-xs font-bold tracking-widest text-neutral-800">
-                        {[
-                          "FILIPPO SORCINELLI",
-                          "INITIO PARFUMS PRIVES",
-                          "TOM FORD",
-                          "RABANNE",
-                          "JULIETTE HAS A GUN",
-                          "HFC",
-                        ].map((bname) => (
-                          <li key={bname} className="border-b border-amber-800/10 last:border-0 py-3.5 first:pt-0">
-                            <button
-                              onClick={() => {
-                                setSelectedBrand(bname);
-                                setSelectedOlfactory(null);
-                                setSelectedCollection(null);
-                                setIsMegaMenuOpen(false);
-                                const el = document.getElementById("new-in");
-                                if (el) el.scrollIntoView({ behavior: "smooth" });
-                              }}
-                              className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
-                            >
-                              <div className="flex items-center gap-3.5">
-                                <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
-                                <span>{bname.replace(" PARFUMS PRIVES", "")}</span>
-                              </div>
-                              <span className="text-[8.5px] text-neutral-500 group-hover:text-amber-800 tracking-[0.25em] font-bold uppercase transition-colors select-none">
-                                {bname === "FILIPPO SORCINELLI" ? "ITALY" : bname === "INITIO PARFUMS PRIVES" ? "PARIS" : bname === "TOM FORD" ? "NEW YORK" : bname === "RABANNE" ? "FRANCE" : "GRASSE"}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </motion.div>
-
-                    {/* Column 4: CINEMATIC SPOTLIGHT */}
-                    <motion.div
-                      variants={megaMenuColumnVariants}
-                      className="flex flex-col bg-white hover:bg-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-6 relative overflow-hidden group/spot shadow-[0_4px_20px_rgba(27,15,10,0.02)] hover:shadow-[0_25px_60px_rgba(180,100,50,0.06)] transition-all duration-500 rounded-none"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-b from-amber-500/[0.01] to-transparent pointer-events-none z-0"></div>
-                      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-48 h-48 bg-radial from-amber-500/[0.05] to-transparent rounded-full blur-[35px] pointer-events-none z-0"></div>
-
-                      <div className="absolute top-3 right-3 text-[7.5px] tracking-[0.3em] font-extrabold text-amber-800 uppercase bg-[#FAF6F0] border border-amber-800/20 px-2 py-1 z-10 shadow-[0_2px_8px_rgba(27,15,10,0.03)]">
-                        FEATURED ✧
-                      </div>
-
-                      <motion.div
-                        inherit={false}
-                        variants={{}}
-                        whileHover={{ y: -6, rotate: 1 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        className="relative w-full h-[140px] flex items-center justify-center mb-5 cursor-pointer z-10"
-                        onClick={() => {
-                          setSelectedBrand("FILIPPO SORCINELLI");
-                          setSelectedOlfactory(null);
-                          setSelectedCollection(null);
-                          setIsMegaMenuOpen(false);
-                          const el = document.getElementById("new-in");
-                          if (el) el.scrollIntoView({ behavior: "smooth" });
-                        }}
-                      >
-                        <Image
-                          src="/catalog_sorcinelli_epicentro.png"
-                          alt="Epicentro Filippo Sorcinelli"
-                          width={95}
-                          height={115}
-                          className="object-contain z-10 filter drop-shadow-[0_12px_22px_rgba(27,15,10,0.05)] group-hover/spot:scale-105 transition-transform duration-700"
-                        />
-                      </motion.div>
-
-                      <div className="flex flex-col text-left z-10 mt-auto font-sans-luxury">
-                        <span className="text-[9.5px] font-black tracking-[0.3em] text-amber-700 uppercase">
-                          FILIPPO SORCINELLI
-                        </span>
-                        <h4 className="text-[16px] font-serif-luxury font-semibold text-neutral-800 tracking-wider uppercase mt-1.5 line-clamp-1 group-hover/spot:text-amber-800 transition-colors">
-                          EPICENTRO
-                        </h4>
-                        <p className="text-[9.5px] leading-relaxed text-neutral-500 group-hover/spot:text-neutral-700 mt-2.5 tracking-[0.12em] uppercase line-clamp-2">
-                          Artistic volcanic incense formulation with raw metallic cap.
-                        </p>
-
-                        <button
-                          onClick={() => {
-                            setSelectedBrand("FILIPPO SORCINELLI");
-                            setSelectedOlfactory(null);
-                            setSelectedCollection(null);
-                            setIsMegaMenuOpen(false);
-                            const el = document.getElementById("new-in");
-                            if (el) el.scrollIntoView({ behavior: "smooth" });
-                          }}
-                          className="mt-5 w-full bg-neutral-900 text-white hover:bg-amber-950 hover:text-white font-extrabold tracking-[0.25em] text-[9.5px] py-4 transition-all duration-300 text-center cursor-pointer shadow-[0_10px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(180,100,50,0.12)] border border-neutral-900 hover:border-amber-950 uppercase relative overflow-hidden group-hover/spot:bg-neutral-800"
-                        >
-                          <span className="relative z-10">ACQUIRE SCENT — $326.00</span>
-                        </button>
-                      </div>
-                    </motion.div>
-                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -2024,7 +2267,7 @@ export default function Home() {
         >
           {/* Glassmorphic navbar wrapper to isolate backdrop-blur and prevent transparency leaking into absolute dropdowns */}
           <div className="w-full border-b border-white/10 bg-black/10">
-            <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-5 flex items-center justify-between">
+            <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-5 flex items-center justify-between relative">
               {/* Left Menu Items (Home, About, Shop with Dropdown) */}
               <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-white/70">
                 <button
@@ -2051,6 +2294,12 @@ export default function Home() {
                 >
                   CONTACT
                 </Link>
+                <Link
+                  href="/blogs"
+                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
+                >
+                  BLOGS
+                </Link>
                 {/* Shop trigger wrapper for Mega Menu */}
                 <div
                   className="relative py-2 cursor-pointer"
@@ -2076,9 +2325,9 @@ export default function Home() {
               </div>
 
               {/* Logo Center */}
-              <div className="flex-1 flex justify-center md:flex-initial">
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                 <Image
-                  src="/logo.png"
+                  src="/white-logo.png"
                   alt="Gharib"
                   width={220}
                   height={55}
@@ -2206,35 +2455,30 @@ export default function Home() {
                   onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
                   className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform"
                 >
-                  <div className="relative flex items-center justify-center w-[38px] h-[38px]">
-                    <svg
-                      className="w-[28px] h-[28px] relative z-10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      strokeWidth="1.5"
-                    >
-                      <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" fill="none" />
-                      <circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.7)" strokeLinecap="round" fill="none" />
-                      <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                    </svg>
-
-                    {userEmail && (
-                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
-                    )}
-                  </div>
+                  {userEmail ? (
+                    <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full bg-amber-600/15 border border-amber-500/40 shadow-[0_0_15px_rgba(217,119,6,0.25)] text-amber-400">
+                      <span className="text-[13px] font-serif font-black tracking-wide relative z-10">
+                        {userEmail.split('@')[0][0].toUpperCase()}
+                      </span>
+                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
+                    </div>
+                  ) : (
+                    <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full border border-white/35 hover:border-white/70 text-white/75 hover:text-white">
+                      <svg className="w-[20px] h-[20px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
+                        <circle cx="12" cy="8" r="4" strokeLinecap="round" />
+                        <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
+                      </svg>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-black border border-white/10 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
+                        🔒
+                      </span>
+                    </div>
+                  )}
                 </button>
 
                 {/* Wishlist — Living heartbeat + twinkling sparkles */}
                 <motion.button
                   onClick={() => {
-                    setSearchTerm("");
-                    setSelectedOlfactory(null);
-                    setSelectedBrand(null);
-                    setSelectedCollection(null);
-                    setTimeout(() => {
-                      const el = document.getElementById("offers");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }, 100);
+                    router.push("/wishlist");
                   }}
                   className="relative flex items-center justify-center cursor-pointer py-1.5"
                   whileTap={{ scale: 0.92 }}
@@ -2494,29 +2738,30 @@ export default function Home() {
                   className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-white"
                   aria-label="Sign In"
                 >
-                  <div className="relative flex items-center justify-center w-[36px] h-[36px]">
-                    <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                      <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" fill="none" />
-                      <circle cx="12" cy="10" r="3" stroke="rgba(255,255,255,0.7)" strokeLinecap="round" fill="none" />
-                      <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(255,255,255,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                    </svg>
-                    {userEmail && (
-                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
-                    )}
-                  </div>
+                  {userEmail ? (
+                    <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full bg-amber-600/15 border border-amber-500/40 shadow-[0_0_15px_rgba(217,119,6,0.25)] text-amber-400">
+                      <span className="text-[12px] font-serif font-black tracking-wide relative z-10">
+                        {userEmail.split('@')[0][0].toUpperCase()}
+                      </span>
+                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
+                    </div>
+                  ) : (
+                    <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full border border-white/35 hover:border-white/70 text-white/75 hover:text-white">
+                      <svg className="w-[18px] h-[18px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
+                        <circle cx="12" cy="8" r="4" strokeLinecap="round" />
+                        <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
+                      </svg>
+                      <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-black border border-white/10 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
+                        🔒
+                      </span>
+                    </div>
+                  )}
                 </button>
 
                 {/* Mobile Wishlist */}
                 <motion.button
                   onClick={() => {
-                    setSearchTerm("");
-                    setSelectedOlfactory(null);
-                    setSelectedBrand(null);
-                    setSelectedCollection(null);
-                    setTimeout(() => {
-                      const el = document.getElementById("offers");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }, 100);
+                    router.push("/wishlist");
                   }}
                   className="relative flex items-center justify-center cursor-pointer py-1 text-white"
                   whileTap={{ scale: 0.92 }}
@@ -2675,209 +2920,7 @@ export default function Home() {
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-radial from-amber-600/[0.04] via-transparent to-transparent blur-[90px] pointer-events-none z-0"></div>
                 <div className="absolute inset-0 bg-radial from-amber-700/[0.01] via-transparent to-transparent pointer-events-none z-0"></div>
 
-                <div className="max-w-[1440px] mx-auto px-12 py-14 grid grid-cols-1 md:grid-cols-4 gap-10 text-left border-t border-amber-800/10 relative z-10">
-                  {/* Column 1: COLLECTIONS */}
-                  <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-                    <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
-                      COLLECTIONS
-                    </span>
-                    <ul className="flex flex-col gap-6">
-                      {MEGA_MENU_COLLECTIONS.map((col) => (
-                        <li key={col.id}>
-                          <button
-                            onClick={() => {
-                              setSelectedCollection(col.id as any);
-                              setSelectedBrand(null);
-                              setSelectedOlfactory(null);
-                              setIsMegaMenuOpen(false);
-                              const el = document.getElementById("new-in");
-                              if (el) el.scrollIntoView({ behavior: "smooth" });
-                            }}
-                            className="transition-all duration-300 uppercase cursor-pointer flex flex-col group text-left w-full relative pl-2 hover:pl-4"
-                          >
-                            {/* Vertical accent glow line on the left on hover */}
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-0 bg-amber-600 transition-all duration-300 group-hover:h-[80%]"></span>
-
-                            <span className="text-[13px] font-extrabold tracking-[0.18em] text-neutral-800 group-hover:text-amber-800 transition-colors duration-300 flex items-center gap-2">
-                              <span className="text-amber-600 group-hover:scale-110 transition-all duration-300 text-[10px]">✧</span>
-                              {col.title}
-                            </span>
-                            <span className="text-[9.5px] leading-relaxed text-neutral-500 group-hover:text-neutral-800 tracking-[0.12em] pl-4 mt-1.5 font-medium transition-colors duration-300">
-                              {col.desc}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                      {/* Special: All Fragrances link at the bottom */}
-                      <li className="border-t border-amber-800/10 pt-5 mt-1">
-                        <button
-                          onClick={() => {
-                            setSearchTerm("");
-                            setSelectedCollection(null);
-                            setSelectedBrand(null);
-                            setSelectedOlfactory(null);
-                            setIsMegaMenuOpen(false);
-                            const el = document.getElementById("new-in");
-                            if (el) el.scrollIntoView({ behavior: "smooth" });
-                          }}
-                          className="hover:text-amber-800 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 group text-left w-full text-[13px] font-black tracking-[0.2em] text-neutral-800 pl-2 hover:pl-4"
-                        >
-                          <span className="text-amber-600 group-hover:rotate-180 transition-transform duration-500">✧</span>
-                          ALL FRAGRANCES
-                        </button>
-                      </li>
-                    </ul>
-                  </motion.div>
-
-                  {/* Column 2: OLFACTORY FAMILIES */}
-                  <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-                    <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
-                      OLFACTORY FAMILIES
-                    </span>
-                    <div className="grid grid-cols-1 gap-3.5">
-                      {MEGA_MENU_OLFACTORY.map((item) => (
-                        <button
-                          key={item.label}
-                          onClick={() => {
-                            setSelectedOlfactory(item.label);
-                            setSelectedBrand(null);
-                            setSelectedCollection(null);
-                            setIsMegaMenuOpen(false);
-                            const el = document.getElementById("new-in");
-                            if (el) el.scrollIntoView({ behavior: "smooth" });
-                          }}
-                          className="relative overflow-hidden bg-white/75 hover:bg-gradient-to-b hover:from-white hover:to-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-5 transition-all duration-300 group/olf flex items-center gap-4 text-left w-full rounded-none cursor-pointer shadow-[0_2px_8px_rgba(27,15,10,0.01)] hover:shadow-[0_15px_30px_rgba(27,15,10,0.04),_0_0_15px_rgba(180,100,50,0.02)]"
-                        >
-                          {/* Ambient radial glow container */}
-                          <div className={`absolute inset-0 bg-gradient-to-r ${item.glow} opacity-0 group-hover/olf:opacity-100 transition-all duration-700 pointer-events-none`}></div>
-
-                          {/* Sensory Gold-Rimmed Icon Ring */}
-                          <div className="relative w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-base z-10 group-hover/olf:border-amber-500/40 group-hover/olf:bg-amber-500/20 group-hover/olf:scale-[1.15] transition-all duration-300">
-                            {item.symbol}
-                          </div>
-
-                          <div className="flex-grow flex flex-col min-w-0 z-10">
-                            <span className="text-[13px] font-extrabold tracking-[0.15em] text-neutral-800 group-hover/olf:text-amber-800 transition-colors duration-300 uppercase">
-                              {item.label}
-                            </span>
-                            <span className="text-[9px] text-neutral-500 group-hover/olf:text-neutral-700 tracking-[0.12em] font-medium mt-1 transition-colors duration-300 leading-relaxed">
-                              {item.desc}
-                            </span>
-                          </div>
-
-                          <span className="text-[10px] text-neutral-400 group-hover/olf:text-amber-600 group-hover/olf:translate-x-1.5 transition-all duration-300 flex-shrink-0">
-                            ✧
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
-
-                  {/* Column 3: AUTEUR BRANDS */}
-                  <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-                    <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block font-sans-luxury pl-[0.1em]">
-                      AUTEUR BRANDS
-                    </span>
-                    <ul className="flex flex-col text-xs font-bold tracking-widest text-neutral-800">
-                      {[
-                        "FILIPPO SORCINELLI",
-                        "INITIO PARFUMS PRIVES",
-                        "TOM FORD",
-                        "RABANNE",
-                        "JULIETTE HAS A GUN",
-                        "HFC",
-                      ].map((bname) => (
-                        <li key={bname} className="border-b border-amber-800/10 last:border-0 py-3.5 first:pt-0">
-                          <button
-                            onClick={() => {
-                              setSelectedBrand(bname);
-                              setSelectedOlfactory(null);
-                              setSelectedCollection(null);
-                              setIsMegaMenuOpen(false);
-                              const el = document.getElementById("new-in");
-                              if (el) el.scrollIntoView({ behavior: "smooth" });
-                            }}
-                            className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
-                          >
-                            <div className="flex items-center gap-3.5">
-                              <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
-                              <span>{bname.replace(" PARFUMS PRIVES", "")}</span>
-                            </div>
-
-                            {/* Classy location origin tags */}
-                            <span className="text-[8.5px] text-neutral-500 group-hover:text-amber-800 tracking-[0.25em] font-bold uppercase transition-colors select-none">
-                              {bname === "FILIPPO SORCINELLI" ? "ITALY" : bname === "INITIO PARFUMS PRIVES" ? "PARIS" : bname === "TOM FORD" ? "NEW YORK" : bname === "RABANNE" ? "FRANCE" : "GRASSE"}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </motion.div>
-
-                  {/* Column 4: CINEMATIC SPOTLIGHT */}
-                  <motion.div
-                    variants={megaMenuColumnVariants}
-                    className="flex flex-col bg-white hover:bg-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-6 relative overflow-hidden group/spot shadow-[0_4px_20px_rgba(27,15,10,0.02)] hover:shadow-[0_25px_60px_rgba(180,100,50,0.06)] transition-all duration-500 rounded-none"
-                  >
-                    {/* Background Halo */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-amber-500/[0.01] to-transparent pointer-events-none z-0"></div>
-                    <div className="absolute top-8 left-1/2 -translate-x-1/2 w-48 h-48 bg-radial from-amber-500/[0.05] to-transparent rounded-full blur-[35px] pointer-events-none z-0"></div>
-
-                    <div className="absolute top-3 right-3 text-[7.5px] tracking-[0.3em] font-extrabold text-amber-800 uppercase bg-[#FAF6F0] border border-amber-800/20 px-2 py-1 z-10 shadow-[0_2px_8px_rgba(27,15,10,0.03)]">
-                      FEATURED ✧
-                    </div>
-
-                    <motion.div
-                      inherit={false}
-                      variants={{}}
-                      whileHover={{ y: -6, rotate: 1 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                      className="relative w-full h-[140px] flex items-center justify-center mb-5 cursor-pointer z-10"
-                      onClick={() => {
-                        setSelectedBrand("FILIPPO SORCINELLI");
-                        setSelectedOlfactory(null);
-                        setSelectedCollection(null);
-                        setIsMegaMenuOpen(false);
-                        const el = document.getElementById("new-in");
-                        if (el) el.scrollIntoView({ behavior: "smooth" });
-                      }}
-                    >
-                      <Image
-                        src="/catalog_sorcinelli_epicentro.png"
-                        alt="Epicentro Filippo Sorcinelli"
-                        width={95}
-                        height={115}
-                        className="object-contain z-10 filter drop-shadow-[0_12px_22px_rgba(27,15,10,0.05)] group-hover/spot:scale-105 transition-transform duration-700"
-                      />
-                    </motion.div>
-
-                    <div className="flex flex-col text-left z-10 mt-auto font-sans-luxury">
-                      <span className="text-[9.5px] font-black tracking-[0.3em] text-amber-700 uppercase">
-                        FILIPPO SORCINELLI
-                      </span>
-                      <h4 className="text-[16px] font-serif-luxury font-semibold text-neutral-800 tracking-wider uppercase mt-1.5 line-clamp-1 group-hover/spot:text-amber-800 transition-colors">
-                        EPICENTRO
-                      </h4>
-                      <p className="text-[9.5px] leading-relaxed text-neutral-500 group-hover/spot:text-neutral-700 mt-2.5 tracking-[0.12em] uppercase line-clamp-2">
-                        Artistic volcanic incense formulation with raw metallic cap.
-                      </p>
-
-                      <button
-                        onClick={() => {
-                          setSelectedBrand("FILIPPO SORCINELLI");
-                          setSelectedOlfactory(null);
-                          setSelectedCollection(null);
-                          setIsMegaMenuOpen(false);
-                          const el = document.getElementById("new-in");
-                          if (el) el.scrollIntoView({ behavior: "smooth" });
-                        }}
-                        className="mt-5 w-full bg-neutral-900 text-white hover:bg-amber-950 hover:text-white font-extrabold tracking-[0.25em] text-[9.5px] py-4 transition-all duration-300 text-center cursor-pointer shadow-[0_10px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(180,100,50,0.12)] border border-neutral-900 hover:border-amber-950 uppercase relative overflow-hidden group-hover/spot:bg-neutral-800"
-                      >
-                        <span className="relative z-10">ACQUIRE SCENT — $326.00</span>
-                      </button>
-                    </div>
-                  </motion.div>
-                </div>
+                {renderMegaMenuContent()}
               </motion.div>
             )}
           </AnimatePresence>
@@ -3283,6 +3326,12 @@ export default function Home() {
                       <button onClick={() => setSelectedCollection(null)} className="hover:text-red-700 font-bold ml-0.5 cursor-pointer">✕</button>
                     </span>
                   )}
+                  {selectedGender && (
+                    <span className="bg-amber-100/80 text-amber-900 border border-amber-200/50 text-[10px] tracking-widest font-extrabold uppercase px-2.5 py-1.5 flex items-center gap-1.5">
+                      Gender: {selectedGender === "unisex" ? "UNISEX" : selectedGender}
+                      <button onClick={() => setSelectedGender(null)} className="hover:text-red-700 font-bold ml-0.5 cursor-pointer">✕</button>
+                    </span>
+                  )}
                 </div>
               </div>
               <button
@@ -3291,6 +3340,7 @@ export default function Home() {
                   setSelectedOlfactory(null);
                   setSelectedBrand(null);
                   setSelectedCollection(null);
+                  setSelectedGender(null);
                 }}
                 className="text-xs font-bold tracking-widest text-[#8C8276] hover:text-black uppercase border-b border-black/20 self-start md:self-auto cursor-pointer"
               >
@@ -3320,6 +3370,11 @@ export default function Home() {
                 matched = matched.filter(prod => prod.brand.toUpperCase() === selectedBrand.toUpperCase());
               }
 
+              // Apply Gender Filter
+              if (selectedGender) {
+                matched = matched.filter(prod => prod.gender === selectedGender || prod.gender === "unisex");
+              }
+
               // Apply Collection Filter
               if (selectedCollection) {
                 if (selectedCollection === "new") {
@@ -3347,14 +3402,18 @@ export default function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {matched.map(prod => {
                     const isFav = favorites.includes(prod.id);
+                    const isBuyLater = buyLater.includes(prod.id);
                     const activeSize = selectedSizes[prod.id] || prod.sizes[0];
                     return (
                       <ProductCard
                         key={prod.id}
                         prod={prod}
                         isFav={isFav}
+                        isBuyLater={isBuyLater}
+                        isLoggedIn={!!userEmail}
                         activeSize={activeSize}
                         onToggleFavorite={toggleFavorite}
+                        onToggleBuyLater={toggleBuyLater}
                         onSelectSize={selectSize}
                         onAddToCart={handleAddToCart}
                         badgeText={prod.isFeaturedLarge ? "FEATURED ART" : selectedOlfactory ? selectedOlfactory.toUpperCase() : selectedBrand ? selectedBrand.replace(" PARFUMS PRIVES", "") : "CURATED"}
@@ -3389,14 +3448,18 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
               {CATALOG_PRODUCTS.filter(p => p.isNew).map(prod => {
                 const isFav = favorites.includes(prod.id);
+                const isBuyLater = buyLater.includes(prod.id);
                 const activeSize = selectedSizes[prod.id] || prod.sizes[0];
                 return (
                   <ProductCard
                     key={prod.id}
                     prod={prod}
                     isFav={isFav}
+                    isBuyLater={isBuyLater}
+                    isLoggedIn={!!userEmail}
                     activeSize={activeSize}
                     onToggleFavorite={toggleFavorite}
+                    onToggleBuyLater={toggleBuyLater}
                     onSelectSize={selectSize}
                     onAddToCart={handleAddToCart}
                     badgeText={prod.isFeaturedLarge ? "FEATURED ART" : "NEW IN"}
@@ -3544,14 +3607,18 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {CATALOG_PRODUCTS.filter(p => p.isBestSeller).map(prod => {
                 const isFav = favorites.includes(prod.id);
+                const isBuyLater = buyLater.includes(prod.id);
                 const activeSize = selectedSizes[prod.id] || prod.sizes[0];
                 return (
                   <ProductCard
                     key={prod.id}
                     prod={prod}
                     isFav={isFav}
+                    isBuyLater={isBuyLater}
+                    isLoggedIn={!!userEmail}
                     activeSize={activeSize}
                     onToggleFavorite={toggleFavorite}
+                    onToggleBuyLater={toggleBuyLater}
                     onSelectSize={selectSize}
                     onAddToCart={handleAddToCart}
                     badgeText={prod.isFeaturedLarge ? "BESTSELLER FEATURE" : "BESTSELLER"}
@@ -3641,6 +3708,32 @@ export default function Home() {
 
             {/* Dynamic Vault Display */}
             {(() => {
+              if (!userEmail) {
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    className="w-full text-center py-24 bg-white border border-black/10 flex flex-col items-center justify-center p-8 rounded-none relative overflow-hidden"
+                  >
+                    <div className="absolute inset-1 border border-black/[0.03] pointer-events-none"></div>
+                    <span className="text-4xl text-amber-800 mb-4 block">✧</span>
+                    <h3 className="text-lg font-serif-luxury font-medium tracking-widest uppercase text-black mb-2">
+                      Scent Vault Access Required
+                    </h3>
+                    <p className="text-xs text-[#8C8276] tracking-widest max-w-md mx-auto leading-relaxed uppercase mb-6">
+                      Please sign in to access your curated Scent Vault and Exclusive Offers.
+                    </p>
+                    <button
+                      onClick={() => router.push("/signin?redirect=/")}
+                      className="bg-black text-white text-[10px] font-extrabold tracking-[0.2em] uppercase px-8 py-3.5 hover:bg-black/90 transition-all duration-300 rounded-none cursor-pointer border border-black"
+                    >
+                      Sign In to Maison
+                    </button>
+                  </motion.div>
+                );
+              }
+
               const likedProducts = CATALOG_PRODUCTS.filter(p => favorites.includes(p.id));
 
               if (likedProducts.length === 0) {
@@ -3673,14 +3766,18 @@ export default function Home() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {likedProducts.map(prod => {
                     const isFav = true;
+                    const isBuyLater = buyLater.includes(prod.id);
                     const activeSize = selectedSizes[prod.id] || prod.sizes[0];
                     return (
                       <ProductCard
                         key={prod.id}
                         prod={prod}
                         isFav={isFav}
+                        isBuyLater={isBuyLater}
+                        isLoggedIn={!!userEmail}
                         activeSize={activeSize}
                         onToggleFavorite={toggleFavorite}
+                        onToggleBuyLater={toggleBuyLater}
                         onSelectSize={selectSize}
                         onAddToCart={handleAddToCart}
                         badgeText="EXCLUSIVE OFFER"
@@ -3721,14 +3818,18 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {CATALOG_PRODUCTS.filter(p => p.id === 8 || p.id === 9 || p.id === 1 || p.id === 3).map(prod => {
                 const isFav = favorites.includes(prod.id);
+                const isBuyLater = buyLater.includes(prod.id);
                 const activeSize = selectedSizes[prod.id] || prod.sizes[0];
                 return (
                   <ProductCard
                     key={prod.id}
                     prod={prod}
                     isFav={isFav}
+                    isBuyLater={isBuyLater}
+                    isLoggedIn={!!userEmail}
                     activeSize={activeSize}
                     onToggleFavorite={toggleFavorite}
+                    onToggleBuyLater={toggleBuyLater}
                     onSelectSize={selectSize}
                     onAddToCart={handleAddToCart}
                     badgeText={prod.isFeaturedLarge ? "ATELIER FEATURE" : "ATELIER ARCHIVE"}

@@ -6,7 +6,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   User, Heart, ShoppingBag, Lock, Package, MapPin, 
-  ChevronRight, Check, Loader2, LogOut, Trash2, Eye, EyeOff, AlertCircle
+  ChevronRight, Check, Loader2, LogOut, Trash2, Eye, EyeOff, AlertCircle,
+  Bookmark, ArrowLeftRight
 } from "lucide-react";
 import { clientSafeSupabase } from "../../lib/supabase";
 
@@ -15,6 +16,7 @@ export default function CustomerDashboard() {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"orders" | "wishlist" | "tracking" | "settings">("orders");
+  const [wishlistTab, setWishlistTab] = useState<"favorite" | "buy_later">("favorite");
   
   // Data States
   const [orders, setOrders] = useState<any[]>([]);
@@ -62,21 +64,35 @@ export default function CustomerDashboard() {
           : [];
         setOrders(filteredOrders.length > 0 ? filteredOrders : (ordersData || []));
 
+        // Fetch products
+        const { data: allProducts } = await clientSafeSupabase.from("products").select("*");
+
         // Fetch Wishlist (Mock or Real)
         const { data: wishlistData } = await clientSafeSupabase
           .from("wishlists")
           .select("*");
         
-        // If wishlist is empty, let's pre-seed some lovely items so it's not barren
-        if (!wishlistData || wishlistData.length === 0) {
-          const { data: allProducts } = await clientSafeSupabase.from("products").select("*");
-          if (allProducts && allProducts.length > 0) {
-            // Seed Gold Memoir and Mystic Oud into wishlist
-            const seeds = allProducts.filter((p: any) => p.id === 101 || p.id === 103);
-            setWishlist(seeds);
+        const userId = localStorage.getItem("userId") || "";
+        const userWishlistRows = wishlistData ? wishlistData.filter((w: any) => w.customer_id === userId) : [];
+        
+        const mappedWishlist = userWishlistRows.map((w: any) => {
+          const prod = allProducts?.find((p: any) => p.id === w.product_id);
+          return prod ? { ...prod, wishlist_type: w.wishlist_type || "favorite" } : null;
+        }).filter(Boolean);
+
+        if (mappedWishlist.length === 0 && allProducts && allProducts.length > 0) {
+          // Seed Gold Memoir and Mystic Oud into wishlist in database/mock db
+          const seeds = allProducts.filter((p: any) => p.id === 101 || p.id === 103);
+          for (const prod of seeds) {
+            await clientSafeSupabase.from("wishlists").insert({
+              customer_id: userId,
+              product_id: prod.id,
+              wishlist_type: "favorite"
+            });
           }
+          setWishlist(seeds.map((s: any) => ({ ...s, wishlist_type: "favorite" })));
         } else {
-          setWishlist(wishlistData);
+          setWishlist(mappedWishlist);
         }
 
         // Fetch Tracking Logs
@@ -100,20 +116,92 @@ export default function CustomerDashboard() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleRemoveFromWishlist = async (productId: number) => {
+  const handleRemoveFromWishlist = async (productId: number, type: "favorite" | "buy_later") => {
     try {
-      // Remove from wishlist database/mock state
-      await clientSafeSupabase.from("wishlists").delete().eq("id", productId);
-      setWishlist(prev => prev.filter(item => item.id !== productId));
+      const userId = localStorage.getItem("userId") || "";
+      await clientSafeSupabase.from("wishlists")
+        .delete()
+        .match({
+          customer_id: userId,
+          product_id: productId,
+          wishlist_type: type
+        });
+      setWishlist(prev => prev.filter(item => !(item.id === productId && item.wishlist_type === type)));
       triggerToast("Item removed from your vault wishlist.");
     } catch (e) {
       console.error(e);
     }
   };
 
+  const handleMoveItem = async (productId: number, fromType: "favorite" | "buy_later", toType: "favorite" | "buy_later") => {
+    try {
+      const userId = localStorage.getItem("userId") || "";
+      
+      await clientSafeSupabase
+        .from("wishlists")
+        .delete()
+        .match({
+          customer_id: userId,
+          product_id: productId,
+          wishlist_type: fromType
+        });
+        
+      const { error } = await clientSafeSupabase
+        .from("wishlists")
+        .insert({
+          customer_id: userId,
+          product_id: productId,
+          wishlist_type: toType
+        });
+
+      if (!error) {
+        setWishlist(prev => prev.map(item => {
+          if (item.id === productId && item.wishlist_type === fromType) {
+            return { ...item, wishlist_type: toType };
+          }
+          return item;
+        }));
+        triggerToast(`Moved scent to ${toType === "favorite" ? "Favorites" : "Save to Buy Later"}.`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleAddToBag = (item: any) => {
-    // Premium cart drawer dispatch triggers a mock checkout link
-    triggerToast(`Added ${item.name} by ${item.brand} to your luxury collection bag.`);
+    if (typeof window !== "undefined") {
+      const savedCart = localStorage.getItem("cart") || "[]";
+      let cart = [];
+      try {
+        cart = JSON.parse(savedCart);
+      } catch (_) {}
+
+      const defaultSize = item.sizes?.[0] || "50ml";
+      const existingIdx = cart.findIndex((i: any) => i.product.id === item.id && i.selectedSize === defaultSize);
+
+      if (existingIdx > -1) {
+        cart[existingIdx].quantity += 1;
+      } else {
+        cart.push({
+          product: {
+            id: item.id,
+            brand: item.brand,
+            name: item.name,
+            price: item.price,
+            sizes: item.sizes,
+            image: item.image_url || "/gold-memoir.png",
+            description: item.description,
+            tagline: item.tagline || "",
+            olfactory: item.olfactory_group
+          },
+          quantity: 1,
+          selectedSize: defaultSize
+        });
+      }
+
+      localStorage.setItem("cart", JSON.stringify(cart));
+      triggerToast(`Added ${item.name} by ${item.brand} (${defaultSize}) to your Selection.`);
+    }
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -202,12 +290,22 @@ export default function CustomerDashboard() {
 
       {/* Main Grid Header */}
       <header className="w-full border-b border-[#EAE3DB]/10 bg-[#0f0702]/85 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="text-[14px] tracking-[0.35em] text-amber-400 font-extrabold uppercase">
-              GHARIB PRIVÉ
-            </span>
-          </Link>
+        <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center">
+              <img
+                src="/logo.png"
+                alt="Gharib"
+                className="h-[52px] w-auto object-contain mix-blend-multiply"
+              />
+            </Link>
+            <Link 
+              href="/"
+              className="text-[9px] tracking-[0.2em] text-[#2A1A0F]/60 hover:text-[#2A1A0F] font-bold uppercase transition-all flex items-center gap-1.5 border-l border-[#2A1A0F]/15 pl-6 h-6"
+            >
+              ← Back to Shop
+            </Link>
+          </div>
           
           <div className="flex items-center gap-6">
             <span className="hidden md:inline-block text-[9px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-bold">
@@ -256,7 +354,7 @@ export default function CustomerDashboard() {
               </div>
               
               <span className="text-[8px] tracking-[0.3em] text-amber-500 uppercase font-black">
-                PRIVÉ MEMBER
+                ELITE MEMBER
               </span>
               <h2 className="text-[12px] font-semibold text-[#EAE3DB] mt-2 mb-6 break-all max-w-[200px] uppercase tracking-wider">
                 {userEmail?.split("@")[0]}
@@ -442,11 +540,42 @@ export default function CustomerDashboard() {
                       </h3>
                     </div>
 
-                    {wishlist.length === 0 ? (
+                    {/* Sub-tabs / Options */}
+                    <div className="flex border-b border-[#EAE3DB]/15 mb-8">
+                      <button
+                        onClick={() => setWishlistTab("favorite")}
+                        className={`pb-4 px-6 text-[10px] tracking-[0.25em] font-black uppercase flex items-center gap-2 border-b-2 transition-all duration-300 ${
+                          wishlistTab === "favorite"
+                            ? "border-amber-600 text-amber-800"
+                            : "border-transparent text-neutral-400 hover:text-neutral-700"
+                        }`}
+                      >
+                        <Heart className="w-3.5 h-3.5" />
+                        Favorites ({wishlist.filter(item => item.wishlist_type === "favorite").length})
+                      </button>
+
+                      <button
+                        onClick={() => setWishlistTab("buy_later")}
+                        className={`pb-4 px-6 text-[10px] tracking-[0.25em] font-black uppercase flex items-center gap-2 border-b-2 transition-all duration-300 ${
+                          wishlistTab === "buy_later"
+                            ? "border-amber-600 text-amber-800"
+                            : "border-transparent text-neutral-400 hover:text-neutral-700"
+                        }`}
+                      >
+                        <Bookmark className="w-3.5 h-3.5" />
+                        Save to Buy Later ({wishlist.filter(item => item.wishlist_type === "buy_later").length})
+                      </button>
+                    </div>
+
+                    {wishlist.filter(item => item.wishlist_type === wishlistTab).length === 0 ? (
                       <div className="py-16 text-center border border-dashed border-[#EAE3DB]/10 flex flex-col items-center justify-center">
-                        <Heart className="w-8 h-8 text-amber-700/50 mb-4" />
+                        {wishlistTab === "favorite" ? (
+                          <Heart className="w-8 h-8 text-amber-700/30 mb-4" />
+                        ) : (
+                          <Bookmark className="w-8 h-8 text-amber-700/30 mb-4" />
+                        )}
                         <p className="text-[10px] tracking-widest text-[#EAE3DB]/50 uppercase font-bold">
-                          Your vault is currently empty.
+                          {wishlistTab === "favorite" ? "Your Favorites list is empty." : "Your Buy Later list is empty."}
                         </p>
                         <Link 
                           href="/" 
@@ -457,22 +586,35 @@ export default function CustomerDashboard() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {wishlist.map((item) => (
+                        {wishlist.filter(item => item.wishlist_type === wishlistTab).map((item) => (
                           <div 
                             key={item.id}
                             className="bg-white/[0.015] border border-[#EAE3DB]/10 p-5 flex flex-col justify-between relative group hover:border-amber-600/35 transition-all duration-300"
                           >
+                            {/* Remove Scent Button */}
                             <button
-                              onClick={() => handleRemoveFromWishlist(item.id)}
+                              onClick={() => handleRemoveFromWishlist(item.id, wishlistTab)}
                               className="absolute top-4 right-4 text-[#EAE3DB]/40 hover:text-red-400 transition-colors p-1"
                               title="Remove Scent"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
 
+                            {/* Move Scent Button */}
+                            <button
+                              onClick={() => handleMoveItem(
+                                item.id,
+                                wishlistTab,
+                                wishlistTab === "favorite" ? "buy_later" : "favorite"
+                              )}
+                              className="absolute top-4 left-4 text-[#EAE3DB]/40 hover:text-amber-600 transition-colors p-1"
+                              title={wishlistTab === "favorite" ? "Move to Save to Buy Later" : "Move to Favorites"}
+                            >
+                              <ArrowLeftRight className="w-4 h-4" />
+                            </button>
+
                             <div className="flex gap-4 mb-6">
                               <div className="w-20 h-20 bg-amber-950/20 border border-[#EAE3DB]/10 flex items-center justify-center p-1.5 flex-shrink-0">
-                                {/* Use standard placeholder or fallback if real image path fails */}
                                 <img 
                                   src={item.image_url} 
                                   className="w-full h-full object-contain filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.4)]"
@@ -499,12 +641,51 @@ export default function CustomerDashboard() {
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleAddToBag(item)}
-                              className="w-full bg-amber-900/30 hover:bg-[#8C6239] border border-amber-600/40 hover:border-amber-500 text-[#EAE3DB] hover:text-white text-[9px] font-black tracking-[0.25em] uppercase py-3.5 transition-all duration-300 rounded-none cursor-pointer text-center"
-                            >
-                              ADD TO COLLECTION BAG
-                            </button>
+                            <div className="flex items-center gap-2 w-full">
+                              {/* Basket Icon Button with Slide-Up Hover Effect */}
+                              <button
+                                onClick={() => handleAddToBag(item)}
+                                className="w-9 h-9 flex items-center justify-center border border-white/25 hover:border-amber-500 text-[#EAE3DB]/80 hover:text-amber-500 bg-transparent hover:bg-white/5 transition-all duration-300 rounded-none cursor-pointer active:scale-95 flex-shrink-0 group/basket overflow-hidden relative"
+                                title="Add to Basket"
+                              >
+                                <div className="relative w-4 h-4 overflow-hidden flex flex-col justify-center items-center">
+                                  <svg
+                                    className="w-4 h-4 absolute transition-all duration-300 transform group-hover/basket:-translate-y-6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.2"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                  </svg>
+                                  <svg
+                                    className="w-4 h-4 absolute text-amber-500 transition-all duration-300 transform translate-y-6 group-hover/basket:translate-y-0"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.2"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                  </svg>
+                                </div>
+                              </button>
+
+                              {/* Buy Now Text Button with Shine and Slide Background Effect */}
+                              <button
+                                onClick={() => {
+                                  handleAddToBag(item);
+                                  router.push("/checkout");
+                                }}
+                                className="flex-grow bg-amber-600 text-white text-[9px] font-black tracking-[0.2em] hover:tracking-[0.28em] uppercase py-2.5 transition-all duration-500 rounded-none cursor-pointer border border-amber-600 active:scale-95 shadow-sm text-center relative overflow-hidden group/buynow flex items-center justify-center"
+                              >
+                                {/* Background gradient slide-up fill */}
+                                <span className="absolute inset-0 bg-gradient-to-r from-amber-850 to-amber-700 translate-y-full group-hover/buynow:translate-y-0 transition-transform duration-500 ease-out z-0"></span>
+                                {/* Shine Sweep Reflection */}
+                                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 -translate-x-[150%] group-hover/buynow:translate-x-[150%] transition-transform duration-1000 ease-in-out z-0"></span>
+                                
+                                <span className="relative z-10">BUY NOW</span>
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -850,7 +1031,7 @@ export default function CustomerDashboard() {
       <footer className="w-full border-t border-[#EAE3DB]/10 bg-black/60 py-6">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <span className="text-[8px] tracking-[0.2em] text-[#EAE3DB]/30 uppercase font-bold">
-            © {new Date().getFullYear()} GHARIB PRIVÉ. ALL RIGHTS RESERVED.
+            © {new Date().getFullYear()} GHARIB. ALL RIGHTS RESERVED.
           </span>
           <div className="flex items-center gap-4 text-[8px] tracking-[0.2em] text-[#EAE3DB]/30 font-bold uppercase">
             <span className="hover:text-amber-500 transition-colors cursor-pointer">PRIVACY STATEMENT</span>
@@ -874,8 +1055,13 @@ export default function CustomerDashboard() {
         }
 
         .customer-dashboard-container header span,
-        .customer-dashboard-container header button {
+        .customer-dashboard-container header button,
+        .customer-dashboard-container header a {
           color: #2A1A0F !important;
+        }
+
+        .customer-dashboard-container header a:hover {
+          color: #8C6239 !important;
         }
 
         .customer-dashboard-container header button:hover {

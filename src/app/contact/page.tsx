@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, MapPin, Clock, ChevronDown, Check, Sparkles, Compass } from "lucide-react";
+import { clientSafeSupabase } from "../lib/supabase";
 
 interface CatalogProduct {
   id: number;
@@ -146,7 +147,7 @@ export default function ContactPage() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    subject: "General Olfactory Inquiry",
+    subject: "General Inquiries",
     message: "",
   });
   
@@ -154,13 +155,14 @@ export default function ContactPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [isFormDropdownOpen, setIsFormDropdownOpen] = useState(false);
+  const [honeypot, setHoneypot] = useState("");
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const subjectOptions = [
-    "General Olfactory Inquiry",
-    "Bespoke Scent Consultation Appointment",
-    "Private Collection & Gifting Services",
-    "Exclusive Boutique Event Invitations",
-    "Order & Bespoke Delivery Support",
+    "General Inquiries",
+    "Wholesale Order Inquiries",
+    "Order/Shipping Inquiries",
   ];
 
   // Sync client-side localStorage values on mount safely to avoid synchronous render effects
@@ -189,6 +191,10 @@ export default function ContactPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear validation error when typing
+    if (validationErrors[name]) {
+      setValidationErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   };
 
   const handleSubjectSelect = (opt: string) => {
@@ -196,23 +202,118 @@ export default function ContactPage() {
     setIsFormDropdownOpen(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    // 1. Honeypot check (anti-bot)
+    if (honeypot) {
+      errors.spam = "Spam detection triggered.";
+      return errors;
+    }
+
+    // 2. Name validation (no numeric values, minimum 3 chars)
+    const nameTrimmed = formData.name.trim();
+    if (nameTrimmed.length < 3) {
+      errors.name = "Name must be at least 3 characters.";
+    } else if (!/^[a-zA-Z\s'.]+$/.test(nameTrimmed)) {
+      errors.name = "Name can only contain letters and spaces.";
+    }
+
+    // 3. Email validation & block common disposable/spam domains
+    const emailTrimmed = formData.email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed)) {
+      errors.email = "Please enter a valid email.";
+    } else {
+      const disposableDomains = [
+        "mailinator.com", "yopmail.com", "tempmail.com", "trashmail.com",
+        "10minutemail.com", "guerrillamail.com", "sharklasers.com", "dispostable.com"
+      ];
+      const domain = emailTrimmed.split("@")[1];
+      if (disposableDomains.includes(domain)) {
+        errors.email = "Please use a real email address.";
+      }
+    }
+
+    // 4. Message validation (avoid very short spam or ultra long dumps)
+    const msgTrimmed = formData.message.trim();
+    if (msgTrimmed.length < 15) {
+      errors.message = "Your message must be at least 15 characters.";
+    } else if (msgTrimmed.length > 2000) {
+      errors.message = "Your message is too long (max 2000 characters).";
+    }
+
+    // 5. Anti-spam: check for url structures in name or message
+    const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|\.com\/|\.net\/|\.org\/)/i;
+    if (urlPattern.test(msgTrimmed) || urlPattern.test(nameTrimmed)) {
+      errors.message = "Please do not include links or websites.";
+    }
+
+    // 6. Anti-spam Rate Limiting: 60-second cooldown
+    const lastSubmit = localStorage.getItem("last_inquiry_submit");
+    if (lastSubmit) {
+      const timeDiff = Date.now() - parseInt(lastSubmit);
+      const limitWindow = 60000;
+      if (timeDiff < limitWindow) {
+        const secsLeft = Math.ceil((limitWindow - timeDiff) / 1000);
+        errors.rateLimit = `You already sent a message. Please wait ${secsLeft} seconds.`;
+      }
+    }
+
+    return errors;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) return;
+    setSubmitError(null);
     
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      if (errors.spam) {
+        // Silently mimic success to bot
+        setIsSubmitted(true);
+        return;
+      }
+      setValidationErrors(errors);
+      if (errors.rateLimit) {
+        setSubmitError(errors.rateLimit);
+      }
+      return;
+    }
+
     setIsSending(true);
-    
-    setTimeout(() => {
-      setIsSending(false);
+
+    try {
+      const { error } = await clientSafeSupabase
+        .from("contact_inquiries")
+        .insert({
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          subject: formData.subject,
+          message: formData.message.trim(),
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        throw new Error(error.message || "Failed to transmit inquiry.");
+      }
+
+      // Record successful submit time for rate limiting
+      localStorage.setItem("last_inquiry_submit", Date.now().toString());
+
       setIsSubmitted(true);
-      
       setFormData({
         name: "",
         email: "",
-        subject: "General Olfactory Inquiry",
+        subject: "General Inquiries",
         message: "",
       });
-    }, 1800);
+      setValidationErrors({});
+    } catch (err: any) {
+      setSubmitError(err.message || "An unexpected network error occurred. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Global Price Formatter Utility matching storefront
@@ -262,7 +363,7 @@ export default function ContactPage() {
           ═══════════════════════════════════════════════════ */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-[#FAF6F0]/95 backdrop-blur-md text-neutral-800 shadow-[0_2px_15px_rgba(27,15,10,0.06)] border-b border-amber-800/10 font-sans-luxury">
         <div className="w-full">
-          <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
+          <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-4 flex items-center justify-between relative">
             
             {/* Left Menu Items */}
             <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-neutral-800/70">
@@ -285,6 +386,12 @@ export default function ContactPage() {
                 CONTACT
               </Link>
               <Link
+                href="/blogs"
+                className="transition-colors duration-300 uppercase font-medium hover:text-amber-800 decoration-none"
+              >
+                BLOGS
+              </Link>
+              <Link
                 href="/#new-in"
                 className="transition-colors duration-300 uppercase font-medium hover:text-amber-800 decoration-none"
               >
@@ -293,13 +400,13 @@ export default function ContactPage() {
             </div>
 
             {/* Logo Center */}
-            <div className="flex-1 flex justify-center md:flex-initial">
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
               <Link href="/">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/logo.png"
                   alt="Gharib"
-                  className="h-10 md:h-[42px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300 mix-blend-multiply"
+                  className="h-14 md:h-[62px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300 mix-blend-multiply"
                   style={{ mixBlendMode: 'multiply' }}
                 />
               </Link>
@@ -653,6 +760,13 @@ export default function ContactPage() {
                   CONTACT
                 </Link>
                 <Link
+                  href="/blogs"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors decoration-none"
+                >
+                  BLOGS
+                </Link>
+                <Link
                   href="/#new-in"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors decoration-none"
@@ -700,10 +814,10 @@ export default function ContactPage() {
 
             <div className="border-t border-amber-800/10 pt-5 flex flex-col gap-2">
               <span className="text-[8px] tracking-[0.3em] font-extrabold text-amber-800 uppercase pl-[0.1em]">
-                GHARIB ATELIER
+                GHARIB PERFUMES
               </span>
               <span className="text-[10px] text-neutral-400 tracking-widest uppercase">
-                Artisanal Olfactory Creations • Dubai, UAE
+                Premium Perfumes • Dubai, UAE
               </span>
             </div>
           </motion.div>
@@ -717,7 +831,7 @@ export default function ContactPage() {
         <div className="max-w-7xl mx-auto w-full px-6 md:px-12 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-stretch">
           
           {/* ─────────────────────────────────────────────────
-              LEFT COLUMN: Concierge & Flagship Details
+              LEFT COLUMN: Contact details
               ───────────────────────────────────────────────── */}
           <motion.div 
             initial={{ opacity: 0, x: -30 }}
@@ -730,14 +844,14 @@ export default function ContactPage() {
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
                 <span className="text-[9px] tracking-[0.35em] text-amber-700 uppercase font-black">
-                  FRAGRANCE HOUSE CONCIERGE
+                  CONTACT US
                 </span>
               </div>
               <h1 className="text-4xl md:text-5xl font-serif-luxury font-medium tracking-wide text-[#1C130D] uppercase leading-tight">
-                OUR ATELIER
+                OUR STORE
               </h1>
               <p className="text-xs md:text-sm text-[#1C130D]/70 tracking-wider leading-relaxed font-medium">
-                Located in the heart of Dubai&apos;s artistic district, our atelier is a temple of fine niche perfumery. We invite you to experience bespoke olfactory consultations, tailored compositions, and custom discovery in a sanctuary of premium sensory indulgence.
+                Come visit our store in Dubai to see our collection of premium perfumes.
               </p>
             </div>
 
@@ -751,7 +865,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h4 className="text-[10px] tracking-[0.25em] text-amber-800 font-extrabold uppercase mb-1">
-                    Atelier Flagship
+                    Main Store
                   </h4>
                   <p className="text-xs text-[#1C130D]/80 font-semibold tracking-wider leading-relaxed">
                     Alserkal Avenue, Al Quoz 1<br />
@@ -760,18 +874,18 @@ export default function ContactPage() {
                 </div>
               </div>
 
-              {/* Detail 2: Registry */}
+              {/* Detail 2: Phone/Email */}
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-full border border-amber-800/10 bg-white flex items-center justify-center flex-shrink-0 text-amber-800 shadow-[0_4px_10px_rgba(140,98,57,0.04)]">
                   <Phone className="w-4 h-4 stroke-[1.5]" />
                 </div>
                 <div>
                   <h4 className="text-[10px] tracking-[0.25em] text-amber-800 font-extrabold uppercase mb-1">
-                    Contact Registry
+                    Phone and Email
                   </h4>
                   <p className="text-xs text-[#1C130D]/80 font-semibold tracking-wider leading-relaxed">
                     Telephone: <a href="tel:+97143808888" className="hover:text-amber-800 transition-colors">+971 4 380 8888</a><br />
-                    Concierge Email: <a href="mailto:concierge@gharibprive.com" className="hover:text-amber-800 transition-colors">concierge@gharibprive.com</a>
+                    Email: <a href="mailto:info@gharib.com" className="hover:text-amber-800 transition-colors">info@gharib.com</a>
                   </p>
                 </div>
               </div>
@@ -783,11 +897,11 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h4 className="text-[10px] tracking-[0.25em] text-amber-800 font-extrabold uppercase mb-1">
-                    Atelier Hours
+                    Opening Hours
                   </h4>
                   <p className="text-xs text-[#1C130D]/80 font-semibold tracking-wider leading-relaxed">
-                    Monday to Sunday: 10:00 AM – 10:00 PM GST<br />
-                    Private Booking slots available upon request.
+                    Every day: 10:00 AM – 10:00 PM<br />
+                    Please email or call us to book a private visit.
                   </p>
                 </div>
               </div>
@@ -799,7 +913,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h4 className="text-[10px] tracking-[0.25em] text-amber-800 font-extrabold uppercase mb-1">
-                    Boutique Locations
+                    Other Stores
                   </h4>
                   <p className="text-xs text-[#1C130D]/80 font-semibold tracking-wider leading-relaxed">
                     The Dubai Mall • Fashion Avenue, Level 1<br />
@@ -814,22 +928,22 @@ export default function ContactPage() {
               <div className="absolute right-0 bottom-0 w-24 h-24 bg-[#FAF6F0] rounded-full filter blur-xl opacity-80 pointer-events-none group-hover:scale-150 transition-transform duration-700" />
               <div className="relative z-10 flex flex-col gap-2">
                 <span className="text-[8px] tracking-[0.3em] font-extrabold text-amber-800 uppercase pl-[0.1em] flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-amber-600" /> PRIVATE OLFACTORY CURATION
+                  <Sparkles className="w-3 h-3 text-amber-600" /> PRIVATE VISIT
                 </span>
                 <p className="text-[11px] font-bold text-[#1C130D] uppercase tracking-wider">
-                  Bespoke Signature Consultation
+                  Book a Custom Perfume Session
                 </p>
                 <p className="text-[10px] text-[#1C130D]/60 tracking-wide font-medium">
-                  Schedule a private 1-on-1 session with our Master Scent Curator. Together, we will craft your custom olfactory signature.
+                  Book a private session with us. We will help you choose or create a unique perfume that fits your style.
                 </p>
                 <button
                   onClick={() => {
-                    setFormData(prev => ({ ...prev, subject: "Bespoke Scent Consultation Appointment" }));
+                    setFormData(prev => ({ ...prev, subject: "General Inquiries" }));
                     window.scrollTo({ top: 400, behavior: "smooth" });
                   }}
                   className="text-[9px] tracking-widest text-amber-800 font-black uppercase flex items-center gap-1 mt-2 group-hover:gap-2 transition-all cursor-pointer text-left"
                 >
-                  Book Private Slot ✧
+                  Book Now ✧
                 </button>
               </div>
             </div>
@@ -869,16 +983,29 @@ export default function ContactPage() {
                       </span>
                     </div>
                     <h2 className="text-2xl font-serif-luxury font-medium tracking-[0.1em] text-[#1C130D] uppercase">
-                      CONNECT WITH US
+                      Contact Us
                     </h2>
                   </div>
 
                   <form onSubmit={handleSubmit} className="flex flex-col gap-6 text-left">
                     
+                    {/* Honeypot field (hidden from users, bot trap) */}
+                    <div className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden" aria-hidden="true">
+                      <label htmlFor="website">Website Address (Do not fill)</label>
+                      <input 
+                        type="text" 
+                        id="website" 
+                        name="website" 
+                        value={honeypot} 
+                        onChange={(e) => setHoneypot(e.target.value)} 
+                        tabIndex={-1} 
+                      />
+                    </div>
+
                     {/* Name Input */}
                     <div className="flex flex-col gap-2 relative group">
-                      <label className="text-[8px] tracking-[0.25em] text-[#1C130D]/50 uppercase font-black pl-0.5">
-                        PATRON NAME
+                      <label className="text-[9px] tracking-[0.15em] text-[#1C130D]/60 uppercase font-black pl-0.5">
+                        Your Name
                       </label>
                       <div className="relative">
                         <input 
@@ -889,7 +1016,7 @@ export default function ContactPage() {
                           onChange={handleInputChange}
                           onFocus={() => setFocusedField("name")}
                           onBlur={() => setFocusedField(null)}
-                          placeholder="e.g. Alexander Mercer"
+                          placeholder="Enter your name"
                           className="bg-white border border-[#EAE3DB] focus:border-[#8C6239] rounded-none px-4 py-3.5 outline-none text-[11px] tracking-widest text-[#1C130D] font-bold placeholder-[#1C130D]/20 transition-all duration-300 w-full shadow-inner"
                         />
                         <div 
@@ -897,12 +1024,15 @@ export default function ContactPage() {
                           style={{ transform: focusedField === "name" ? "scaleX(1)" : "scaleX(0)" }}
                         />
                       </div>
+                      {validationErrors.name && (
+                        <span className="text-[10px] text-red-700 font-bold tracking-wider mt-0.5 pl-0.5">{validationErrors.name}</span>
+                      )}
                     </div>
 
                     {/* Email Input */}
                     <div className="flex flex-col gap-2 relative group">
-                      <label className="text-[8px] tracking-[0.25em] text-[#1C130D]/50 uppercase font-black pl-0.5">
-                        EMAIL ADDRESS
+                      <label className="text-[9px] tracking-[0.15em] text-[#1C130D]/60 uppercase font-black pl-0.5">
+                        Your Email
                       </label>
                       <div className="relative">
                         <input 
@@ -913,7 +1043,7 @@ export default function ContactPage() {
                           onChange={handleInputChange}
                           onFocus={() => setFocusedField("email")}
                           onBlur={() => setFocusedField(null)}
-                          placeholder="e.g. patron@gharibprive.com"
+                          placeholder="Enter your email"
                           className="bg-white border border-[#EAE3DB] focus:border-[#8C6239] rounded-none px-4 py-3.5 outline-none text-[11px] tracking-widest text-[#1C130D] font-bold placeholder-[#1C130D]/20 transition-all duration-300 w-full shadow-inner"
                         />
                         <div 
@@ -921,12 +1051,15 @@ export default function ContactPage() {
                           style={{ transform: focusedField === "email" ? "scaleX(1)" : "scaleX(0)" }}
                         />
                       </div>
+                      {validationErrors.email && (
+                        <span className="text-[10px] text-red-700 font-bold tracking-wider mt-0.5 pl-0.5">{validationErrors.email}</span>
+                      )}
                     </div>
 
                     {/* Subject Input */}
                     <div className="flex flex-col gap-2 relative z-30">
-                      <label className="text-[8px] tracking-[0.25em] text-[#1C130D]/50 uppercase font-black pl-0.5">
-                        INQUIRY DEPT.
+                      <label className="text-[9px] tracking-[0.15em] text-[#1C130D]/60 uppercase font-black pl-0.5">
+                        Subject
                       </label>
                       
                       <div className="relative">
@@ -942,10 +1075,10 @@ export default function ContactPage() {
                         <AnimatePresence>
                           {isFormDropdownOpen && (
                             <motion.div
-                              initial={{ opacity: 0, y: 5 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: 5 }}
-                              className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-[#EAE3DB] p-2 shadow-2xl z-50 flex flex-col gap-0.5 text-neutral-800"
+                               initial={{ opacity: 0, y: 5 }}
+                               animate={{ opacity: 1, y: 0 }}
+                               exit={{ opacity: 0, y: 5 }}
+                               className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-[#EAE3DB] p-2 shadow-2xl z-50 flex flex-col gap-0.5 text-neutral-800"
                             >
                               {subjectOptions.map((opt) => (
                                 <button
@@ -972,8 +1105,8 @@ export default function ContactPage() {
 
                     {/* Message Textarea */}
                     <div className="flex flex-col gap-2 relative group">
-                      <label className="text-[8px] tracking-[0.25em] text-[#1C130D]/50 uppercase font-black pl-0.5">
-                        PATRON MESSAGE
+                      <label className="text-[9px] tracking-[0.15em] text-[#1C130D]/60 uppercase font-black pl-0.5">
+                        Your Message
                       </label>
                       <div className="relative">
                         <textarea 
@@ -984,7 +1117,7 @@ export default function ContactPage() {
                           onChange={handleInputChange}
                           onFocus={() => setFocusedField("message")}
                           onBlur={() => setFocusedField(null)}
-                          placeholder="Please articulate your custom request, olfactory preferences, or boutique event interests in detail..."
+                          placeholder="Type your message here..."
                           className="bg-white border border-[#EAE3DB] focus:border-[#8C6239] rounded-none px-4 py-3.5 outline-none text-[11px] tracking-widest text-[#1C130D] font-bold placeholder-[#1C130D]/20 transition-all duration-300 w-full shadow-inner resize-none leading-relaxed"
                         />
                         <div 
@@ -992,7 +1125,17 @@ export default function ContactPage() {
                           style={{ transform: focusedField === "message" ? "scaleX(1)" : "scaleX(0)" }}
                         />
                       </div>
+                      {validationErrors.message && (
+                        <span className="text-[10px] text-red-700 font-bold tracking-wider mt-0.5 pl-0.5">{validationErrors.message}</span>
+                      )}
                     </div>
+
+                    {/* Submit Error alert */}
+                    {submitError && (
+                      <div className="bg-red-50 border border-red-200 text-red-700 text-[10px] tracking-widest uppercase font-bold p-3 text-center">
+                        {submitError}
+                      </div>
+                    )}
 
                     {/* Submit Button */}
                     <button 
@@ -1006,10 +1149,10 @@ export default function ContactPage() {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          SENDING TO CONCIERGE...
+                          SENDING...
                         </>
                       ) : (
-                        "SUBMIT INQUIRY ✧"
+                        "SEND MESSAGE"
                       )}
                     </button>
                   </form>
@@ -1041,29 +1184,29 @@ export default function ContactPage() {
                     <span className="absolute inset-0 rounded-full border border-amber-600/20 animate-ping opacity-30 scale-105" />
                   </motion.div>
 
-                  <span className="text-[9px] tracking-[0.35em] text-amber-700 uppercase font-black mb-3">
-                    INQUIRY TRANSMITTED SUCCESSFUL
+                  <span className="text-[9px] tracking-[0.2em] text-amber-700 uppercase font-black mb-3">
+                    MESSAGE SENT
                   </span>
                   
                   <h3 className="text-2xl font-serif-luxury font-medium tracking-widest text-[#1C130D] uppercase mb-8">
-                    DEAR PATRON,
+                    THANK YOU!
                   </h3>
 
-                  <div className="max-w-[420px] text-left border-l border-amber-800/10 pl-6 my-2 space-y-4">
+                  <div className="max-w-[420px] text-center border-l-0 pl-0 my-2 space-y-4">
                     <p className="text-[11px] leading-relaxed text-[#1C130D]/75 font-semibold tracking-wider uppercase">
-                      Thank you for contacting the House of Gharib. Your custom request has been logged and dispatched to our elite Fragrance Concierge.
+                      We received your message.
                     </p>
                     <p className="text-[11px] leading-relaxed text-[#1C130D]/75 font-semibold tracking-wider uppercase">
-                      A dedicated curator is reviewing your sensory details and will reach out to you within 24 hours to assist you further.
+                      We will reply to you within 24 hours.
                     </p>
                   </div>
 
                   <div className="mt-10 mb-8 text-center flex flex-col items-center">
                     <span className="text-[9px] text-[#1C130D]/40 tracking-[0.25em] font-extrabold uppercase mb-1">
-                      With elegance,
+                      Best regards,
                     </span>
                     <span className="text-[10px] text-amber-800 tracking-[0.3em] font-black uppercase">
-                      Gharib Privé Atelier
+                      Gharib Perfumes
                     </span>
                   </div>
 
@@ -1072,13 +1215,13 @@ export default function ContactPage() {
                       onClick={() => isSubmitted && setIsSubmitted(false)}
                       className="flex-1 bg-transparent border border-neutral-300 hover:border-amber-600 text-neutral-800 hover:text-amber-700 text-[9px] font-black tracking-[0.2em] uppercase py-4 transition-all duration-300 rounded-none cursor-pointer"
                     >
-                      SEND ANOTHER INQUIRY
+                      SEND ANOTHER MESSAGE
                     </button>
                     <button 
                       onClick={() => router.push("/")}
                       className="flex-1 bg-[#8C6239] text-white hover:bg-[#1C130D] text-[9px] font-black tracking-[0.2em] uppercase py-4 transition-all duration-300 rounded-none cursor-pointer"
                     >
-                      RETURN TO HOME
+                      GO TO HOME
                     </button>
                   </div>
                 </motion.div>
@@ -1090,19 +1233,19 @@ export default function ContactPage() {
       </main>
 
       {/* ═══════════════════════════════════════════════════
-          FOOTER: Premium Secured Suede Panel
+          FOOTER: Secure Footer Panel
           ═══════════════════════════════════════════════════ */}
       <footer className="w-full bg-[#FAF6F0] relative z-25 border-t border-[#EAE3DB]">
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <span className="text-[8px] tracking-[0.22em] text-[#1C130D]/40 uppercase font-extrabold">
-            © {new Date().getFullYear()} GHARIB PRIVÉ ATELIER. ALL RIGHTS RESERVED.
+            © {new Date().getFullYear()} GHARIB PERFUMES. ALL RIGHTS RESERVED.
           </span>
           
           <div className="flex items-center gap-1.5 text-[8px] tracking-[0.22em] text-[#1C130D]/40 font-extrabold uppercase select-none">
             <svg className="w-3 h-3 text-amber-700/60" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
             </svg>
-            SSL SECURE DATA CONCIERGE
+            SSL SECURE SYSTEM
           </div>
         </div>
       </footer>

@@ -6,87 +6,168 @@ import Link from "next/link";
 import { 
   Home, ShoppingBag, Tag, FolderOpen, Layers, ClipboardList, 
   GitCompare, Gift, Users, Megaphone, Percent, FileText, Globe, 
-  BarChart3, Loader2, LogOut, ShieldAlert, ChevronLeft, Menu, X
+  BarChart3, Loader2, LogOut, ShieldAlert, ChevronLeft, Menu, X,
+  ChevronDown, ChevronRight, Mail
 } from "lucide-react";
 import { clientSafeSupabase } from "../lib/supabase";
+
+// Categorized Admin Sidebar Links with Icons
+const categories = [
+  {
+    id: "overview",
+    label: "Overview & Reports",
+    icon: BarChart3,
+    subItems: [
+      { id: "dashboard", label: "Home Dashboard", icon: Home },
+      { id: "analytics", label: "Analytics Reports", icon: BarChart3 },
+      { id: "reports", label: "Executive Reports", icon: ClipboardList }
+    ]
+  },
+  {
+    id: "catalog",
+    label: "Catalog & Stock",
+    icon: Tag,
+    subItems: [
+      { id: "products", label: "Products Catalog", icon: Tag },
+      { id: "collections", label: "Collections Registry", icon: FolderOpen },
+      { id: "inventory", label: "Inventory Tracker", icon: Layers },
+      { id: "transfers", label: "Stock Transfers", icon: GitCompare }
+    ]
+  },
+  {
+    id: "sales",
+    label: "Sales & Customers",
+    icon: ShoppingBag,
+    subItems: [
+      { id: "orders", label: "Orders Registry", icon: ShoppingBag },
+      { id: "customers", label: "Customers Catalog", icon: Users },
+      { id: "abandoned_carts", label: "Abandoned Carts", icon: FolderOpen }
+    ]
+  },
+  {
+    id: "marketing",
+    label: "Marketing & Promos",
+    icon: Megaphone,
+    subItems: [
+      { id: "marketing", label: "Campaigns & Ads", icon: Megaphone },
+      { id: "discounts", label: "Discount Codes", icon: Percent },
+      { id: "gift_cards", label: "Gift Cards Vault", icon: Gift }
+    ]
+  },
+  {
+    id: "settings",
+    label: "Store Settings",
+    icon: Globe,
+    subItems: [
+      { id: "content", label: "CMS & Pages", icon: FileText },
+      { id: "markets", label: "Global Markets", icon: Globe }
+    ]
+  }
+];
 
 // Sidebar Links subcomponent utilizing Next.js useSearchParams hook to trigger immediate active state rendering
 function AdminSidebarLinks() {
   const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab") || "dashboard";
   
-  const links = [
-    { id: "dashboard", label: "Home Dashboard", icon: Home },
-    { id: "orders", label: "Orders Registry", icon: ShoppingBag },
-    { id: "reports", label: "Executive Reports", icon: ClipboardList },
-    { 
-      id: "products-group", 
-      label: "Products", 
-      icon: Tag, 
-      isGroup: true,
-      subItems: [
-        { id: "products", label: "Products Catalog" },
-        { id: "collections", label: "Collections Registry" }
-      ]
-    },
-    { id: "inventory", label: "Inventory Tracker", icon: Layers },
-    { id: "transfers", label: "Stock Transfers", icon: GitCompare },
-    { id: "gift_cards", label: "Gift Cards Vault", icon: Gift },
-    { id: "customers", label: "Customers Catalog", icon: Users },
-    { id: "abandoned_carts", label: "Abandoned Carts", icon: FolderOpen },
-    { id: "marketing", label: "Marketing Campaigns", icon: Megaphone },
-    { id: "discounts", label: "Discount Codes", icon: Percent },
-    { id: "content", label: "CMS Pages & Content", icon: FileText },
-    { id: "markets", label: "Global Markets", icon: Globe },
-    { id: "analytics", label: "Analytics Reports", icon: BarChart3 }
-  ];
+  // Track expanded state for categories. Initialize as true for the group containing currentTab.
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    categories.forEach(cat => {
+      const hasActive = cat.subItems.some(sub => sub.id === currentTab);
+      if (hasActive) {
+        initial[cat.id] = true;
+      }
+    });
+    return initial;
+  });
+
+  // Auto-expand group on Tab change/navigation
+  useEffect(() => {
+    const activeGroup = categories.find(cat =>
+      cat.subItems.some(sub => sub.id === currentTab)
+    );
+    if (activeGroup) {
+      setExpandedGroups(prev => ({
+        ...prev,
+        [activeGroup.id]: true
+      }));
+    }
+  }, [currentTab]);
+
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupId]: !prev[groupId]
+    }));
+  };
 
   return (
-    <div className="flex flex-col gap-1">
-      {links.map(link => {
-        if (link.isGroup) {
-          const LinkIcon = link.icon;
-          return (
-            <div key={link.id} className="flex flex-col mb-1 mt-1">
-              <div className="flex items-center gap-3 px-3.5 py-2.5 text-[9px] font-bold tracking-[0.15em] text-[#5C4E46] uppercase select-none">
-                <LinkIcon className="w-4 h-4 text-[#8C6239]" />
-                <span>{link.label}</span>
-              </div>
-              <div className="flex flex-col pl-4 border-l border-[#D8CFBF]/40 ml-5.5 gap-0.5">
-                {link.subItems.map(sub => {
-                  const isSubActive = currentTab === sub.id;
-                  return (
-                    <Link 
-                      key={sub.id}
-                      href={`/admin?tab=${sub.id}`} 
-                      className={`py-2 px-3.5 text-[8.5px] font-bold tracking-widest uppercase transition-all duration-200 block ${
-                        isSubActive 
-                          ? "text-[#8C6239] font-black border-l-2 border-[#8C6239] bg-[#8C6239]/5 pl-4" 
-                          : "text-[#5C4E46]/80 hover:text-[#1C120C] hover:bg-[#8C6239]/2 hover:pl-4 border-l-2 border-transparent"
-                      }`}
-                    >
-                      {sub.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        }
-
-        const LinkIcon = link.icon;
-        const isActive = currentTab === link.id;
+    <div className="flex flex-col gap-1.5">
+      {categories.map(category => {
+        const CategoryIcon = category.icon;
+        const isExpanded = !!expandedGroups[category.id];
+        const containsActive = category.subItems.some(sub => sub.id === currentTab);
+        
         return (
-          <Link 
-            key={link.id}
-            href={`/admin?tab=${link.id}`} 
-            className={`sidebar-link ${isActive ? "active-link" : ""}`}
-          >
-            <LinkIcon className={`w-4 h-4 ${isActive ? "text-amber-600 font-bold" : ""}`} />
-            <span>{link.label}</span>
-          </Link>
+          <div key={category.id} className="flex flex-col">
+            {/* Category Header Tab */}
+            <button
+              onClick={() => toggleGroup(category.id)}
+              className={`category-header ${containsActive ? "contains-active font-black" : ""}`}
+            >
+              <div className="flex items-center gap-3">
+                <CategoryIcon className={`w-4 h-4 ${containsActive ? "text-[#8C6239]" : "text-[#5C4E46]/70"}`} />
+                <span>{category.label}</span>
+              </div>
+              <div className="transition-transform duration-200 ease-in-out">
+                {isExpanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </div>
+            </button>
+
+            {/* Sub-items list with animatable properties */}
+            <div 
+              className={`category-subitems flex flex-col pl-4 border-l border-[#D8CFBF]/40 ml-5.5 gap-0.5 transition-all duration-300 ease-in-out ${
+                isExpanded ? "max-h-[500px] opacity-100 mt-1 mb-2" : "max-h-0 opacity-0 pointer-events-none"
+              }`}
+            >
+              {category.subItems.map(sub => {
+                const SubIcon = sub.icon;
+                const isSubActive = currentTab === sub.id;
+                return (
+                  <Link 
+                    key={sub.id}
+                    href={`/admin?tab=${sub.id}`} 
+                    className={`flex items-center gap-3 py-2 px-3.5 text-[10px] font-bold tracking-widest uppercase transition-all duration-200 block ${
+                      isSubActive 
+                        ? "text-[#8C6239] font-black border-l-2 border-[#8C6239] bg-[#8C6239]/5 pl-4" 
+                        : "text-[#5C4E46]/80 hover:text-[#1C120C] hover:bg-[#8C6239]/2 hover:pl-4 border-l-2 border-transparent"
+                    }`}
+                  >
+                    <SubIcon className={`w-3.5 h-3.5 ${isSubActive ? "text-[#8C6239]" : "text-[#5C4E46]/50"}`} />
+                    <span>{sub.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
+
+      {/* Standalone Inquiries Log Link at the bottom */}
+      <div className="border-t border-[#D8CFBF]/30 pt-2.5 mt-2.5">
+        <Link 
+          href="/admin?tab=inquiries" 
+          className={`sidebar-link ${currentTab === "inquiries" ? "active-link" : ""}`}
+        >
+          <Mail className={`w-4 h-4 ${currentTab === "inquiries" ? "text-amber-600 font-bold" : ""}`} />
+          <span>Inquiries Log</span>
+        </Link>
+      </div>
     </div>
   );
 }
@@ -251,7 +332,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex flex-1 relative min-h-[calc(100vh-64px)]">
         
         {/* SIDEBAR: Admin Console Panel (Shopify Menu options) */}
-        <aside className={`fixed lg:sticky top-16 left-0 w-[240px] h-[calc(100vh-64px)] border-r border-white/[0.04] bg-[#090503] z-20 transition-transform duration-300 transform lg:translate-x-0 ${
+        <aside className={`fixed lg:sticky top-16 left-0 w-[280px] h-[calc(100vh-64px)] border-r border-white/[0.04] bg-[#090503] z-20 transition-transform duration-300 transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}>
           <div className="h-full flex flex-col justify-between p-4 overflow-y-auto">
@@ -303,7 +384,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           align-items: center;
           gap: 12px;
           padding: 11px 14px;
-          font-size: 9px;
+          font-size: 11px;
           font-weight: 700;
           letter-spacing: 0.12em;
           text-transform: uppercase;
@@ -324,10 +405,53 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           font-weight: 900;
         }
 
+        .category-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+          padding: 11px 14px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          border-left: 2px solid transparent;
+          cursor: pointer;
+          background: transparent;
+          border: none;
+          text-align: left;
+          color: rgba(234, 227, 219, 0.5);
+        }
+        .category-header:hover {
+          color: #ffffff;
+          background: rgba(255, 255, 255, 0.02);
+        }
+        .category-header.contains-active {
+          color: #fbbf24;
+          font-weight: 900;
+        }
+
+        .category-subitems {
+          overflow: hidden;
+          transition: max-height 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+        }
+
         /* Luxury Light Theme Global Overrides */
         .admin-layout-container {
           background-color: #FAF9F6 !important;
           color: #2A1A0F !important;
+        }
+        
+        .admin-layout-container .category-header {
+          color: #5C4E46 !important;
+        }
+        .admin-layout-container .category-header:hover {
+          color: #1C120C !important;
+          background: rgba(140, 98, 57, 0.04) !important;
+        }
+        .admin-layout-container .category-header.contains-active {
+          color: #8C6239 !important;
         }
         
         .admin-layout-container header {

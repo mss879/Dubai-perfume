@@ -111,7 +111,7 @@ export default function SignInPage() {
             <div className="flex items-center gap-2 mb-2">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse" />
               <span className="text-[9px] tracking-[0.35em] text-amber-700 uppercase font-black">
-                PRIVÉ MEMBER GATEWAY
+                MEMBER GATEWAY
               </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-serif-luxury font-medium tracking-[0.18em] text-[#1C130D] uppercase text-center">
@@ -150,7 +150,7 @@ export default function SignInPage() {
                   {/* Member privileges list */}
                   <div className="w-full bg-[#FAF7F2]/80 border border-amber-900/[0.05] p-5.5 text-left mb-8">
                     <h5 className="text-[10px] tracking-[0.22em] text-amber-700 font-black uppercase mb-3.5 flex items-center gap-1.5">
-                      <span className="text-xs">✦</span> PRIVÉ MEMBERSHIP STATUS
+                      <span className="text-xs">✦</span> MEMBERSHIP STATUS
                     </h5>
                     <ul className="text-[10px] tracking-[0.15em] text-[#1C130D]/70 uppercase font-bold space-y-3">
                       <li className="flex items-center gap-2">
@@ -292,7 +292,7 @@ export default function SignInPage() {
       {/* Footer Area */}
       <footer className="w-full max-w-7xl mx-auto py-4 text-center z-20 relative flex flex-col md:flex-row items-center justify-between gap-3 border-t border-[#1C130D]/5 pt-6 mt-4">
         <span className="text-[8px] tracking-[0.2em] text-[#1C130D]/30 uppercase font-bold">
-          © {new Date().getFullYear()} GHARIB PRIVÉ. ALL RIGHTS RESERVED.
+          © {new Date().getFullYear()} GHARIB. ALL RIGHTS RESERVED.
         </span>
         <div className="flex items-center gap-1.5 text-[8px] tracking-[0.2em] text-[#1C130D]/30 font-bold uppercase select-none">
           <svg className="w-3 h-3 text-amber-700/60" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

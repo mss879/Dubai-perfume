@@ -13,11 +13,11 @@ export const supabase = isRealSupabaseConfigured
 
 // Mock Database Storage seeded with migrations mock data
 const SEED_PRODUCTS = [
-  { id: 101, brand: "GHARIB PRIVÉ", name: "Gold Memoir", price: 745.00, sizes: ["50ml", "100ml"], image_url: "/gold-memoir.png", description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.", tagline: "Aurum Noble Edition", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["memoir", "noble", "wood", "oud"] },
-  { id: 102, brand: "GHARIB PRIVÉ", name: "Enchanted Blooms", price: 437.00, sizes: ["30ml", "50ml"], image_url: "/enchanted-blooms.png", description: "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.", tagline: "Aura Floral Collection", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["floral", "sweet", "jasmine", "blooms"] },
-  { id: 103, brand: "GHARIB PRIVÉ", name: "Mystic Oud", price: 620.00, sizes: ["50ml", "100ml"], image_url: "/mystic-oud.png", description: "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.", tagline: "Royal Spice Reserve", olfactory_group: "Woody & Oud", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["oriental", "oud", "spice", "mystic"] },
-  { id: 104, brand: "GHARIB PRIVÉ", name: "Ocean Breeze", price: 532.00, sizes: ["50ml", "100ml"], image_url: "/ocean-breeze.png", description: "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.", tagline: "Aquamarine Coast Line", olfactory_group: "Fresh & Aquatic", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["fresh", "aquatic", "marine", "ocean"] },
-  { id: 1, brand: "INITIO PARFUMS PRIVES", name: "Oud for greatness", price: 1215.00, sizes: ["50ml", "90ml"], image_url: "/catalog_initio_oud.png", description: "A highly concentrated woody fragrance with saffron, lavender, and nutmeg, dry down to heavy dark agarwood oud.", tagline: "Sacred Geometry", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["wood", "oud", "greatness", "saffron"] },
+  { id: 101, brand: "GHARIB", name: "Gold Memoir", price: 745.00, sizes: ["50ml", "100ml"], image_url: "/gold-memoir.png", description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.", tagline: "Aurum Noble Edition", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["memoir", "noble", "wood", "oud"] },
+  { id: 102, brand: "GHARIB", name: "Enchanted Blooms", price: 437.00, sizes: ["30ml", "50ml"], image_url: "/enchanted-blooms.png", description: "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.", tagline: "Aura Floral Collection", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["floral", "sweet", "jasmine", "blooms"] },
+  { id: 103, brand: "GHARIB", name: "Mystic Oud", price: 620.00, sizes: ["50ml", "100ml"], image_url: "/mystic-oud.png", description: "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.", tagline: "Royal Spice Reserve", olfactory_group: "Woody & Oud", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["oriental", "oud", "spice", "mystic"] },
+  { id: 104, brand: "GHARIB", name: "Ocean Breeze", price: 532.00, sizes: ["50ml", "100ml"], image_url: "/ocean-breeze.png", description: "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.", tagline: "Aquamarine Coast Line", olfactory_group: "Fresh & Aquatic", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["fresh", "aquatic", "marine", "ocean"] },
+  { id: 1, brand: "INITIO PARFUMS", name: "Oud for greatness", price: 1215.00, sizes: ["50ml", "90ml"], image_url: "/catalog_initio_oud.png", description: "A highly concentrated woody fragrance with saffron, lavender, and nutmeg, dry down to heavy dark agarwood oud.", tagline: "Sacred Geometry", olfactory_group: "Woody & Oud", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["wood", "oud", "greatness", "saffron"] },
   { id: 2, brand: "JULIETTE HAS A GUN", name: "Juliette", price: 360.00, sizes: ["30ml", "50ml"], image_url: "/catalog_juliette_gun.png", description: "A beautiful floral-sensual blend that balances elegant red berries, white blossoms, and sweet woods.", tagline: "Femme Fatale Signature", olfactory_group: "Floral & Sweet", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["floral", "sweet", "juliette", "rose"] },
   { id: 3, brand: "RABANNE", name: "Phantom", price: 440.00, sizes: ["50ml", "100ml"], image_url: "/catalog_rabanne_phantom.png", description: "A fresh, futuristic composition featuring notes of lavender, creamy patchouli, vanilla, and sparkling vetiver.", tagline: "Metallic Modern Scent", olfactory_group: "Fresh & Aquatic", is_new: true, is_bestseller: false, is_featured_large: false, tags: ["fresh", "aquatic", "phantom", "modern"] },
   { id: 4, brand: "HFC", name: "Devil's intrigue", price: 1358.00, sizes: ["75ml"], image_url: "/catalog_hfc_devils.png", description: "Deep, dramatic amber oriental profile combining warm vanilla, fine sandalwood, and exotic floral touches.", tagline: "Hypnotic Indulgence", olfactory_group: "Amber & Oriental", is_new: false, is_bestseller: true, is_featured_large: false, tags: ["amber", "oriental", "devil", "sandalwood"] },
@@ -78,7 +78,7 @@ const SEED_CUSTOMERS = [
 const SEED_MARKETING = [
   { id: 1, name: "EID Luxury Collection Launch", channel: "Instagram/Meta", status: "active", budget: 5000.00, attributed_sales: 18450.00, impressions: 245000, clicks: 8900 },
   { id: 2, name: "Gold Memoir Search Ads", channel: "Google Ads", status: "active", budget: 2500.00, attributed_sales: 7120.00, impressions: 85000, clicks: 4200 },
-  { id: 3, name: "Privé Member Newsletter #12", channel: "Klaviyo Email", status: "completed", budget: 300.00, attributed_sales: 4890.00, impressions: 12000, clicks: 1500 }
+  { id: 3, name: "Elite Member Newsletter #12", channel: "Klaviyo Email", status: "completed", budget: 300.00, attributed_sales: 4890.00, impressions: 12000, clicks: 1500 }
 ];
 
 const SEED_DISCOUNTS = [
@@ -96,6 +96,11 @@ const SEED_TRACKING = [
   { id: 5, order_id: "ORD-9923", status: "Order Placed", location: "Dubai Headquarters", description: "We have received your exclusive order selection.", updated_at: new Date(Date.now() - 86400000 * 4).toISOString() },
   { id: 6, order_id: "ORD-9923", status: "Fragrance Blending", location: "Dubai Blending Labs", description: "Master scent artists are blending your delicate extrait de parfum.", updated_at: new Date(Date.now() - 86400000 * 3.8).toISOString() },
   { id: 7, order_id: "ORD-9923", status: "Quality Control", location: "Dubai Blending Labs", description: "Scent profile approved by Gharib QC team.", updated_at: new Date(Date.now() - 86400000 * 3.5).toISOString() }
+];
+
+const SEED_INQUIRIES = [
+  { id: "inq-1", name: "Alexander Mercer", email: "alex.mercer@gmail.com", subject: "General Inquiries", message: "I would like to schedule a private fragrance blending session at your Alserkal Avenue flagship boutique next Friday evening.", created_at: new Date(Date.now() - 86400000 * 2).toISOString() },
+  { id: "inq-2", name: "Elena Rostova", email: "elena.rostova@yahoo.com", subject: "General Inquiries", message: "Does your House plan to release a summer collection featuring rose or soft jasmine notes soon? I absolutely adore your Enchanted Blooms scent.", created_at: new Date(Date.now() - 86400000).toISOString() }
 ];
 
 const SEED_PRODUCT_COLLECTIONS = [
@@ -228,7 +233,7 @@ class MockSupabaseClient {
         total_spent: 0.00,
         orders_count: 0,
         is_admin: options?.data?.is_admin || false,
-        note: "Auto-registered Privé Member."
+        note: "Auto-registered Member."
       };
       customers.push(newCustomer);
       setLocalStorage("mock_customers", customers);
@@ -300,6 +305,7 @@ class MockSupabaseClient {
         case "order_tracking": return getLocalStorage("mock_tracking", SEED_TRACKING);
         case "wishlists": return getLocalStorage("mock_wishlists", []);
         case "abandoned_carts": return getLocalStorage("mock_abandoned_carts", []);
+        case "contact_inquiries": return getLocalStorage("mock_contact_inquiries", SEED_INQUIRIES);
         default: return [];
       }
     };
@@ -317,6 +323,7 @@ class MockSupabaseClient {
         case "order_tracking": setLocalStorage("mock_tracking", data); break;
         case "wishlists": setLocalStorage("mock_wishlists", data); break;
         case "abandoned_carts": setLocalStorage("mock_abandoned_carts", data); break;
+        case "contact_inquiries": setLocalStorage("mock_contact_inquiries", data); break;
       }
     };
 
@@ -380,14 +387,26 @@ class MockSupabaseClient {
         };
       },
       delete: () => {
-        return {
+        const deleteBuilder = {
           eq: (field: string, value: any) => {
             const updated = data.filter((row: any) => row[field] !== value);
             setTableData(updated);
             data = updated;
-            return queryBuilder;
+            return deleteBuilder;
+          },
+          match: (criteria: any) => {
+            const updated = data.filter((row: any) => {
+              return !Object.keys(criteria).every(key => row[key] == criteria[key]);
+            });
+            setTableData(updated);
+            data = updated;
+            return deleteBuilder;
+          },
+          then: (onfulfilled: any) => {
+            return Promise.resolve(onfulfilled({ data, error: null }));
           }
         };
+        return deleteBuilder;
       },
       eq: (field: string, value: any) => {
         data = data.filter((row: any) => row[field] == value);

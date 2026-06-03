@@ -27,6 +27,7 @@ function AdminDashboardContent() {
   const [trackingLogs, setTrackingLogs] = useState<any[]>([]);
   const [abandonedCarts, setAbandonedCarts] = useState<any[]>([]);
   const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [inquiries, setInquiries] = useState<any[]>([]);
   const [startDate, setStartDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30); // Default to last 30 days
@@ -70,7 +71,7 @@ function AdminDashboardContent() {
   
   // New Scent Product Form
   const [newProductName, setNewProductName] = useState("");
-  const [newProductBrand, setNewProductBrand] = useState("GHARIB PRIVÉ");
+  const [newProductBrand, setNewProductBrand] = useState("GHARIB");
   const [newProductPrice, setNewProductPrice] = useState("");
   
   // Overhauled sizes and tags
@@ -111,6 +112,7 @@ function AdminDashboardContent() {
         const { data: oiData } = await clientSafeSupabase.from("order_items").select("*");
         const { data: colData } = await clientSafeSupabase.from("collections").select("*");
         const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
+        const { data: inqData } = await clientSafeSupabase.from("contact_inquiries").select("*");
 
         setProducts(pData || []);
         setOrders(oData || []);
@@ -123,6 +125,7 @@ function AdminDashboardContent() {
         setOrderItems(oiData || []);
         setCollections(colData || []);
         setProductCollections(pcData || []);
+        setInquiries(inqData || []);
       } catch (err) {
         console.error("Dashboard seed retrieval failure", err);
       } finally {
@@ -368,6 +371,22 @@ function AdminDashboardContent() {
     }
   };
 
+  const handleDeleteInquiry = async (inqId: string) => {
+    try {
+      const { error } = await clientSafeSupabase
+        .from("contact_inquiries")
+        .delete()
+        .eq("id", inqId);
+
+      if (error) throw error;
+
+      setInquiries(prev => prev.filter(inq => inq.id !== inqId));
+      triggerToast("Inquiry logged entry removed successfully.");
+    } catch (err) {
+      triggerToast("Failed to remove inquiry entry.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-[400px] flex items-center justify-center flex-col gap-4">
@@ -419,7 +438,7 @@ function AdminDashboardContent() {
       }
     });
 
-    const bestSeller = products.find(p => p.id === bestSellerId) || { name: "No Sales Recorded", brand: "Gharib Privé" };
+    const bestSeller = products.find(p => p.id === bestSellerId) || { name: "No Sales Recorded", brand: "Gharib" };
     
     return {
       periodOrders,
@@ -1483,7 +1502,7 @@ function AdminDashboardContent() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
-                  PRIVÉ EXCLUSIVE VAULT
+                  EXCLUSIVE VAULT
                 </span>
                 <h2 className="text-xl font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
                   GIFT CARDS VAULT
@@ -1574,7 +1593,7 @@ function AdminDashboardContent() {
                           type="text" 
                           value={giftCode}
                           onChange={(e) => setGiftCode(e.target.value)}
-                          placeholder="e.g. SPECIAL-PRIVÉ-SCENT"
+                          placeholder="e.g. SPECIAL-SCENT"
                           required
                           className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
                         />
@@ -1627,7 +1646,7 @@ function AdminDashboardContent() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
-                  PRIVÉ MEMBER LIST
+                  MEMBER LIST
                 </span>
                 <h2 className="text-xl font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
                   CUSTOMERS CATALOG
@@ -2314,7 +2333,7 @@ function AdminDashboardContent() {
                 <div className="flex flex-col gap-4">
                   <div className="bg-white/[0.01] border border-white/[0.03] p-4 flex justify-between items-center">
                     <div>
-                      <span className="text-[10px] tracking-widest text-[#EAE3DB] font-bold uppercase">About La Maison Privé</span>
+                      <span className="text-[10px] tracking-widest text-[#EAE3DB] font-bold uppercase">About La Maison</span>
                       <span className="text-[7.5px] text-green-400 font-bold block mt-1 tracking-widest">LIVE PAGE ACTIVE</span>
                     </div>
                     <Edit2 className="w-4 h-4 text-[#EAE3DB]/30 hover:text-amber-500 cursor-pointer" />
@@ -2961,7 +2980,111 @@ function AdminDashboardContent() {
           </div>
         )}
 
-      </div>
+        {/* ========================================================
+            TAB: INQUIRIES LOG
+            ======================================================== */}
+        {currentTab === "inquiries" && (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
+                  CUSTOMER MESSAGES
+                </span>
+                <h2 className="text-xl font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
+                  INQUIRIES LOG
+                </h2>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative w-full md:w-72">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#EAE3DB]/30">
+                  <Search className="w-4 h-4" />
+                </span>
+                <input 
+                  type="text" 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Filter inquiries by name, email..."
+                  className="bg-white/[0.02] border border-white/[0.08] focus:border-amber-500/50 rounded-none pl-10 pr-4 py-2.5 text-[9px] tracking-widest text-[#EAE3DB] outline-none placeholder-[#EAE3DB]/20 w-full font-bold uppercase"
+                />
+              </div>
+            </div>
+
+            {/* Inquiries Table */}
+            <div className="bg-white/[0.015] border border-white/[0.04] overflow-x-auto">
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-white/[0.04] text-[8.5px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black bg-white/[0.01]">
+                    <th className="p-4 pl-6">DATE RECEIVED</th>
+                    <th className="p-4">CUSTOMER DETAILS</th>
+                    <th className="p-4">SUBJECT / INQUIRY</th>
+                    <th className="p-4">MESSAGE</th>
+                    <th className="p-4 pr-6 text-center">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
+                  {(() => {
+                    const filteredInquiries = inquiries.filter(inq => 
+                      inq.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                      inq.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      inq.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      inq.message.toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                    
+                    if (filteredInquiries.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
+                            NO CUSTOMER MESSAGES FOUND
+                          </td>
+                        </tr>
+                      );
+                    }
+                    
+                    return filteredInquiries.map((inq) => (
+                      <tr key={inq.id} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
+                        <td className="p-4 pl-6 text-[#EAE3DB]/50">
+                          {new Date(inq.created_at).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-[#EAE3DB]">{inq.name}</span>
+                            <span className="text-[8.5px] text-amber-500 lowercase tracking-normal font-medium">{inq.email}</span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <span className="border border-amber-600/35 bg-amber-950/20 text-amber-400 text-[7px] tracking-widest font-black uppercase px-2 py-0.5 inline-block">
+                            {inq.subject}
+                          </span>
+                        </td>
+                        <td className="p-4 max-w-sm normal-case font-medium tracking-normal text-[11px] leading-relaxed text-[#EAE3DB]/70">
+                          {inq.message}
+                        </td>
+                        <td className="p-4 pr-6 text-center">
+                          <button
+                            onClick={() => handleDeleteInquiry(inq.id)}
+                            className="text-red-400/80 hover:text-red-400 text-[8px] tracking-widest font-bold uppercase transition-all bg-red-950/10 border border-red-500/10 hover:border-red-500/25 px-2.5 py-1.5 cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            REMOVE
+                          </button>
+                        </td>
+                       </tr>
+                     ));
+                   })()}
+                 </tbody>
+               </table>
+             </div>
+           </div>
+         )}
+
+       </div>
     </div>
   );
 }

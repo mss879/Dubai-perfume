@@ -429,7 +429,7 @@ export default function CheckoutPage() {
           </Link>
 
           <span className="text-[11px] tracking-[0.35em] text-[#1C120C] font-extrabold uppercase select-none">
-            GHARIB PRIVÉ CHECKOUT
+            GHARIB CHECKOUT
           </span>
 
           <span className="text-[8.5px] tracking-[0.25em] text-amber-700 font-black flex items-center gap-1.5 select-none">
@@ -710,7 +710,7 @@ export default function CheckoutPage() {
                       
                       <div className="flex items-center justify-between">
                         <span className="text-[7.5px] font-black tracking-[0.25em] uppercase text-amber-950/70">
-                          LA MAISON GHARIB PRIVÉ
+                          LA MAISON GHARIB
                         </span>
                         <ShieldCheck className="w-5 h-5 text-amber-950/80" />
                       </div>
@@ -921,7 +921,7 @@ export default function CheckoutPage() {
       {/* Luxury Footer panel */}
       <footer className="w-full border-t border-[#E5DFD3] bg-[#F3EFE9] py-6 text-center select-none">
         <span className="text-[8px] tracking-[0.2em] text-[#7C6E65] uppercase font-bold">
-          © {new Date().getFullYear()} GHARIB PRIVÉ CHECKOUT HUB. ALL RIGHTS RESERVED.
+          © {new Date().getFullYear()} GHARIB CHECKOUT HUB. ALL RIGHTS RESERVED.
         </span>
       </footer>
 
