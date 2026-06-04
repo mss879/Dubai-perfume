@@ -44,6 +44,7 @@ export default function ProductPage({ params }: ProductPageProps) {
   const activeImageRef = useRef<HTMLDivElement>(null);
   const textStaggerRef = useRef<HTMLDivElement>(null);
   const faqRef = useRef<HTMLDivElement>(null);
+  const notesContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -62,19 +63,19 @@ export default function ProductPage({ params }: ProductPageProps) {
         // Fallback to static seed data if not found or DB failure
         if (!foundProduct) {
           const SEED_PRODUCTS = [
-            { id: 101, brand: "GHARIB", name: "Gold Memoir", price: 745.00, sizes: ["50ml", "100ml"], image_url: "/gold-memoir.png", description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.", tagline: "Aurum Noble Edition", olfactory_group: "Woody & Oud", tags: ["wood", "oud"] },
-            { id: 102, brand: "GHARIB", name: "Enchanted Blooms", price: 437.00, sizes: ["30ml", "50ml"], image_url: "/enchanted-blooms.png", description: "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.", tagline: "Aura Floral Collection", olfactory_group: "Floral & Sweet", tags: ["floral"] },
-            { id: 103, brand: "GHARIB", name: "Mystic Oud", price: 620.00, sizes: ["50ml", "100ml"], image_url: "/mystic-oud.png", description: "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.", tagline: "Royal Spice Reserve", olfactory_group: "Woody & Oud", tags: ["wood", "oud"] },
-            { id: 104, brand: "GHARIB", name: "Ocean Breeze", price: 532.00, sizes: ["50ml", "100ml"], image_url: "/ocean-breeze.png", description: "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.", tagline: "Aquamarine Coast Line", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"] },
-            { id: 1, brand: "INITIO PARFUMS PRIVES", name: "Oud for greatness", price: 1215.00, sizes: ["50ml", "90ml"], image_url: "/catalog_initio_oud.png", description: "A highly concentrated woody fragrance with saffron, lavender, and nutmeg, dry down to heavy dark agarwood oud.", tagline: "Sacred Geometry", olfactory_group: "Woody & Oud", tags: ["wood", "oud"] },
-            { id: 2, brand: "JULIETTE HAS A GUN", name: "Juliette", price: 360.00, sizes: ["30ml", "50ml"], image_url: "/catalog_juliette_gun.png", description: "A beautiful floral-sensual blend that balances elegant red berries, white blossoms, and sweet woods.", tagline: "Femme Fatale Signature", olfactory_group: "Floral & Sweet", tags: ["floral"] },
-            { id: 3, brand: "RABANNE", name: "Phantom", price: 440.00, sizes: ["50ml", "100ml"], image_url: "/catalog_rabanne_phantom.png", description: "A fresh, futuristic composition featuring notes of lavender, creamy patchouli, vanilla, and sparkling vetiver.", tagline: "Metallic Modern Scent", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"] },
-            { id: 4, brand: "HFC", name: "Devil's intrigue", price: 1358.00, sizes: ["75ml"], image_url: "/catalog_hfc_devils.png", description: "Deep, dramatic amber oriental profile combining warm vanilla, fine sandalwood, and exotic floral touches.", tagline: "Hypnotic Indulgence", olfactory_group: "Amber & Oriental", tags: ["amber", "orient"] },
-            { id: 5, brand: "TOM FORD", name: "Lost Cherry eau de parfum", price: 1196.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_tom_ford_cherry.png", description: "A contrasting scent that reveals a tempting dichotomy of playful, candy-like gleam on the outside and luscious flesh on the inside.", tagline: "Gourmand Masterpiece", olfactory_group: "Floral & Sweet", tags: ["floral", "sweet"] },
-            { id: 6, brand: "MOSCHINO", name: "Toy Boy", price: 158.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_moschino_teddy.png", description: "A unique, masculine fragrance blending dark woods, pink pepper, rose notes, and resinous amber highlights.", tagline: "Playful Sophistication", olfactory_group: "Woody & Oud", tags: ["wood", "oud"] },
-            { id: 7, brand: "FILIPPO SORCINELLI", name: "Epicentro", price: 1196.00, sizes: ["50ml", "100ml"], image_url: "/catalog_sorcinelli_epicentro.png", description: "Epicentro is an artistic perfume that represents a deep volcanic impact. Topped with a heavy raw silver metal crumpled sculpture.", tagline: "Artistic Volcanic Shudder", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"] },
-            { id: 8, brand: "FILIPPO SORCINELLI", name: "Eio_non_ho_mani_che_mi_accarezzino_il_volto", price: 862.00, sizes: ["100ml"], image_url: "/catalog_sorcinelli_leather.png", description: "An avante-garde olfactory masterpiece encased in a bottle wrapped dramatically in draped, textured organic matte black leather folds.", tagline: "Gothic Draped Incense", olfactory_group: "Amber & Oriental", tags: ["amber", "orient"] },
-            { id: 9, brand: "MARC-ANTOINE BARROIS", name: "Ganymede Extrait", price: 1170.00, sizes: ["30ml", "50ml"], image_url: "/catalog_marc_barrois.png", description: "Deeply woody and metallic masterpiece with leather, saffron, mandarin, and heavy warm immortelle.", tagline: "Cosmic Leather Harmony", olfactory_group: "Woody & Oud", tags: ["wood", "oud"] }
+            { id: 101, brand: "GHARIB", name: "Gold Memoir", price: 745.00, sizes: ["50ml", "100ml"], image_url: "/gold-memoir.png", description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.", tagline: "Aurum Noble Edition", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Saffron", "Cinnamon", "Bergamot"], heart_notes: ["Rose", "Jasmine", "Clove"], base_notes: ["Amber", "Agarwood (Oud)", "Sandalwood", "Vanilla"] },
+            { id: 102, brand: "GHARIB", name: "Enchanted Blooms", price: 437.00, sizes: ["30ml", "50ml"], image_url: "/enchanted-blooms.png", description: "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.", tagline: "Aura Floral Collection", olfactory_group: "Floral & Sweet", tags: ["floral"], top_notes: ["Pear", "Red Berries", "Jasmine"], heart_notes: ["Peony", "Freesia", "Orange Blossom"], base_notes: ["Vanilla", "White Musk", "Patchouli"] },
+            { id: 103, brand: "GHARIB", name: "Mystic Oud", price: 620.00, sizes: ["50ml", "100ml"], image_url: "/mystic-oud.png", description: "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.", tagline: "Royal Spice Reserve", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Saffron", "Nutmeg", "Cardamom"], heart_notes: ["Oud", "Incense", "Myrrh"], base_notes: ["Leather", "Amber", "Patchouli", "Cedarwood"] },
+            { id: 104, brand: "GHARIB", name: "Ocean Breeze", price: 532.00, sizes: ["50ml", "100ml"], image_url: "/ocean-breeze.png", description: "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.", tagline: "Aquamarine Coast Line", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"], top_notes: ["Italian Bergamot", "Mint Leaves", "Lemon"], heart_notes: ["Sea Salt", "Lavender", "Geranium"], base_notes: ["Amberwood", "Vetiver", "White Musk"] },
+            { id: 1, brand: "INITIO PARFUMS PRIVES", name: "Oud for greatness", price: 1215.00, sizes: ["50ml", "90ml"], image_url: "/catalog_initio_oud.png", description: "A highly concentrated woody fragrance with saffron, lavender, and nutmeg, dry down to heavy dark agarwood oud.", tagline: "Sacred Geometry", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Saffron", "Nutmeg", "Lavender"], heart_notes: ["Oud (Agarwood)"], base_notes: ["Patchouli", "Musk"] },
+            { id: 2, brand: "JULIETTE HAS A GUN", name: "Juliette", price: 360.00, sizes: ["30ml", "50ml"], image_url: "/catalog_juliette_gun.png", description: "A beautiful floral-sensual blend that balances elegant red berries, white blossoms, and sweet woods.", tagline: "Femme Fatale Signature", olfactory_group: "Floral & Sweet", tags: ["floral"], top_notes: ["Red Berries", "Jasmine Sambac"], heart_notes: ["Centifolia Rose", "White Blossoms"], base_notes: ["Sweet Woods", "Amber", "Musk"] },
+            { id: 3, brand: "RABANNE", name: "Phantom", price: 440.00, sizes: ["50ml", "100ml"], image_url: "/catalog_rabanne_phantom.png", description: "A fresh, futuristic composition featuring notes of lavender, creamy patchouli, vanilla, and sparkling vetiver.", tagline: "Metallic Modern Scent", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"], top_notes: ["Lavender", "Lemon Peel"], heart_notes: ["Patchouli", "Creamy Apple", "Smoke"], base_notes: ["Vanilla", "Vetiver"] },
+            { id: 4, brand: "HFC", name: "Devil's intrigue", price: 1358.00, sizes: ["75ml"], image_url: "/catalog_hfc_devils.png", description: "Deep, dramatic amber oriental profile combining warm vanilla, fine sandalwood, and exotic floral touches.", tagline: "Hypnotic Indulgence", olfactory_group: "Amber & Oriental", tags: ["amber", "orient"], top_notes: ["White Tea", "Osmanthus"], heart_notes: ["Orange Blossom", "Sandalwood"], base_notes: ["Cashmere Wood", "Vanilla", "Dry Amber"] },
+            { id: 5, brand: "TOM FORD", name: "Lost Cherry eau de parfum", price: 1196.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_tom_ford_cherry.png", description: "A contrasting scent that reveals a tempting dichotomy of playful, candy-like gleam on the outside and luscious flesh on the inside.", tagline: "Gourmand Masterpiece", olfactory_group: "Floral & Sweet", tags: ["floral", "sweet"], top_notes: ["Black Cherry", "Bitter Almond", "Cherry Liqueur"], heart_notes: ["Griotte Syrup", "Turkish Rose", "Jasmine Sambac"], base_notes: ["Tonka Bean", "Roasted Cocoa", "Sandalwood", "Vetiver", "Cedarwood"] },
+            { id: 6, brand: "MOSCHINO", name: "Toy Boy", price: 158.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_moschino_teddy.png", description: "A unique, masculine fragrance blending dark woods, pink pepper, rose notes, and resinous amber highlights.", tagline: "Playful Sophistication", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Pink Pepper", "Pear", "Indonesian Nutmeg"], heart_notes: ["Rose", "Flax Flowers", "Magnolia"], base_notes: ["Haitian Vetiver", "Sandalwood", "Cashmeran", "Amber"] },
+            { id: 7, brand: "FILIPPO SORCINELLI", name: "Epicentro", price: 1196.00, sizes: ["50ml", "100ml"], image_url: "/catalog_sorcinelli_epicentro.png", description: "Epicentro is an artistic perfume that represents a deep volcanic impact. Topped with a heavy raw silver metal crumpled sculpture.", tagline: "Artistic Volcanic Shudder", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"], top_notes: ["Volcanic Silt", "Italian Bergamot"], heart_notes: ["Deep Sea Minerals", "Warm Earth", "Rust"], base_notes: ["Driftwood", "Dry Cedarwood"] },
+            { id: 8, brand: "FILIPPO SORCINELLI", name: "Eio_non_ho_mani_che_mi_accarezzino_il_volto", price: 862.00, sizes: ["100ml"], image_url: "/catalog_sorcinelli_leather.png", description: "An avante-garde olfactory masterpiece encased in a bottle wrapped dramatically in draped, textured organic matte black leather folds.", tagline: "Gothic Draped Incense", olfactory_group: "Amber & Oriental", tags: ["amber", "orient"], top_notes: ["Clerics Cassock", "Incense Smoke"], heart_notes: ["Organic Dark Leather", "Petrichor"], base_notes: ["Gothic Resin", "Myrrh", "Warm Amber"] },
+            { id: 9, brand: "MARC-ANTOINE BARROIS", name: "Ganymede Extrait", price: 1170.00, sizes: ["30ml", "50ml"], image_url: "/catalog_marc_barrois.png", description: "Deeply woody and metallic masterpiece with leather, saffron, mandarin, and heavy warm immortelle.", tagline: "Cosmic Leather Harmony", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Mandarin Orange", "Saffron"], heart_notes: ["Violet Leaves", "Immortelle Flower"], base_notes: ["Suede Leather", "Akigalawood"] }
           ];
           foundProduct = SEED_PRODUCTS.find((p: any) => p.id === productId);
         }
@@ -87,7 +88,10 @@ export default function ProductPage({ params }: ProductPageProps) {
             images: foundProduct.image_urls || (foundProduct.image_url ? [foundProduct.image_url] : [foundProduct.image || ""]),
             price: String(foundProduct.price),
             sizes: foundProduct.sizes || ["50ml", "100ml"],
-            olfactory: foundProduct.olfactory_group || "Woody & Oud"
+            olfactory: foundProduct.olfactory_group || "Woody & Oud",
+            top_notes: foundProduct.top_notes || [],
+            heart_notes: foundProduct.heart_notes || [],
+            base_notes: foundProduct.base_notes || []
           };
           setProduct(formattedProduct);
           setActiveImage(formattedProduct.image);
@@ -166,6 +170,26 @@ export default function ProductPage({ params }: ProductPageProps) {
           { y: 15, opacity: 0 },
           { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", stagger: 0.1 },
           "-=0.5"
+        );
+      }
+
+      // Detailed Scent Tiers scale-in stagger
+      if (notesContainerRef.current) {
+        const tiers = notesContainerRef.current.querySelectorAll(".scent-tier");
+        const badges = notesContainerRef.current.querySelectorAll(".scent-badge");
+        
+        tl.fromTo(
+          tiers,
+          { y: 20, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8, ease: "power2.out", stagger: 0.15 },
+          "-=0.8"
+        );
+        
+        tl.fromTo(
+          badges,
+          { scale: 0.85, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.5)", stagger: 0.03 },
+          "-=0.6"
         );
       }
     }, pageContainerRef);
@@ -520,6 +544,83 @@ export default function ProductPage({ params }: ProductPageProps) {
               <p className="text-[12.5px] leading-relaxed text-[#6C5F54] tracking-wider font-medium mt-2">
                 {product.description}
               </p>
+
+              {/* Olfactory Notes Architecture (Animated Stacked Scent Pyramid) */}
+              {((product.top_notes && product.top_notes.length > 0) || 
+                (product.heart_notes && product.heart_notes.length > 0) || 
+                (product.base_notes && product.base_notes.length > 0)) && (
+                <div 
+                  ref={notesContainerRef} 
+                  className="border-t border-[#EAE3DB]/50 pt-8 flex flex-col gap-6 text-left"
+                >
+                  <span className="text-[9px] font-black tracking-[0.3em] text-[#8C8276] uppercase block">
+                    ✦ OLFACTORY NOTES ARCHITECTURE
+                  </span>
+                  
+                  <div className="flex flex-col items-center gap-3 w-full">
+                    {/* Top Notes (Apex) */}
+                    {product.top_notes && product.top_notes.length > 0 && (
+                      <div className="scent-tier w-full max-w-[340px] bg-white border border-[#EAE3DB]/60 p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600/40 hover:shadow-[0_8px_20px_rgba(28,18,12,0.03)] relative group/tier">
+                        {/* Elegant apex line indicator */}
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-[1px] bg-amber-600/45"></div>
+                        <span className="text-[7.5px] font-black tracking-[0.3em] text-amber-800 uppercase block mb-2 select-none group-hover/tier:text-amber-600 transition-colors">
+                          ✧ TOP NOTES (APEX)
+                        </span>
+                        <div className="flex flex-wrap justify-center gap-1.5">
+                          {product.top_notes.map((note: string, i: number) => (
+                            <span 
+                              key={i} 
+                              className="scent-badge text-[9.5px] tracking-wider font-bold text-[#1C120C] bg-neutral-50 border border-neutral-100 px-3 py-1 hover:border-amber-600/20 transition-all select-none"
+                            >
+                              {note}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Middle (Heart) Notes */}
+                    {product.heart_notes && product.heart_notes.length > 0 && (
+                      <div className="scent-tier w-full max-w-[420px] bg-white border border-[#EAE3DB]/60 p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600/40 hover:shadow-[0_8px_20px_rgba(28,18,12,0.03)] group/tier">
+                        <span className="text-[7.5px] font-black tracking-[0.3em] text-amber-800 uppercase block mb-2 select-none group-hover/tier:text-amber-600 transition-colors">
+                          ✧ HEART NOTES (CORE)
+                        </span>
+                        <div className="flex flex-wrap justify-center gap-1.5">
+                          {product.heart_notes.map((note: string, i: number) => (
+                            <span 
+                              key={i} 
+                              className="scent-badge text-[9.5px] tracking-wider font-bold text-[#1C120C] bg-neutral-50 border border-neutral-100 px-3 py-1 hover:border-amber-600/20 transition-all select-none"
+                            >
+                              {note}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Base Notes */}
+                    {product.base_notes && product.base_notes.length > 0 && (
+                      <div className="scent-tier w-full max-w-[500px] bg-white border border-[#EAE3DB]/60 p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600/40 hover:shadow-[0_8px_20px_rgba(28,18,12,0.03)] group/tier relative">
+                        {/* Elegant base line indicator */}
+                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-16 h-[1px] bg-amber-600/45"></div>
+                        <span className="text-[7.5px] font-black tracking-[0.3em] text-amber-800 uppercase block mb-2 select-none group-hover/tier:text-amber-600 transition-colors">
+                          ✧ BASE NOTES (DRY DOWN)
+                        </span>
+                        <div className="flex flex-wrap justify-center gap-1.5">
+                          {product.base_notes.map((note: string, i: number) => (
+                            <span 
+                              key={i} 
+                              className="scent-badge text-[9.5px] tracking-wider font-bold text-[#1C120C] bg-neutral-50 border border-neutral-100 px-3 py-1 hover:border-amber-600/20 transition-all select-none"
+                            >
+                              {note}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Flacon Selection Controls */}

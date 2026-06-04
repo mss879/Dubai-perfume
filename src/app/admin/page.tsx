@@ -275,6 +275,9 @@ function AdminDashboardContent() {
   const [newProductOlfactory, setNewProductOlfactory] = useState("Woody & Oud");
   const [newProductTagline, setNewProductTagline] = useState("");
   const [newProductDescription, setNewProductDescription] = useState("");
+  const [newProductTopNotes, setNewProductTopNotes] = useState("");
+  const [newProductHeartNotes, setNewProductHeartNotes] = useState("");
+  const [newProductBaseNotes, setNewProductBaseNotes] = useState("");
   
   // New Product Collection Mapping & Quick Creator States
   const [newProductSelectedCollections, setNewProductSelectedCollections] = useState<string[]>([]);
@@ -479,7 +482,10 @@ function AdminDashboardContent() {
       tags: parsedTags,
       is_new: true,
       is_bestseller: false,
-      is_featured_large: false
+      is_featured_large: false,
+      top_notes: newProductTopNotes.split(",").map(n => n.trim()).filter(Boolean),
+      heart_notes: newProductHeartNotes.split(",").map(n => n.trim()).filter(Boolean),
+      base_notes: newProductBaseNotes.split(",").map(n => n.trim()).filter(Boolean)
     };
 
     try {
@@ -524,6 +530,9 @@ function AdminDashboardContent() {
       setSelectedSizesList(["50ml", "100ml"]);
       setNewProductSelectedCollections([]);
       setUploadedImages([]);
+      setNewProductTopNotes("");
+      setNewProductHeartNotes("");
+      setNewProductBaseNotes("");
     } catch (err) {
       triggerToast("Failed to write to database kernel.");
     }
@@ -550,6 +559,9 @@ function AdminDashboardContent() {
     setSelectedSizesList(["50ml", "100ml"]);
     setNewProductSelectedCollections([]);
     setUploadedImages([]);
+    setNewProductTopNotes("");
+    setNewProductHeartNotes("");
+    setNewProductBaseNotes("");
     setShowAddProduct(true);
   };
 
@@ -572,6 +584,9 @@ function AdminDashboardContent() {
     setNewProductTags(prod.tags ? prod.tags.join(", ") : "");
     setNewProductOlfactory(prod.olfactory_group || "Woody & Oud");
     setSelectedSizesList(prod.sizes || []);
+    setNewProductTopNotes(prod.top_notes ? prod.top_notes.join(", ") : "");
+    setNewProductHeartNotes(prod.heart_notes ? prod.heart_notes.join(", ") : "");
+    setNewProductBaseNotes(prod.base_notes ? prod.base_notes.join(", ") : "");
     
     // Find collection mappings for this product
     const productMappings = productCollections
@@ -613,7 +628,10 @@ function AdminDashboardContent() {
       description: newProductDescription || "An avante-garde olfactory masterpiece designed for elite collections.",
       tagline: newProductTagline || "Signature Extrait",
       olfactory_group: newProductOlfactory,
-      tags: parsedTags
+      tags: parsedTags,
+      top_notes: newProductTopNotes.split(",").map(n => n.trim()).filter(Boolean),
+      heart_notes: newProductHeartNotes.split(",").map(n => n.trim()).filter(Boolean),
+      base_notes: newProductBaseNotes.split(",").map(n => n.trim()).filter(Boolean)
     };
 
     try {
@@ -671,6 +689,9 @@ function AdminDashboardContent() {
       setSelectedSizesList(["50ml", "100ml"]);
       setNewProductSelectedCollections([]);
       setUploadedImages([]);
+      setNewProductTopNotes("");
+      setNewProductHeartNotes("");
+      setNewProductBaseNotes("");
     } catch (err: any) {
       console.error("Update failed:", err);
       triggerToast(`Failed to update product: ${err.message || "Database write error"}`);
@@ -1950,6 +1971,42 @@ function AdminDashboardContent() {
                             value={newProductTags}
                             onChange={(e) => setNewProductTags(e.target.value)}
                             placeholder="e.g. memoir, noble, wood, oud"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Row 3.2: Fragrance Notes (Top, Heart, Base) */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">TOP NOTES (COMMA SEPARATED)</label>
+                          <input 
+                            type="text" 
+                            value={newProductTopNotes}
+                            onChange={(e) => setNewProductTopNotes(e.target.value)}
+                            placeholder="e.g. Saffron, Cinnamon, Bergamot"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">HEART NOTES (COMMA SEPARATED)</label>
+                          <input 
+                            type="text" 
+                            value={newProductHeartNotes}
+                            onChange={(e) => setNewProductHeartNotes(e.target.value)}
+                            placeholder="e.g. Rose, Jasmine, Clove"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">BASE NOTES (COMMA SEPARATED)</label>
+                          <input 
+                            type="text" 
+                            value={newProductBaseNotes}
+                            onChange={(e) => setNewProductBaseNotes(e.target.value)}
+                            placeholder="e.g. Amber, Oud, Sandalwood, Vanilla"
                             className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20"
                           />
                         </div>
