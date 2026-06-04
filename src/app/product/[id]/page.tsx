@@ -557,67 +557,85 @@ export default function ProductPage({ params }: ProductPageProps) {
                     ✦ OLFACTORY NOTES ARCHITECTURE
                   </span>
                   
-                  <div className="flex flex-col items-center gap-3 w-full">
-                    {/* Top Notes (Apex) */}
-                    {product.top_notes && product.top_notes.length > 0 && (
-                      <div className="scent-tier w-full max-w-[340px] bg-white border border-[#EAE3DB]/60 p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600/40 hover:shadow-[0_8px_20px_rgba(28,18,12,0.03)] relative group/tier">
-                        {/* Elegant apex line indicator */}
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-[1px] bg-amber-600/45"></div>
-                        <span className="text-[7.5px] font-black tracking-[0.3em] text-amber-800 uppercase block mb-2 select-none group-hover/tier:text-amber-600 transition-colors">
-                          ✧ TOP NOTES (APEX)
-                        </span>
-                        <div className="flex flex-wrap justify-center gap-1.5">
-                          {product.top_notes.map((note: string, i: number) => (
-                            <span 
-                              key={i} 
-                              className="scent-badge text-[9.5px] tracking-wider font-bold text-[#1C120C] bg-neutral-50 border border-neutral-100 px-3 py-1 hover:border-amber-600/20 transition-all select-none"
-                            >
-                              {note}
-                            </span>
-                          ))}
+                  {/* Outer pyramid wrapper with subtle warm white background and structured border */}
+                  <div className="relative flex flex-col items-center w-full bg-[#FAF9F6] border border-[#EAE3DB] p-6 sm:p-8 rounded-none shadow-[0_10px_35px_rgba(28,18,12,0.02)] overflow-hidden">
+                    
+                    {/* The Golden Olfactory Pillar (Vertical Axis) */}
+                    <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-[1px] bg-gradient-to-b from-amber-600/50 via-amber-600/20 to-transparent pointer-events-none z-0"></div>
+                    
+                    <div className="flex flex-col items-center gap-4 w-full relative z-10">
+                      {/* Top Notes (Apex) */}
+                      {product.top_notes && product.top_notes.length > 0 && (
+                        <div className="scent-tier w-full max-w-[280px] bg-white border border-[#EAE3DB] p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600 hover:shadow-[0_8px_25px_rgba(180,138,83,0.06)] relative group/tier">
+                          {/* Scent Node on the Axis */}
+                          <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white border border-amber-600 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-600"></div>
+                          </div>
+                          
+                          <span className="text-[9px] font-black tracking-[0.25em] text-amber-800 uppercase block mb-2.5 select-none group-hover/tier:text-amber-600 transition-colors">
+                            TOP NOTES (APEX)
+                          </span>
+                          <div className="flex flex-wrap justify-center gap-1.5">
+                            {product.top_notes.map((note: string, i: number) => (
+                              <span 
+                                key={i} 
+                                className="scent-badge text-[10.5px] tracking-wide font-bold text-[#1C120C] bg-white border border-neutral-200/80 px-3 py-1.5 hover:border-amber-600 transition-all select-none shadow-[0_1px_3px_rgba(0,0,0,0.01)]"
+                              >
+                                {note}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {/* Middle (Heart) Notes */}
-                    {product.heart_notes && product.heart_notes.length > 0 && (
-                      <div className="scent-tier w-full max-w-[420px] bg-white border border-[#EAE3DB]/60 p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600/40 hover:shadow-[0_8px_20px_rgba(28,18,12,0.03)] group/tier">
-                        <span className="text-[7.5px] font-black tracking-[0.3em] text-amber-800 uppercase block mb-2 select-none group-hover/tier:text-amber-600 transition-colors">
-                          ✧ HEART NOTES (CORE)
-                        </span>
-                        <div className="flex flex-wrap justify-center gap-1.5">
-                          {product.heart_notes.map((note: string, i: number) => (
-                            <span 
-                              key={i} 
-                              className="scent-badge text-[9.5px] tracking-wider font-bold text-[#1C120C] bg-neutral-50 border border-neutral-100 px-3 py-1 hover:border-amber-600/20 transition-all select-none"
-                            >
-                              {note}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                      {/* Middle (Heart) Notes */}
+                      {product.heart_notes && product.heart_notes.length > 0 && (
+                        <div className="scent-tier w-full max-w-[360px] bg-white border border-[#EAE3DB] p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600 hover:shadow-[0_8px_25px_rgba(180,138,83,0.06)] relative group/tier">
+                          {/* Scent Node on the Axis */}
+                          <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 pointer-events-none flex justify-center">
+                            <div className="w-2.5 h-2.5 rounded-full bg-white border border-amber-600"></div>
+                          </div>
 
-                    {/* Base Notes */}
-                    {product.base_notes && product.base_notes.length > 0 && (
-                      <div className="scent-tier w-full max-w-[500px] bg-white border border-[#EAE3DB]/60 p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600/40 hover:shadow-[0_8px_20px_rgba(28,18,12,0.03)] group/tier relative">
-                        {/* Elegant base line indicator */}
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-16 h-[1px] bg-amber-600/45"></div>
-                        <span className="text-[7.5px] font-black tracking-[0.3em] text-amber-800 uppercase block mb-2 select-none group-hover/tier:text-amber-600 transition-colors">
-                          ✧ BASE NOTES (DRY DOWN)
-                        </span>
-                        <div className="flex flex-wrap justify-center gap-1.5">
-                          {product.base_notes.map((note: string, i: number) => (
-                            <span 
-                              key={i} 
-                              className="scent-badge text-[9.5px] tracking-wider font-bold text-[#1C120C] bg-neutral-50 border border-neutral-100 px-3 py-1 hover:border-amber-600/20 transition-all select-none"
-                            >
-                              {note}
-                            </span>
-                          ))}
+                          <span className="text-[9px] font-black tracking-[0.25em] text-amber-800 uppercase block mb-2.5 select-none group-hover/tier:text-amber-600 transition-colors">
+                            HEART NOTES (CORE)
+                          </span>
+                          <div className="flex flex-wrap justify-center gap-1.5">
+                            {product.heart_notes.map((note: string, i: number) => (
+                              <span 
+                                key={i} 
+                                className="scent-badge text-[10.5px] tracking-wide font-bold text-[#1C120C] bg-white border border-neutral-200/80 px-3 py-1.5 hover:border-amber-600 transition-all select-none shadow-[0_1px_3px_rgba(0,0,0,0.01)]"
+                              >
+                                {note}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+
+                      {/* Base Notes */}
+                      {product.base_notes && product.base_notes.length > 0 && (
+                        <div className="scent-tier w-full max-w-[440px] bg-white border border-[#EAE3DB] p-4 text-center transition-all duration-300 hover:scale-[1.02] hover:border-amber-600 hover:shadow-[0_8px_25px_rgba(180,138,83,0.06)] relative group/tier">
+                          {/* Scent Node on the Axis */}
+                          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white border border-amber-600 flex items-center justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-pulse"></div>
+                          </div>
+
+                          <span className="text-[9px] font-black tracking-[0.25em] text-amber-800 uppercase block mb-2.5 select-none group-hover/tier:text-amber-600 transition-colors">
+                            BASE NOTES (DRY DOWN)
+                          </span>
+                          <div className="flex flex-wrap justify-center gap-1.5">
+                            {product.base_notes.map((note: string, i: number) => (
+                              <span 
+                                key={i} 
+                                className="scent-badge text-[10.5px] tracking-wide font-bold text-[#1C120C] bg-white border border-neutral-200/80 px-3 py-1.5 hover:border-amber-600 transition-all select-none shadow-[0_1px_3px_rgba(0,0,0,0.01)]"
+                              >
+                                {note}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
