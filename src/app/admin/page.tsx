@@ -68,11 +68,16 @@ function AdminDashboardContent() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddDiscount, setShowAddDiscount] = useState(false);
   const [showAddGiftCard, setShowAddGiftCard] = useState(false);
+  const [showFulfillmentModal, setShowFulfillmentModal] = useState(false);
+  const [fulfillmentOrderId, setFulfillmentOrderId] = useState<string | null>(null);
+  const [packingChargesInput, setPackingChargesInput] = useState("");
   
   // New Scent Product Form
   const [newProductName, setNewProductName] = useState("");
   const [newProductBrand, setNewProductBrand] = useState("GHARIB");
   const [newProductPrice, setNewProductPrice] = useState("");
+  const [newProductCost, setNewProductCost] = useState("");
+  const [newProductMarginInput, setNewProductMarginInput] = useState("");
   
   // Overhauled sizes and tags
   const [selectedSizesList, setSelectedSizesList] = useState<string[]>(["50ml", "100ml"]);
@@ -153,6 +158,7 @@ function AdminDashboardContent() {
     }
 
     const price = parseFloat(newProductPrice);
+    const cost = parseFloat(newProductCost) || 0;
     const sizes = selectedSizesList;
     const nextId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 110;
     const parsedTags = newProductTags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
@@ -162,6 +168,7 @@ function AdminDashboardContent() {
       brand: newProductBrand.toUpperCase(),
       name: newProductName,
       price: price,
+      cost_price: cost,
       sizes: sizes,
       image_url: "/catalog_initio_oud.png", // Default premium template
       description: newProductDescription || "An avante-garde olfactory masterpiece designed for elite collections.",
@@ -198,6 +205,8 @@ function AdminDashboardContent() {
       // Reset inputs
       setNewProductName("");
       setNewProductPrice("");
+      setNewProductCost("");
+      setNewProductMarginInput("");
       setNewProductTagline("");
       setNewProductDescription("");
       setNewProductTags("");
@@ -331,16 +340,30 @@ function AdminDashboardContent() {
   };
 
   // Change Order Status Action
-  const handleUpdateOrderStatus = async (orderId: string, nextStatus: string) => {
+  const handleUpdateOrderStatus = async (orderId: string, nextStatus: string, packingChargesVal?: number) => {
     try {
+      const updateData: any = { status: nextStatus };
+      if (packingChargesVal !== undefined) {
+        updateData.packing_charges = packingChargesVal;
+      }
+
       await clientSafeSupabase
         .from("orders")
-        .update({ status: nextStatus })
+        .update(updateData)
         .eq("id", orderId);
 
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
+      setOrders(prev => prev.map(o => o.id === orderId ? { 
+        ...o, 
+        status: nextStatus, 
+        packing_charges: packingChargesVal !== undefined ? packingChargesVal : o.packing_charges 
+      } : o));
+      
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: nextStatus });
+        setSelectedOrder({ 
+          ...selectedOrder, 
+          status: nextStatus, 
+          packing_charges: packingChargesVal !== undefined ? packingChargesVal : selectedOrder.packing_charges 
+        });
       }
 
       // Add a visual tracking log for this update
@@ -859,7 +882,16 @@ function AdminDashboardContent() {
                             {/* Fast status updater dropdown */}
                             <select 
                               value={order.status}
-                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                              onChange={(e) => {
+                                const nextStatus = e.target.value;
+                                if (nextStatus === "fulfilled") {
+                                  setFulfillmentOrderId(order.id);
+                                  setPackingChargesInput("");
+                                  setShowFulfillmentModal(true);
+                                } else {
+                                  handleUpdateOrderStatus(order.id, nextStatus);
+                                }
+                              }}
                               className="bg-black border border-white/[0.08] text-[#EAE3DB] text-[8px] tracking-widest font-black uppercase px-2 py-1 outline-none cursor-pointer"
                             >
                               <option value="pending">PENDING (ORDER PLACED)</option>
@@ -924,13 +956,25 @@ function AdminDashboardContent() {
                         <div className="flex justify-between items-center py-2 border-b border-white/[0.03]">
                           <span>Bespoke Extrait signature decant (100ml)</span>
                           <div className="flex flex-col items-end">
-                            <span className="font-sans text-amber-200 font-bold">{parseFloat(selectedOrder.total_price).toLocaleString()} AED</span>
+                            <span className="font-sans text-[#EAE3DB]/80 font-bold">{parseFloat(selectedOrder.total_price).toLocaleString()} AED</span>
                             {selectedOrder.currency && selectedOrder.currency !== "AED" && selectedOrder.converted_total && (
                               <span className="text-[8px] text-[#EAE3DB]/40 tracking-wider mt-0.5 uppercase">
                                 ({selectedOrder.converted_total})
                               </span>
                             )}
                           </div>
+                        </div>
+                        {selectedOrder.packing_charges !== undefined && parseFloat(selectedOrder.packing_charges) > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b border-white/[0.03]">
+                            <span className="text-[#EAE3DB]/60">Packing Charges</span>
+                            <span className="font-sans text-amber-500/80 font-bold">{parseFloat(selectedOrder.packing_charges).toLocaleString()} AED</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center py-2.5 border-b border-white/[0.03]">
+                          <span className="font-bold text-[#EAE3DB]">Grand Total</span>
+                          <span className="font-sans text-amber-200 font-black">
+                            {(parseFloat(selectedOrder.total_price) + (parseFloat(selectedOrder.packing_charges) || 0)).toLocaleString()} AED
+                          </span>
                         </div>
                       </div>
 
@@ -1008,6 +1052,78 @@ function AdminDashboardContent() {
               )}
             </AnimatePresence>
 
+            {/* ORDER FULFILLMENT MODAL */}
+            <AnimatePresence>
+              {showFulfillmentModal && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="bg-[#090503] border border-amber-600/30 w-full max-w-[420px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative"
+                  >
+                    {/* Corners */}
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+                    
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-500 uppercase">
+                        FULFILL ORDER — {fulfillmentOrderId}
+                      </h4>
+                      <button 
+                        onClick={() => setShowFulfillmentModal(false)}
+                        className="text-[#EAE3DB]/40 hover:text-white"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-6 text-[10px] tracking-wider font-semibold uppercase">
+                      <p className="text-[#EAE3DB]/80 tracking-widest leading-relaxed">
+                        Please specify the packing charges for this order before marking it as fulfilled.
+                      </p>
+
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[7.5px] tracking-widest text-amber-500 font-black uppercase">
+                          PACKING CHARGES (AED)
+                        </label>
+                        <input 
+                          type="number" 
+                          step="0.01"
+                          value={packingChargesInput}
+                          onChange={(e) => setPackingChargesInput(e.target.value)}
+                          placeholder="e.g. 15.00"
+                          className="bg-black border border-white/[0.08] text-white text-[9px] tracking-widest px-3 py-2.5 outline-none w-full font-bold uppercase"
+                          autoFocus
+                        />
+                      </div>
+
+                      <div className="flex gap-4">
+                        <button 
+                          onClick={() => setShowFulfillmentModal(false)}
+                          className="w-1/2 border border-white/10 text-white hover:bg-white/5 text-[8.5px] tracking-[0.2em] uppercase font-black py-3.5 transition-all cursor-pointer"
+                        >
+                          CANCEL
+                        </button>
+                        <button 
+                          onClick={async () => {
+                            const charges = parseFloat(packingChargesInput) || 0;
+                            if (fulfillmentOrderId) {
+                              await handleUpdateOrderStatus(fulfillmentOrderId, "fulfilled", charges);
+                              setShowFulfillmentModal(false);
+                            }
+                          }}
+                          className="w-1/2 bg-amber-600 text-white hover:bg-amber-500 text-[8.5px] tracking-[0.2em] uppercase font-black py-3.5 transition-all cursor-pointer"
+                        >
+                          FULFILL ORDER
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
           </div>
         )}
 
@@ -1060,6 +1176,8 @@ function AdminDashboardContent() {
                     <th className="p-4">OLFACTORY GROUP</th>
                     <th className="p-4 text-center">AVAILABLE SIZES</th>
                     <th className="p-4 text-right">BASE PRICE</th>
+                    <th className="p-4 text-right">COST PRICE</th>
+                    <th className="p-4 text-right">EST. PROFIT</th>
                     <th className="p-4 text-center">BADGES</th>
                     <th className="p-4 pr-6 text-center">MANAGEMENT</th>
                   </tr>
@@ -1067,7 +1185,7 @@ function AdminDashboardContent() {
                 <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
                   {filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
+                      <td colSpan={8} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
                         NO PERFUMES FOUND MATCHING SEARCH PROTOCOL
                       </td>
                     </tr>
@@ -1085,7 +1203,7 @@ function AdminDashboardContent() {
                                   e.target.src = "/catalog_initio_oud.png";
                                 }}
                                 alt={p.name} 
-                              />
+                                      />
                             </div>
                             <div className="flex flex-col gap-0.5">
                               <span className="text-[8px] text-amber-500 font-black tracking-widest">{p.brand}</span>
@@ -1100,6 +1218,21 @@ function AdminDashboardContent() {
                         </td>
                         <td className="p-4 text-right text-amber-200 font-bold font-sans">
                           {parseFloat(p.price).toLocaleString()} AED
+                        </td>
+                        <td className="p-4 text-right text-[#EAE3DB]/60 font-medium font-sans">
+                          {p.cost_price ? `${parseFloat(p.cost_price).toLocaleString()} AED` : "0.00 AED"}
+                        </td>
+                        <td className="p-4 text-right font-bold font-sans">
+                          <div className="flex flex-col items-end">
+                            <span className={(parseFloat(p.price) - (p.cost_price || 0)) >= 0 ? "text-emerald-400" : "text-red-400"}>
+                              {(parseFloat(p.price) - (p.cost_price || 0)).toLocaleString()} AED
+                            </span>
+                            {parseFloat(p.price) > 0 && (
+                              <span className={`text-[7px] tracking-wider mt-0.5 ${(parseFloat(p.price) - (p.cost_price || 0)) >= 0 ? "text-emerald-500/60" : "text-red-500/60"}`}>
+                                {Math.round(((parseFloat(p.price) - (p.cost_price || 0)) / parseFloat(p.price)) * 100)}% MARGIN
+                              </span>
+                            )}
+                          </div>
                         </td>
                         
                         <td className="p-4 text-center">
@@ -1196,9 +1329,71 @@ function AdminDashboardContent() {
                             type="number" 
                             step="0.01"
                             value={newProductPrice}
-                            onChange={(e) => setNewProductPrice(e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewProductPrice(val);
+                              const priceVal = parseFloat(val) || 0;
+                              const costVal = parseFloat(newProductCost) || 0;
+                              if (priceVal > 0) {
+                                const margin = Math.round(((priceVal - costVal) / priceVal) * 100);
+                                setNewProductMarginInput(margin.toString());
+                              } else {
+                                setNewProductMarginInput("");
+                              }
+                            }}
                             required
                             placeholder="195.00"
+                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">DECANT COST PRICE (AED)</label>
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            value={newProductCost}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewProductCost(val);
+                              const costVal = parseFloat(val) || 0;
+                              const marginVal = parseFloat(newProductMarginInput) || 0;
+                              if (newProductMarginInput && marginVal < 100) {
+                                const price = costVal / (1 - marginVal / 100);
+                                setNewProductPrice(price.toFixed(2));
+                              } else {
+                                const priceVal = parseFloat(newProductPrice) || 0;
+                                if (priceVal > 0) {
+                                  const margin = Math.round(((priceVal - costVal) / priceVal) * 100);
+                                  setNewProductMarginInput(margin.toString());
+                                }
+                              }
+                            }}
+                            required
+                            placeholder="95.00"
+                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">TARGET MARGIN (%)</label>
+                          <input 
+                            type="number" 
+                            step="1"
+                            value={newProductMarginInput}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewProductMarginInput(val);
+                              const marginVal = parseFloat(val);
+                              const costVal = parseFloat(newProductCost) || 0;
+                              if (!isNaN(marginVal) && marginVal < 100 && costVal > 0) {
+                                const price = costVal / (1 - marginVal / 100);
+                                setNewProductPrice(price.toFixed(2));
+                              }
+                            }}
+                            placeholder="50"
                             className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
                           />
                         </div>
@@ -1215,6 +1410,22 @@ function AdminDashboardContent() {
                             <option value="Fresh & Aquatic">FRESH & AQUATIC</option>
                             <option value="Amber & Oriental">AMBER & ORIENTAL</option>
                           </select>
+                        </div>
+                      </div>
+
+                      {/* Real-time Profit Telemetry Banner */}
+                      <div className="bg-[#120a06] border border-amber-900/30 p-3 flex items-center justify-between rounded-none mb-2">
+                        <div className="flex flex-col">
+                          <span className="text-[6.5px] text-[#EAE3DB]/40 tracking-widest font-black uppercase">ESTIMATED NET PROFIT PER UNIT</span>
+                          <span className={`text-[12px] font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)).toFixed(2)} AED
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[6.5px] text-[#EAE3DB]/40 tracking-widest font-black uppercase">MARGIN YIELD</span>
+                          <span className={`text-[12px] font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {(parseFloat(newProductPrice) || 0) > 0 ? Math.round((((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)) / (parseFloat(newProductPrice) || 1)) * 100) : 0}%
+                          </span>
                         </div>
                       </div>
 

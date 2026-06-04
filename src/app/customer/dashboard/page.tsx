@@ -497,8 +497,13 @@ export default function CustomerDashboard() {
                                   TOTAL INVESTMENT
                                 </span>
                                 <span className="text-[12px] font-semibold text-amber-200 tracking-wider">
-                                  ${parseFloat(order.total_price).toFixed(2)}
+                                  ${(parseFloat(order.total_price) + (parseFloat(order.packing_charges) || 0)).toFixed(2)}
                                 </span>
+                                {order.packing_charges !== undefined && parseFloat(order.packing_charges) > 0 && (
+                                  <span className="text-[7px] text-[#EAE3DB]/40 tracking-wider block mt-0.5 uppercase">
+                                    (incl. ${parseFloat(order.packing_charges).toFixed(2)} packing)
+                                  </span>
+                                )}
                               </div>
 
                               <button
