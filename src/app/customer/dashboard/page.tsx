@@ -270,16 +270,7 @@ export default function CustomerDashboard() {
 
   const activeStepIdx = getActiveStepIndex();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0f0702] flex items-center justify-center flex-col gap-4">
-        <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-        <span className="text-[10px] tracking-[0.3em] text-[#EAE3DB]/50 uppercase font-black">
-          Decrypting Scent Vault...
-        </span>
-      </div>
-    );
-  }
+
 
   return (
     <div className="relative min-h-screen bg-[#FAF9F6] text-[#2A1A0F] flex flex-col justify-between font-sans-luxury overflow-x-hidden selection:bg-amber-100 selection:text-amber-900 customer-dashboard-container">
