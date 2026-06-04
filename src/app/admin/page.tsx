@@ -1281,13 +1281,13 @@ function AdminDashboardContent() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[500px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative cursor-default"
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[760px] max-h-[90vh] overflow-y-auto p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative cursor-default scrollbar-thin scrollbar-thumb-amber-800 scrollbar-track-black"
                   >
                     <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
                     <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
 
                     <div className="flex items-center justify-between mb-6">
-                      <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase">
+                      <h4 className="text-[14px] tracking-[0.3em] font-black text-amber-400 uppercase">
                         ADD NEW LUXURY SCENT
                       </h4>
                       <button onClick={() => setShowAddProduct(false)} className="text-[#EAE3DB]/40 hover:text-white cursor-pointer">
@@ -1295,36 +1295,38 @@ function AdminDashboardContent() {
                       </button>
                     </div>
 
-                    <form onSubmit={handleCreateProduct} className="flex flex-col gap-4 text-[10px] tracking-wider font-semibold uppercase">
+                    <form onSubmit={handleCreateProduct} className="flex flex-col gap-5 text-[11px] tracking-wider font-semibold uppercase">
                       
+                      {/* Row 1: Brand and Scent Name */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">BRAND DESIGNATION</label>
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">BRAND DESIGNATION</label>
                           <input 
                             type="text" 
                             value={newProductBrand}
                             onChange={(e) => setNewProductBrand(e.target.value)}
                             required
-                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white"
                           />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">SCENT COLLECTION NAME</label>
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">SCENT COLLECTION NAME</label>
                           <input 
                             type="text" 
                             value={newProductName}
                             onChange={(e) => setNewProductName(e.target.value)}
                             required
                             placeholder="e.g. Amber Royale"
-                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white placeholder-[#EAE3DB]/20"
                           />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      {/* Row 2: Base Price, Cost Price, Target Margin */}
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">DECANT BASE PRICE (AED)</label>
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">DECANT BASE PRICE (AED)</label>
                           <input 
                             type="number" 
                             step="0.01"
@@ -1343,12 +1345,12 @@ function AdminDashboardContent() {
                             }}
                             required
                             placeholder="195.00"
-                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white"
                           />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">DECANT COST PRICE (AED)</label>
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">DECANT COST PRICE (AED)</label>
                           <input 
                             type="number" 
                             step="0.01"
@@ -1371,14 +1373,12 @@ function AdminDashboardContent() {
                             }}
                             required
                             placeholder="95.00"
-                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white"
                           />
                         </div>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">TARGET MARGIN (%)</label>
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">TARGET MARGIN (%)</label>
                           <input 
                             type="number" 
                             step="1"
@@ -1394,16 +1394,19 @@ function AdminDashboardContent() {
                               }
                             }}
                             placeholder="50"
-                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white"
                           />
                         </div>
+                      </div>
 
+                      {/* Row 3: Olfactory Note Group & Marketing Tagline */}
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">OLFATIVE NOTE GROUP</label>
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">OLFATIVE NOTE GROUP</label>
                           <select
                             value={newProductOlfactory}
                             onChange={(e) => setNewProductOlfactory(e.target.value)}
-                            className="bg-[#090503] border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-white cursor-pointer"
+                            className="bg-[#090503] border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white cursor-pointer"
                           >
                             <option value="Woody & Oud">WOODY & OUD</option>
                             <option value="Floral & Sweet">FLORAL & SWEET</option>
@@ -1411,27 +1414,38 @@ function AdminDashboardContent() {
                             <option value="Amber & Oriental">AMBER & ORIENTAL</option>
                           </select>
                         </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">MARKETING TAGLINE</label>
+                          <input 
+                            type="text" 
+                            value={newProductTagline}
+                            onChange={(e) => setNewProductTagline(e.target.value)}
+                            placeholder="e.g. Celestial Oud Accord"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white placeholder-[#EAE3DB]/20"
+                          />
+                        </div>
                       </div>
 
-                      {/* Real-time Profit Telemetry Banner */}
-                      <div className="bg-[#120a06] border border-amber-900/30 p-3 flex items-center justify-between rounded-none mb-2">
+                      {/* Row 4: Dynamic Telemetry Banner */}
+                      <div className="bg-[#120a06] border border-amber-900/30 p-4 flex items-center justify-between rounded-none mb-1">
                         <div className="flex flex-col">
-                          <span className="text-[6.5px] text-[#EAE3DB]/40 tracking-widest font-black uppercase">ESTIMATED NET PROFIT PER UNIT</span>
-                          <span className={`text-[12px] font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          <span className="text-[8px] text-[#EAE3DB]/40 tracking-[0.18em] font-black uppercase">ESTIMATED NET PROFIT PER UNIT</span>
+                          <span className={`text-base font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                             {((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)).toFixed(2)} AED
                           </span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="text-[6.5px] text-[#EAE3DB]/40 tracking-widest font-black uppercase">MARGIN YIELD</span>
-                          <span className={`text-[12px] font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          <span className="text-[8px] text-[#EAE3DB]/40 tracking-[0.18em] font-black uppercase">MARGIN YIELD</span>
+                          <span className={`text-base font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                             {(parseFloat(newProductPrice) || 0) > 0 ? Math.round((((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)) / (parseFloat(newProductPrice) || 1)) * 100) : 0}%
                           </span>
                         </div>
                       </div>
 
-                      {/* Overhauled flacon sizes with visual pills and custom input */}
+                      {/* Row 5: Flacon Sizes */}
                       <div className="flex flex-col gap-2">
-                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">FLACON SIZES (SELECT PROTOCOL)</label>
+                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">FLACON SIZES (SELECT PROTOCOL)</label>
                         <div className="flex flex-wrap gap-2 mb-1">
                           {["30ml", "50ml", "75ml", "90ml", "100ml", "250ml"].map(size => {
                             const isSelected = selectedSizesList.includes(size);
@@ -1446,7 +1460,7 @@ function AdminDashboardContent() {
                                     setSelectedSizesList(prev => [...prev, size]);
                                   }
                                 }}
-                                className={`px-3 py-1.5 text-[8px] font-black tracking-widest transition-all cursor-pointer ${
+                                className={`px-4 py-2 text-[10px] font-black tracking-widest transition-all cursor-pointer ${
                                   isSelected 
                                     ? "bg-[#8C6239] text-white border border-[#8C6239]" 
                                     : "bg-white/5 text-[#EAE3DB]/60 border border-white/[0.08] hover:border-amber-600/35 hover:text-white"
@@ -1464,7 +1478,7 @@ function AdminDashboardContent() {
                             placeholder="CUSTOM SIZE (E.G. 15ML)"
                             value={customSizeInput}
                             onChange={(e) => setCustomSizeInput(e.target.value)}
-                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2 outline-none focus:border-amber-500 font-bold uppercase text-[8.5px] tracking-widest flex-1"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase text-[10px] tracking-widest flex-1 text-white placeholder-[#EAE3DB]/20"
                           />
                           <button
                             type="button"
@@ -1475,7 +1489,7 @@ function AdminDashboardContent() {
                                 setCustomSizeInput("");
                               }
                             }}
-                            className="bg-[#8C6239] hover:bg-[#9E734A] text-white text-[8px] font-black tracking-widest px-4 py-2 flex-shrink-0 cursor-pointer"
+                            className="bg-[#8C6239] hover:bg-[#9E734A] text-white text-[10px] font-black tracking-widest px-5 py-3 flex-shrink-0 cursor-pointer"
                           >
                             + ADD CUSTOM
                           </button>
@@ -1483,12 +1497,12 @@ function AdminDashboardContent() {
                         
                         {selectedSizesList.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1">
-                            <span className="text-[7px] text-[#EAE3DB]/40 font-black self-center mr-1">SELECTED:</span>
+                            <span className="text-[8px] text-[#EAE3DB]/40 font-black self-center mr-1">SELECTED:</span>
                             {selectedSizesList.map(size => (
                               <span 
                                 key={size} 
                                 onClick={() => setSelectedSizesList(prev => prev.filter(s => s !== size))}
-                                className="text-[6.5px] border border-amber-600/35 bg-amber-950/20 text-amber-400 px-2 py-0.5 font-black tracking-widest uppercase cursor-pointer hover:bg-red-950/30 hover:border-red-500/20 hover:text-red-400 flex items-center gap-1"
+                                className="text-[8px] border border-amber-600/35 bg-amber-950/20 text-amber-400 px-2.5 py-1 font-black tracking-widest uppercase cursor-pointer hover:bg-red-950/30 hover:border-red-500/20 hover:text-red-400 flex items-center gap-1"
                                 title="Click to remove"
                               >
                                 {size} <X className="w-1.5 h-1.5" />
@@ -1498,43 +1512,33 @@ function AdminDashboardContent() {
                         )}
                       </div>
 
-                      {/* Product Tags input for automated collection matching */}
+                      {/* Row 6: Search Tags */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">SEARCH TAGS (COMMA SEPARATED)</label>
+                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">SEARCH TAGS (COMMA SEPARATED)</label>
                         <input 
                           type="text" 
                           value={newProductTags}
                           onChange={(e) => setNewProductTags(e.target.value)}
                           placeholder="e.g. memoir, noble, wood, oud"
-                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[9px] tracking-widest placeholder-[#EAE3DB]/20"
+                          className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20"
                         />
                       </div>
 
+                      {/* Row 7: Olfactory Story Details */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">MARKETING TAGLINE</label>
-                        <input 
-                          type="text" 
-                          value={newProductTagline}
-                          onChange={(e) => setNewProductTagline(e.target.value)}
-                          placeholder="e.g. Celestial Oud Accord"
-                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">OLFACRY STORY DETAILS</label>
+                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">OLFACRY STORY DETAILS</label>
                         <textarea 
                           value={newProductDescription}
                           onChange={(e) => setNewProductDescription(e.target.value)}
                           placeholder="Describe scent narrative, top, and base notes..."
                           rows={3}
-                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full resize-none font-sans"
+                          className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full resize-none font-sans text-xs tracking-wider text-white placeholder-[#EAE3DB]/20"
                         />
                       </div>
 
                       <button
                         type="submit"
-                        className="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-black tracking-[0.25em] py-4 w-full mt-4 cursor-pointer"
+                        className="bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-black tracking-[0.25em] py-4 w-full mt-4 cursor-pointer transition-all"
                       >
                         PUBLISH TO GLOBAL CATALOGUE
                       </button>
