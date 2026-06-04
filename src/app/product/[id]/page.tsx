@@ -403,7 +403,7 @@ export default function ProductPage({ params }: ProductPageProps) {
                 <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-amber-600/35 pointer-events-none"></div>
 
                 {/* Luxury Badge */}
-                <span className="absolute top-6 left-6 bg-[#1C120C] text-[#FAF9F6] text-[7.5px] font-black tracking-[0.35em] uppercase px-3 py-1.5 border border-white/5 select-none">
+                <span className="absolute top-6 left-6 bg-[#1C120C] text-[#FAF9F6] text-[7.5px] font-black tracking-[0.35em] uppercase px-3 py-1.5 border border-white/5 select-none z-20">
                   ✦ EXCLUSIF ATELIER
                 </span>
 
