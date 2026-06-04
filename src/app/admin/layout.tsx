@@ -372,7 +372,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
 
         {/* RIGHT CONTAINER: Active view wrapper */}
-        <main className="flex-1 min-w-0 p-6 md:p-8 lg:p-10 relative z-10 overflow-x-hidden">
+        <main className="flex-1 min-w-0 p-6 md:p-8 lg:p-10 relative overflow-x-hidden">
           {children}
         </main>
       </div>

@@ -1275,7 +1275,7 @@ function AdminDashboardContent() {
                       setShowAddProduct(false);
                     }
                   }}
-                  className="fixed inset-0 bg-black/85 z-50 overflow-y-auto p-6 md:p-12 flex justify-center items-start cursor-pointer"
+                  className="fixed top-0 bottom-0 right-0 left-0 lg:left-[280px] bg-black/85 z-50 overflow-y-auto p-6 md:p-12 flex justify-center items-start cursor-pointer"
                 >
                   <motion.div 
                     initial={{ opacity: 0, y: 20 }}
