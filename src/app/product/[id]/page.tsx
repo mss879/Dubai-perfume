@@ -408,12 +408,15 @@ export default function ProductPage({ params }: ProductPageProps) {
                 </span>
 
                 {/* Main Image */}
-                <div ref={activeImageRef} className="relative w-full h-full flex items-center justify-center transition-transform duration-[1200ms] ease-out group-hover/visual:scale-103">
+                <div 
+                  ref={activeImageRef} 
+                  className="absolute inset-8 flex items-center justify-center transition-transform duration-[1200ms] ease-out group-hover/visual:scale-102"
+                >
                   <Image
                     src={activeImage}
                     alt={product.name}
                     fill
-                    className="object-cover p-2 filter drop-shadow-[0_15px_30px_rgba(28,18,12,0.06)]"
+                    className="object-contain filter drop-shadow-[0_15px_30px_rgba(28,18,12,0.06)]"
                     priority
                   />
                 </div>
