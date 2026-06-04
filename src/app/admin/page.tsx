@@ -11,6 +11,194 @@ import {
   Check, X, AlertCircle, ShieldAlert, Loader2, Sparkles, Filter
 } from "lucide-react";
 import { clientSafeSupabase } from "../lib/supabase";
+import { 
+  Bold, Italic, Underline, List, ListOrdered, 
+  AlignLeft, AlignCenter, AlignRight, Code, Eye 
+} from "lucide-react";
+
+interface RichTextEditorProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}
+
+function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
+  const editorRef = React.useRef<HTMLDivElement>(null);
+  const [isHtmlMode, setIsHtmlMode] = useState(false);
+  const [htmlValue, setHtmlValue] = useState(value);
+
+  // Sync external value changes to contentEditable
+  useEffect(() => {
+    if (editorRef.current && !isHtmlMode) {
+      if (editorRef.current.innerHTML !== value) {
+        editorRef.current.innerHTML = value;
+      }
+    }
+    setHtmlValue(value);
+  }, [value, isHtmlMode]);
+
+  const handleInput = () => {
+    if (editorRef.current) {
+      const currentHtml = editorRef.current.innerHTML;
+      onChange(currentHtml);
+      setHtmlValue(currentHtml);
+    }
+  };
+
+  const execCommand = (command: string, arg: string = "") => {
+    document.execCommand(command, false, arg);
+    handleInput();
+  };
+
+  return (
+    <div className="border border-white/[0.08] bg-white/5 w-full flex flex-col font-sans text-xs text-[#2A1A0F]">
+      <style>{`
+        .rich-text-content ul {
+          list-style-type: disc !important;
+          padding-left: 1.5rem !important;
+          margin-top: 0.5rem !important;
+          margin-bottom: 0.5rem !important;
+        }
+        .rich-text-content ol {
+          list-style-type: decimal !important;
+          padding-left: 1.5rem !important;
+          margin-top: 0.5rem !important;
+          margin-bottom: 0.5rem !important;
+        }
+        .rich-text-content u {
+          text-decoration: underline !important;
+        }
+      `}</style>
+      
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-1 p-2 bg-[#0c0704] border-b border-white/[0.08]">
+        <button
+          type="button"
+          onClick={() => execCommand("bold")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Bold"
+        >
+          <Bold className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => execCommand("italic")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Italic"
+        >
+          <Italic className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => execCommand("underline")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Underline"
+        >
+          <Underline className="w-3.5 h-3.5" />
+        </button>
+        
+        <div className="w-[1px] h-4 bg-[#5C4E46]/10 mx-1" />
+
+        <button
+          type="button"
+          onClick={() => execCommand("insertUnorderedList")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Bullet List"
+        >
+          <List className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => execCommand("insertOrderedList")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Numbered List"
+        >
+          <ListOrdered className="w-3.5 h-3.5" />
+        </button>
+
+        <div className="w-[1px] h-4 bg-[#5C4E46]/10 mx-1" />
+
+        <button
+          type="button"
+          onClick={() => execCommand("justifyLeft")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Align Left"
+        >
+          <AlignLeft className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => execCommand("justifyCenter")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Align Center"
+        >
+          <AlignCenter className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => execCommand("justifyRight")}
+          className="p-1.5 hover:bg-[#8C6239]/5 hover:text-[#8C6239] transition-colors cursor-pointer text-[#5C4E46]"
+          title="Align Right"
+        >
+          <AlignRight className="w-3.5 h-3.5" />
+        </button>
+
+        <div className="w-[1px] h-4 bg-[#5C4E46]/10 mx-1" />
+
+        <button
+          type="button"
+          onClick={() => setIsHtmlMode(!isHtmlMode)}
+          className={`p-1.5 hover:bg-[#8C6239]/5 transition-colors cursor-pointer ml-auto flex items-center gap-1 text-[9px] font-bold tracking-wider ${
+            isHtmlMode ? "text-[#8C6239] bg-[#8C6239]/5" : "text-[#5C4E46]/60"
+          }`}
+          title="Toggle HTML Mode"
+        >
+          {isHtmlMode ? (
+            <>
+              <Eye className="w-3.5 h-3.5" />
+              <span>PREVIEW</span>
+            </>
+          ) : (
+            <>
+              <Code className="w-3.5 h-3.5" />
+              <span>HTML</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Editor / Textarea Container */}
+      <div className="relative min-h-[140px] flex">
+        {isHtmlMode ? (
+          <textarea
+            value={htmlValue}
+            onChange={(e) => {
+              setHtmlValue(e.target.value);
+              onChange(e.target.value);
+            }}
+            placeholder="HTML markup..."
+            className="w-full min-h-[140px] p-4 bg-transparent outline-none border-none font-mono text-[11px] tracking-wider text-[#8C6239] resize-none placeholder-[#5C4E46]/30"
+          />
+        ) : (
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={handleInput}
+            onBlur={handleInput}
+            className="w-full min-h-[140px] p-4 outline-none border-none overflow-y-auto text-xs tracking-wider text-[#2A1A0F] rich-text-content"
+            style={{ minHeight: "140px" }}
+          />
+        )}
+        {!value && !isHtmlMode && (
+          <div className="absolute inset-0 p-4 pointer-events-none text-[#5C4E46]/30 select-none uppercase tracking-wider font-bold">
+            {placeholder || "Describe scent narrative, top, and base notes..."}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AdminDashboardContent() {
   const searchParams = useSearchParams();
@@ -66,6 +254,7 @@ function AdminDashboardContent() {
   // Drawer/Modal forms states
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [showAddDiscount, setShowAddDiscount] = useState(false);
   const [showAddGiftCard, setShowAddGiftCard] = useState(false);
   const [showFulfillmentModal, setShowFulfillmentModal] = useState(false);
@@ -86,6 +275,12 @@ function AdminDashboardContent() {
   const [newProductOlfactory, setNewProductOlfactory] = useState("Woody & Oud");
   const [newProductTagline, setNewProductTagline] = useState("");
   const [newProductDescription, setNewProductDescription] = useState("");
+  
+  // New Product Collection Mapping & Quick Creator States
+  const [newProductSelectedCollections, setNewProductSelectedCollections] = useState<string[]>([]);
+  const [quickCollectionTitle, setQuickCollectionTitle] = useState("");
+  const [showCollectionsDropdown, setShowCollectionsDropdown] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   
   // New Discount Form
   const [discCode, setDiscCode] = useState("");
@@ -145,6 +340,111 @@ function AdminDashboardContent() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const convertToWebP = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      if (file.type === "image/webp") {
+        resolve(file);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas context is not available"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              reject(new Error("Failed to convert image to blob"));
+              return;
+            }
+            const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            const webpFile = new File([blob], `${baseName.replace(/\s+/g, "_")}.webp`, {
+              type: "image/webp",
+              lastModified: Date.now()
+            });
+            resolve(webpFile);
+          }, "image/webp", 0.85);
+        };
+        img.onerror = () => {
+          reject(new Error("Failed to load image element"));
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => {
+        reject(new Error("Failed to read file"));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (uploadedImages.length + files.length > 5) {
+      triggerToast("You can upload a maximum of 5 images.");
+      return;
+    }
+
+    triggerToast("Uploading image(s) to Supabase...");
+
+    for (let file of files) {
+      try {
+        if (file.type !== "image/webp") {
+          try {
+            file = await convertToWebP(file);
+          } catch (webpErr) {
+            console.error("WebP conversion failed, using original file", webpErr);
+          }
+        }
+        const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+        const { data, error } = await clientSafeSupabase.storage
+          .from("product-images")
+          .upload(fileName, file);
+
+        if (error) {
+          triggerToast(`Upload failed: ${error.message}`);
+          continue;
+        }
+
+        const { data: urlData } = clientSafeSupabase.storage
+          .from("product-images")
+          .getPublicUrl(fileName);
+        const publicUrl = urlData?.publicUrl;
+        
+        if (publicUrl) {
+          setUploadedImages(prev => [...prev, publicUrl]);
+          triggerToast(`Successfully uploaded ${file.name}`);
+        } else {
+          triggerToast("Failed to retrieve public URL from Supabase.");
+        }
+      } catch (err: any) {
+        console.error("Supabase storage upload error:", err);
+        triggerToast(`Upload error: ${err.message || "Unknown error"}`);
+      }
+    }
+  };
+
+  const moveImage = (index: number, direction: "left" | "right") => {
+    if (direction === "left" && index === 0) return;
+    if (direction === "right" && index === uploadedImages.length - 1) return;
+
+    const newImages = [...uploadedImages];
+    const targetIndex = direction === "left" ? index - 1 : index + 1;
+    
+    // Swap items
+    const temp = newImages[index];
+    newImages[index] = newImages[targetIndex];
+    newImages[targetIndex] = temp;
+    
+    setUploadedImages(newImages);
+  };
+
   // Add Product Action
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +463,7 @@ function AdminDashboardContent() {
     const nextId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 110;
     const parsedTags = newProductTags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
 
+    const mainImageUrl = uploadedImages.length > 0 ? uploadedImages[0] : "/catalog_initio_oud.png";
     const newPerfume = {
       id: nextId,
       brand: newProductBrand.toUpperCase(),
@@ -170,7 +471,8 @@ function AdminDashboardContent() {
       price: price,
       cost_price: cost,
       sizes: sizes,
-      image_url: "/catalog_initio_oud.png", // Default premium template
+      image_url: mainImageUrl,
+      image_urls: uploadedImages,
       description: newProductDescription || "An avante-garde olfactory masterpiece designed for elite collections.",
       tagline: newProductTagline || "Signature Extrait",
       olfactory_group: newProductOlfactory,
@@ -192,6 +494,15 @@ function AdminDashboardContent() {
       }));
       await clientSafeSupabase.from("inventory").insert(newInventoryRows);
 
+      // Add custom collection mappings
+      if (newProductSelectedCollections.length > 0) {
+        const mappingRows = newProductSelectedCollections.map(colId => ({
+          product_id: nextId,
+          collection_id: colId
+        }));
+        await clientSafeSupabase.from("product_collections").insert(mappingRows);
+      }
+
       setProducts(prev => [newPerfume, ...prev]);
       setInventory(prev => [...newInventoryRows, ...prev]);
 
@@ -211,8 +522,158 @@ function AdminDashboardContent() {
       setNewProductDescription("");
       setNewProductTags("");
       setSelectedSizesList(["50ml", "100ml"]);
+      setNewProductSelectedCollections([]);
+      setUploadedImages([]);
     } catch (err) {
       triggerToast("Failed to write to database kernel.");
+    }
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingProduct) {
+      await handleUpdateProduct();
+    } else {
+      await handleCreateProduct(e);
+    }
+  };
+
+  const handleStartAddProduct = () => {
+    setEditingProduct(null);
+    setNewProductName("");
+    setNewProductPrice("");
+    setNewProductCost("");
+    setNewProductMarginInput("");
+    setNewProductTagline("");
+    setNewProductDescription("");
+    setNewProductTags("");
+    setSelectedSizesList(["50ml", "100ml"]);
+    setNewProductSelectedCollections([]);
+    setUploadedImages([]);
+    setShowAddProduct(true);
+  };
+
+  const handleStartEditProduct = (prod: any) => {
+    setEditingProduct(prod);
+    setNewProductBrand(prod.brand);
+    setNewProductName(prod.name);
+    setNewProductPrice(String(prod.price));
+    setNewProductCost(String(prod.cost_price || ""));
+    const priceVal = parseFloat(String(prod.price)) || 0;
+    const costVal = parseFloat(String(prod.cost_price)) || 0;
+    if (priceVal > 0) {
+      const margin = Math.round(((priceVal - costVal) / priceVal) * 100);
+      setNewProductMarginInput(margin.toString());
+    } else {
+      setNewProductMarginInput("");
+    }
+    setNewProductTagline(prod.tagline || "");
+    setNewProductDescription(prod.description || "");
+    setNewProductTags(prod.tags ? prod.tags.join(", ") : "");
+    setNewProductOlfactory(prod.olfactory_group || "Woody & Oud");
+    setSelectedSizesList(prod.sizes || []);
+    
+    // Find collection mappings for this product
+    const productMappings = productCollections
+      .filter((pc: any) => pc.product_id === prod.id)
+      .map((pc: any) => pc.collection_id);
+    setNewProductSelectedCollections(productMappings);
+    
+    // If product has image_urls array, load it; otherwise fallback to single image_url
+    setUploadedImages(prod.image_urls && prod.image_urls.length > 0 ? prod.image_urls : (prod.image_url ? [prod.image_url] : []));
+    
+    setShowAddProduct(true);
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!newProductName || !newProductPrice) {
+      triggerToast("Missing required perfume attributes.");
+      return;
+    }
+    if (selectedSizesList.length === 0) {
+      triggerToast("Please specify at least one flacon size.");
+      return;
+    }
+
+    const price = parseFloat(newProductPrice);
+    const cost = parseFloat(newProductCost) || 0;
+    const sizes = selectedSizesList;
+    const parsedTags = newProductTags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+    const mainImageUrl = uploadedImages.length > 0 ? uploadedImages[0] : "/catalog_initio_oud.png";
+
+    const updatedPerfume = {
+      ...editingProduct,
+      brand: newProductBrand.toUpperCase(),
+      name: newProductName,
+      price: price,
+      cost_price: cost,
+      sizes: sizes,
+      image_url: mainImageUrl,
+      image_urls: uploadedImages,
+      description: newProductDescription || "An avante-garde olfactory masterpiece designed for elite collections.",
+      tagline: newProductTagline || "Signature Extrait",
+      olfactory_group: newProductOlfactory,
+      tags: parsedTags
+    };
+
+    try {
+      // 1. Update products table in Supabase
+      const { error: prodErr } = await clientSafeSupabase
+        .from("products")
+        .update(updatedPerfume)
+        .eq("id", editingProduct.id);
+
+      if (prodErr) throw prodErr;
+
+      // 2. Update inventory records
+      await clientSafeSupabase.from("inventory").delete().eq("product_id", editingProduct.id);
+      const newInventoryRows = sizes.map(size => ({
+        product_id: editingProduct.id,
+        size: size,
+        stock_level: 50,
+        low_stock_threshold: 10
+      }));
+      await clientSafeSupabase.from("inventory").insert(newInventoryRows);
+
+      // 3. Update collection mappings
+      await clientSafeSupabase.from("product_collections").delete().eq("product_id", editingProduct.id);
+      if (newProductSelectedCollections.length > 0) {
+        const mappingRows = newProductSelectedCollections.map(colId => ({
+          product_id: editingProduct.id,
+          collection_id: colId
+        }));
+        await clientSafeSupabase.from("product_collections").insert(mappingRows);
+      }
+
+      // Update local states
+      setProducts(prev => prev.map(p => p.id === editingProduct.id ? updatedPerfume : p));
+      setInventory(prev => [
+        ...newInventoryRows,
+        ...prev.filter(inv => inv.product_id !== editingProduct.id)
+      ]);
+
+      // Refetch mapping states
+      const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
+      setProductCollections(pcData || []);
+
+      triggerToast(`Successfully updated ${newProductName}.`);
+      setShowAddProduct(false);
+      setEditingProduct(null);
+
+      // Reset inputs
+      setNewProductName("");
+      setNewProductPrice("");
+      setNewProductCost("");
+      setNewProductMarginInput("");
+      setNewProductTagline("");
+      setNewProductDescription("");
+      setNewProductTags("");
+      setSelectedSizesList(["50ml", "100ml"]);
+      setNewProductSelectedCollections([]);
+      setUploadedImages([]);
+    } catch (err: any) {
+      console.error("Update failed:", err);
+      triggerToast(`Failed to update product: ${err.message || "Database write error"}`);
     }
   };
 
@@ -260,6 +721,44 @@ function AdminDashboardContent() {
       setNewCollectionType("manual");
     } catch (err) {
       triggerToast("Failed to create collection.");
+    }
+  };
+
+  const handleQuickCreateCollection = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!quickCollectionTitle.trim()) {
+      triggerToast("Collection title cannot be empty.");
+      return;
+    }
+    const title = quickCollectionTitle.trim();
+    const id = title.toLowerCase().replace(/\s+/g, "-");
+    
+    // Check if collection already exists
+    if (collections.some(c => c.id === id)) {
+      triggerToast("Collection already exists.");
+      return;
+    }
+
+    const newCol = {
+      id,
+      title,
+      description: "A quick collection created during product registration.",
+      cover_image: "/campaign-gold.png",
+      type: "manual",
+      rules: []
+    };
+
+    try {
+      await clientSafeSupabase.from("collections").insert(newCol);
+      setCollections(prev => [...prev, newCol]);
+      
+      // Auto-select this collection
+      setNewProductSelectedCollections(prev => [...prev, id]);
+      
+      triggerToast(`Successfully created & selected collection: ${title}`);
+      setQuickCollectionTitle("");
+    } catch (err) {
+      triggerToast("Failed to create quick collection.");
     }
   };
 
@@ -1158,7 +1657,7 @@ function AdminDashboardContent() {
                 </div>
 
                 <button
-                  onClick={() => setShowAddProduct(true)}
+                  onClick={handleStartAddProduct}
                   className="bg-amber-600 hover:bg-amber-500 text-white text-[8.5px] tracking-[0.25em] font-black uppercase px-4 py-3 flex items-center gap-2 rounded-none transition-all flex-shrink-0 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1246,18 +1745,35 @@ function AdminDashboardContent() {
                           </div>
                         </td>
 
-                        <td className="p-4 pr-6 text-center">
-                          <button
-                            onClick={() => {
-                              setProducts(prev => prev.filter(prod => prod.id !== p.id));
-                              triggerToast(`Deregistered perfume ${p.name} from global catalogue.`);
-                            }}
-                            className="text-[#EAE3DB]/30 hover:text-red-400 transition-colors p-1"
-                            title="Delete Product"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
+                         <td className="p-4 pr-6 text-center">
+                           <div className="flex items-center justify-center gap-2">
+                             <button
+                               onClick={() => handleStartEditProduct(p)}
+                               className="text-[#EAE3DB]/30 hover:text-amber-500 transition-colors p-1 cursor-pointer"
+                               title="Edit Product"
+                             >
+                               <Edit2 className="w-4 h-4" />
+                             </button>
+                             <button
+                               onClick={async () => {
+                                 try {
+                                   await clientSafeSupabase.from("products").delete().eq("id", p.id);
+                                   await clientSafeSupabase.from("inventory").delete().eq("product_id", p.id);
+                                   await clientSafeSupabase.from("product_collections").delete().eq("product_id", p.id);
+                                   setProducts(prev => prev.filter(prod => prod.id !== p.id));
+                                   triggerToast(`Deregistered perfume ${p.name} from global catalogue.`);
+                                 } catch (err) {
+                                   setProducts(prev => prev.filter(prod => prod.id !== p.id));
+                                   triggerToast(`Deregistered perfume ${p.name} locally.`);
+                                 }
+                               }}
+                               className="text-[#EAE3DB]/30 hover:text-red-400 transition-colors p-1 cursor-pointer"
+                               title="Delete Product"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                           </div>
+                         </td>
 
                       </tr>
                     ))
@@ -1273,6 +1789,7 @@ function AdminDashboardContent() {
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
                       setShowAddProduct(false);
+                      setEditingProduct(null);
                     }
                   }}
                   className="fixed top-0 bottom-0 right-0 left-0 lg:left-[280px] bg-black/85 z-50 overflow-y-auto p-6 md:p-12 flex justify-center items-start cursor-pointer"
@@ -1288,14 +1805,14 @@ function AdminDashboardContent() {
 
                     <div className="flex items-center justify-between mb-6">
                       <h4 className="text-[14px] tracking-[0.3em] font-black text-amber-400 uppercase">
-                        ADD NEW LUXURY SCENT
+                        {editingProduct ? "EDIT LUXURY SCENT" : "ADD NEW LUXURY SCENT"}
                       </h4>
-                      <button onClick={() => setShowAddProduct(false)} className="text-[#EAE3DB]/40 hover:text-white cursor-pointer">
+                      <button onClick={() => { setShowAddProduct(false); setEditingProduct(null); }} className="text-[#EAE3DB]/40 hover:text-white cursor-pointer">
                         <X className="w-5 h-5" />
                       </button>
                     </div>
 
-                    <form onSubmit={handleCreateProduct} className="flex flex-col gap-5 text-[11px] tracking-wider font-semibold uppercase">
+                    <form onSubmit={handleFormSubmit} className="flex flex-col gap-5 text-[11px] tracking-wider font-semibold uppercase">
                       
                       {/* Row 1: Brand and Scent Name */}
                       <div className="grid grid-cols-2 gap-4">
@@ -1438,6 +1955,88 @@ function AdminDashboardContent() {
                         </div>
                       </div>
 
+                      {/* Row 3.5: Product Images Upload and Ordering */}
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">
+                          PRODUCT IMAGES (UP TO 5 IMAGES — ARRANGE DISPLAY ORDER)
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                          {uploadedImages.map((imgUrl, index) => (
+                            <div 
+                              key={imgUrl} 
+                              className="group relative aspect-[3/4] bg-white/5 border border-white/[0.08] hover:border-amber-600/50 flex flex-col justify-between overflow-hidden shadow-md transition-all duration-300"
+                            >
+                              {/* Thumbnail */}
+                              <div className="relative flex-1 w-full overflow-hidden flex items-center justify-center p-2">
+                                <img 
+                                  src={imgUrl} 
+                                  alt={`Product image ${index + 1}`}
+                                  className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105"
+                                />
+                                {index === 0 && (
+                                  <span className="absolute top-2 left-2 bg-[#8C6239] text-white text-[7px] font-black tracking-widest px-2 py-0.5 uppercase shadow-sm">
+                                    Primary
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Reorder and Delete Toolbar */}
+                              <div className="flex justify-between items-center bg-[#0c0704] border-t border-white/[0.08] p-1.5 text-xs text-[#5C4E46]">
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => moveImage(index, "left")}
+                                    disabled={index === 0}
+                                    className={`p-1 transition-colors ${
+                                      index === 0 ? "opacity-30 cursor-not-allowed" : "hover:text-[#8C6239] hover:bg-[#8C6239]/5 cursor-pointer"
+                                    }`}
+                                    title="Move Left"
+                                  >
+                                    ←
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveImage(index, "right")}
+                                    disabled={index === uploadedImages.length - 1}
+                                    className={`p-1 transition-colors ${
+                                      index === uploadedImages.length - 1 ? "opacity-30 cursor-not-allowed" : "hover:text-[#8C6239] hover:bg-[#8C6239]/5 cursor-pointer"
+                                    }`}
+                                    title="Move Right"
+                                  >
+                                    →
+                                  </button>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setUploadedImages(prev => prev.filter((_, i) => i !== index))}
+                                  className="p-1 hover:text-red-400 hover:bg-red-950/10 transition-colors cursor-pointer"
+                                  title="Delete Image"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Upload Placeholder Slot */}
+                          {uploadedImages.length < 5 && (
+                            <label className="aspect-[3/4] border border-dashed border-white/[0.15] hover:border-amber-600/50 hover:bg-[#8C6239]/2 transition-all duration-300 flex flex-col items-center justify-center cursor-pointer gap-2 select-none group relative">
+                              <Plus className="w-6 h-6 text-[#5C4E46] group-hover:text-[#8C6239] transition-colors" />
+                              <span className="text-[8px] tracking-[0.2em] text-[#5C4E46] group-hover:text-[#8C6239] font-black uppercase text-center px-2">
+                                UPLOAD IMAGE
+                              </span>
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                multiple
+                                onChange={handleImageFileChange}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Row 4: Flacon Sizes */}
                       <div className="flex flex-col gap-2">
                         <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">FLACON SIZES (SELECT PROTOCOL)</label>
@@ -1507,15 +2106,133 @@ function AdminDashboardContent() {
                         )}
                       </div>
 
+                      {/* Row 4.5: Associated Collections & Quick Creation */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                        {/* Column 1: Choose Existing Collection Dropdown */}
+                        <div className="flex flex-col gap-1.5 relative">
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">
+                            ASSOCIATED COLLECTIONS
+                          </label>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setShowCollectionsDropdown(!showCollectionsDropdown)}
+                              className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white text-left flex justify-between items-center cursor-pointer"
+                            >
+                              <span>
+                                {newProductSelectedCollections.length === 0
+                                  ? "SELECT COLLECTIONS..."
+                                  : `${newProductSelectedCollections.length} COLLECTION(S) SELECTED`}
+                              </span>
+                              <Filter className="w-3.5 h-3.5 text-amber-500" />
+                            </button>
+
+                            {showCollectionsDropdown && (
+                              <>
+                                {/* Backdrop to dismiss the dropdown */}
+                                <div 
+                                  className="fixed inset-0 z-40 cursor-default" 
+                                  onClick={() => setShowCollectionsDropdown(false)}
+                                />
+                                <div className="absolute left-0 right-0 mt-1 bg-[#090503] border border-amber-600/35 z-50 max-h-[220px] overflow-y-auto shadow-2xl p-2 flex flex-col gap-1">
+                                  {collections.map(col => {
+                                    const isSelected = newProductSelectedCollections.includes(col.id);
+                                    const isAutomated = col.type === "automated";
+                                    return (
+                                      <div
+                                        key={col.id}
+                                        onClick={() => {
+                                          if (isAutomated) return; // cannot manually assign to automated collection
+                                          if (isSelected) {
+                                            setNewProductSelectedCollections(prev => prev.filter(id => id !== col.id));
+                                          } else {
+                                            setNewProductSelectedCollections(prev => [...prev, col.id]);
+                                          }
+                                        }}
+                                        className={`flex items-center justify-between px-3 py-2 text-[10px] tracking-widest font-black uppercase transition-all select-none cursor-pointer ${
+                                          isAutomated 
+                                            ? "opacity-40 cursor-not-allowed" 
+                                            : isSelected
+                                              ? "bg-amber-950/30 border border-amber-600/35 text-amber-400"
+                                              : "hover:bg-white/5 text-[#EAE3DB]/70 hover:text-white border border-transparent"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            disabled={isAutomated}
+                                            onChange={() => {}} // handled by parent div click
+                                            className="accent-amber-500 cursor-pointer pointer-events-none"
+                                          />
+                                          <span>{col.title}</span>
+                                        </div>
+                                        {isAutomated && (
+                                          <span className="text-[6.5px] border border-amber-500/20 bg-amber-950/20 text-amber-500/80 px-1 py-0.5 font-bold tracking-widest uppercase">
+                                            Auto
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Mini tags showing selected collections */}
+                          {newProductSelectedCollections.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                              {newProductSelectedCollections.map(colId => {
+                                const col = collections.find(c => c.id === colId);
+                                return (
+                                  <span
+                                    key={colId}
+                                    onClick={() => setNewProductSelectedCollections(prev => prev.filter(id => id !== colId))}
+                                    className="text-[8px] border border-amber-600/35 bg-amber-950/20 text-amber-400 px-2 py-0.5 font-black tracking-widest uppercase cursor-pointer hover:bg-red-950/30 hover:border-red-500/20 hover:text-red-400 flex items-center gap-1"
+                                    title="Click to remove"
+                                  >
+                                    {col?.title || colId} <X className="w-1.5 h-1.5" />
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Column 2: Quick Create Collection */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">
+                            QUICK CREATE COLLECTION
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={quickCollectionTitle}
+                              onChange={(e) => setQuickCollectionTitle(e.target.value)}
+                              placeholder="e.g. Summer Gold Vault"
+                              className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase text-[10px] tracking-widest flex-1 text-white placeholder-[#EAE3DB]/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => handleQuickCreateCollection(e)}
+                              className="bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black tracking-widest px-5 py-3 cursor-pointer transition-all"
+                            >
+                              + CREATE
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Row 5: Olfactory Story Details */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">OLFACTORY STORY DETAILS</label>
-                        <textarea 
+                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">
+                          OLFACTORY STORY DETAILS
+                        </label>
+                        <RichTextEditor 
                           value={newProductDescription}
-                          onChange={(e) => setNewProductDescription(e.target.value)}
+                          onChange={setNewProductDescription}
                           placeholder="Describe scent narrative, top, and base notes..."
-                          rows={3}
-                          className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full resize-none font-sans text-xs tracking-wider text-white placeholder-[#EAE3DB]/20"
                         />
                       </div>
 
@@ -1539,7 +2256,7 @@ function AdminDashboardContent() {
                         type="submit"
                         className="bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-black tracking-[0.25em] py-4 w-full mt-4 cursor-pointer transition-all"
                       >
-                        PUBLISH TO GLOBAL CATALOGUE
+                        {editingProduct ? "SAVE CHANGES" : "PUBLISH TO GLOBAL CATALOGUE"}
                       </button>
 
                     </form>
@@ -2938,48 +3655,49 @@ function AdminDashboardContent() {
                                   if (!file) return;
 
                                   const uploadToSupabase = async () => {
-                                    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-                                    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-                                    const isRealActive = supabaseUrl && supabaseAnonKey;
-                                    
-                                    if (isRealActive) {
-                                      try {
-                                        triggerToast("Uploading to Supabase Vault...");
-                                        const fileExt = file.name.split('.').pop();
-                                        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-                                        const filePath = `covers/${fileName}`;
+                                    try {
+                                      triggerToast("Uploading cover to Supabase...");
+                                      let uploadFile = file;
+                                      if (file.type !== "image/webp") {
+                                        try {
+                                          uploadFile = await convertToWebP(file);
+                                        } catch (webpErr) {
+                                          console.error("WebP conversion failed, using original file", webpErr);
+                                        }
+                                      }
+                                      const fileExt = uploadFile.name.split('.').pop();
+                                      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+                                      const filePath = `covers/${fileName}`;
 
-                                        const { data, error } = await clientSafeSupabase.storage
-                                          .from('collection-covers')
-                                          .upload(filePath, file);
+                                      const { data, error } = await clientSafeSupabase.storage
+                                        .from('collection-covers')
+                                        .upload(filePath, uploadFile);
 
-                                        if (error) throw error;
+                                      if (error) {
+                                        triggerToast(`Upload failed: ${error.message}`);
+                                        return;
+                                      }
 
-                                        const { data: { publicUrl } } = clientSafeSupabase.storage
-                                          .from('collection-covers')
-                                          .getPublicUrl(filePath);
+                                      const { data: { publicUrl } } = clientSafeSupabase.storage
+                                        .from('collection-covers')
+                                        .getPublicUrl(filePath);
 
+                                      if (publicUrl) {
                                         setNewCollectionCoverImage(publicUrl);
                                         triggerToast("Uploaded directly to Supabase storage!");
-                                        return;
-                                      } catch (err) {
-                                        console.error("Storage upload failed, falling back to Base64", err);
+                                      } else {
+                                        triggerToast("Failed to retrieve public URL from Supabase.");
                                       }
+                                    } catch (err: any) {
+                                      console.error("Storage upload failed", err);
+                                      triggerToast(`Upload error: ${err.message || "Unknown error"}`);
                                     }
-
-                                    // Fallback to Base64
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      setNewCollectionCoverImage(reader.result as string);
-                                      triggerToast("Luxury cover art loaded (Base64 offline mode).");
-                                    };
-                                    reader.readAsDataURL(file);
                                   };
 
                                   uploadToSupabase();
                                 }}
                               />
-                              {newCollectionCoverImage && newCollectionCoverImage.startsWith("data:") ? (
+                              {newCollectionCoverImage && !newCollectionCoverImage.startsWith("/") && !newCollectionCoverImage.startsWith("data:") ? (
                                 <div className="absolute inset-1 bg-[#090503] flex items-center justify-center p-1.5 border border-[#8C6239]/20">
                                   <img 
                                     src={newCollectionCoverImage} 

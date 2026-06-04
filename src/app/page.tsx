@@ -208,6 +208,7 @@ interface CatalogProduct {
   price: string;
   sizes: string[];
   image: string;
+  images?: string[];
   isNew?: boolean;
   isBestSeller?: boolean;
   isFeaturedLarge?: boolean;
@@ -402,9 +403,12 @@ const ProductCard: React.FC<{
 }> = ({ prod, isFav, isBuyLater, isLoggedIn, activeSize, onToggleFavorite, onToggleBuyLater, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
 
   const router = useRouter();
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
     <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className="group relative border border-[#EAE3DB] bg-white hover:border-amber-700/40 hover:shadow-[0_24px_55px_rgba(28,18,12,0.06)] transition-all duration-500 rounded-none overflow-hidden flex flex-col justify-between h-full"
     >
       {/* Decorative gold hairline accents that appear on card hover */}
@@ -462,13 +466,36 @@ const ProductCard: React.FC<{
 
         {/* Main Bottle Image */}
         <div className="relative w-full h-full transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03] flex items-center justify-center">
-          <Image
-            src={prod.image}
-            alt={prod.name}
-            fill
-            className="object-cover p-0 transition-all duration-700"
-            priority
-          />
+          {(() => {
+            let hoverImage = null;
+            if (prod.images && prod.images.length > 1) {
+              hoverImage = prod.images[1];
+            }
+
+            return (
+              <>
+                <Image
+                  src={prod.image}
+                  alt={prod.name}
+                  fill
+                  className={`object-cover p-0 transition-opacity duration-700 ${
+                    isHovered && hoverImage ? "opacity-0" : "opacity-100"
+                  }`}
+                  priority
+                />
+                {hoverImage && (
+                  <Image
+                    src={hoverImage}
+                    alt={prod.name}
+                    fill
+                    className={`object-cover p-0 transition-opacity duration-700 absolute inset-0 ${
+                      isHovered ? "opacity-100" : "opacity-0"
+                    }`}
+                  />
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -553,6 +580,11 @@ export default function Home() {
   const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+
+  // Load products list and collections list from db/mock
+  const [productsList, setProductsList] = useState<CatalogProduct[]>(CATALOG_PRODUCTS);
+  const [collectionsList, setCollectionsList] = useState<any[]>(MEGA_MENU_COLLECTIONS);
+  const [productCollectionsList, setProductCollectionsList] = useState<any[]>([]);
 
   // Preloader Visibility State
   const [showIntro, setShowIntro] = useState(true);
@@ -917,7 +949,7 @@ export default function Home() {
               COLLECTIONS
             </span>
             <ul className="flex flex-col gap-6">
-              {MEGA_MENU_COLLECTIONS.map((col) => (
+              {collectionsList.map((col) => (
                 <li key={col.id}>
                   <button
                     onClick={() => {
@@ -1152,6 +1184,72 @@ export default function Home() {
     loadWishlist();
   }, [userEmail]);
 
+  // Fetch products, collections, and mappings from Supabase on component mount
+  useEffect(() => {
+    const fetchDbData = async () => {
+      try {
+        const { data: dbProducts, error: pErr } = await clientSafeSupabase
+          .from("products")
+          .select("*");
+        
+        const { data: dbCollections, error: cErr } = await clientSafeSupabase
+          .from("collections")
+          .select("*");
+
+        const { data: dbMappings, error: mErr } = await clientSafeSupabase
+          .from("product_collections")
+          .select("*");
+
+        if (dbProducts && !pErr && dbProducts.length > 0) {
+          const mapped = dbProducts.map((dbProd: any) => {
+            let gender = "unisex";
+            if (dbProd.tags) {
+              if (dbProd.tags.includes("men") || dbProd.tags.includes("man") || dbProd.tags.includes("for men")) {
+                gender = "men";
+              } else if (dbProd.tags.includes("women") || dbProd.tags.includes("woman") || dbProd.tags.includes("for women")) {
+                gender = "women";
+              }
+            }
+             return {
+              id: dbProd.id,
+              brand: dbProd.brand,
+              name: dbProd.name,
+              price: String(dbProd.price),
+              sizes: dbProd.sizes || ["50ml", "100ml"],
+              image: dbProd.image_url || "/catalog_initio_oud.png",
+              images: dbProd.image_urls || (dbProd.image_url ? [dbProd.image_url] : []),
+              isNew: dbProd.is_new,
+              isBestSeller: dbProd.is_bestseller,
+              isFeaturedLarge: dbProd.is_featured_large,
+              description: dbProd.description,
+              olfactory: dbProd.olfactory_group || "Woody & Oud",
+              gender: gender
+            };
+          });
+          setProductsList(mapped);
+        }
+
+        if (dbCollections && !cErr && dbCollections.length > 0) {
+          const standardIds = ["new", "bestsellers", "favorites", "trending"];
+          const userCollections = dbCollections.filter((c: any) => !standardIds.includes(c.id));
+          const mappedUserCollections = userCollections.map((c: any) => ({
+            id: c.id,
+            title: c.title,
+            desc: c.description || "Exclusive Scent Curation"
+          }));
+          setCollectionsList([...MEGA_MENU_COLLECTIONS, ...mappedUserCollections]);
+        }
+
+        if (dbMappings && !mErr) {
+          setProductCollectionsList(dbMappings);
+        }
+      } catch (err) {
+        console.error("Error loading products/collections from Supabase:", err);
+      }
+    };
+    fetchDbData();
+  }, []);
+
   const isFiltered = searchTerm.trim() !== "" || selectedOlfactory !== null || selectedBrand !== null || selectedCollection !== null || selectedGender !== null;
 
   useEffect(() => {
@@ -1160,12 +1258,12 @@ export default function Home() {
       return;
     }
     const searchLower = searchTerm.toLowerCase();
-    const matches = CATALOG_PRODUCTS.filter(prod =>
+    const matches = productsList.filter(prod =>
       prod.brand.toLowerCase().includes(searchLower) ||
       prod.name.toLowerCase().includes(searchLower)
     ).slice(0, 4);
     setSearchSuggestions(matches);
-  }, [searchTerm]);
+  }, [searchTerm, productsList]);
 
   // Newsletter subscription states
   const [subscribedEmail, setSubscribedEmail] = useState("");
@@ -1179,7 +1277,7 @@ export default function Home() {
 
     const isAdding = !favorites.includes(id);
     const userId = localStorage.getItem("userId") || "";
-    const prod = CATALOG_PRODUCTS.find(p => p.id === id);
+    const prod = productsList.find(p => p.id === id);
 
     if (isAdding) {
       const { error } = await clientSafeSupabase
@@ -1223,7 +1321,7 @@ export default function Home() {
 
     const isAdding = !buyLater.includes(id);
     const userId = localStorage.getItem("userId") || "";
-    const prod = CATALOG_PRODUCTS.find(p => p.id === id);
+    const prod = productsList.find(p => p.id === id);
 
     if (isAdding) {
       const { error } = await clientSafeSupabase
@@ -1267,7 +1365,7 @@ export default function Home() {
   };
 
   const handleAddToCart = (productId: number) => {
-    const prod = CATALOG_PRODUCTS.find(p => p.id === productId);
+    const prod = productsList.find(p => p.id === productId);
     if (!prod) return;
     const size = selectedSizes[productId] || "50ml";
 
@@ -1458,45 +1556,22 @@ export default function Home() {
                   Shop Collections
                 </span>
                 <div className="grid grid-cols-2 gap-3.5 text-xs font-bold tracking-widest text-neutral-500">
-                  <button
-                    onClick={() => {
-                      setSelectedCollection("new");
-                      setSelectedBrand(null);
-                      setSelectedOlfactory(null);
-                      setIsMobileMenuOpen(false);
-                      const el = document.getElementById("new-in");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className="hover:text-amber-800 text-left uppercase cursor-pointer"
-                  >
-                    ✧ New In
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedCollection("bestsellers");
-                      setSelectedBrand(null);
-                      setSelectedOlfactory(null);
-                      setIsMobileMenuOpen(false);
-                      const el = document.getElementById("new-in");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className="hover:text-amber-800 text-left uppercase cursor-pointer"
-                  >
-                    ✧ Bestsellers
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedCollection("favorites");
-                      setSelectedBrand(null);
-                      setSelectedOlfactory(null);
-                      setIsMobileMenuOpen(false);
-                      const el = document.getElementById("new-in");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className="hover:text-amber-800 text-left uppercase cursor-pointer"
-                  >
-                    ✧ Exclusives
-                  </button>
+                  {collectionsList.map((col) => (
+                    <button
+                      key={col.id}
+                      onClick={() => {
+                        setSelectedCollection(col.id as any);
+                        setSelectedBrand(null);
+                        setSelectedOlfactory(null);
+                        setIsMobileMenuOpen(false);
+                        const el = document.getElementById("new-in");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="hover:text-amber-800 text-left uppercase cursor-pointer"
+                    >
+                      ✧ {col.title}
+                    </button>
+                  ))}
                   <button
                     onClick={() => {
                       setSearchTerm("");
@@ -1507,7 +1582,7 @@ export default function Home() {
                       const el = document.getElementById("new-in");
                       if (el) el.scrollIntoView({ behavior: "smooth" });
                     }}
-                    className="hover:text-amber-800 text-left uppercase cursor-pointer"
+                    className="hover:text-amber-800 text-left uppercase cursor-pointer col-span-2 border-t border-amber-800/10 pt-2 mt-1 text-[#8C6239]"
                   >
                     ✧ All Fragrances
                   </button>
@@ -3349,7 +3424,7 @@ export default function Home() {
             </div>
 
             {(() => {
-              let matched = CATALOG_PRODUCTS;
+              let matched = productsList;
 
               // Apply Search Term Filter
               if (searchTerm.trim() !== "") {
@@ -3385,6 +3460,12 @@ export default function Home() {
                   matched = matched.filter(prod => favorites.includes(prod.id));
                 } else if (selectedCollection === "offers" || selectedCollection === "trending") {
                   matched = matched.filter(prod => prod.isBestSeller || prod.isNew);
+                } else {
+                  // Custom manual database collection
+                  const allowedIds = productCollectionsList
+                    .filter((pc: any) => pc.collection_id === selectedCollection)
+                    .map((pc: any) => pc.product_id);
+                  matched = matched.filter(prod => allowedIds.includes(prod.id));
                 }
               }
 
@@ -3446,7 +3527,7 @@ export default function Home() {
 
             {/* Grid of New In items */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-              {CATALOG_PRODUCTS.filter(p => p.isNew).map(prod => {
+              {productsList.filter(p => p.isNew).map(prod => {
                 const isFav = favorites.includes(prod.id);
                 const isBuyLater = buyLater.includes(prod.id);
                 const activeSize = selectedSizes[prod.id] || prod.sizes[0];
@@ -3605,7 +3686,7 @@ export default function Home() {
 
             {/* Asymmetrical Grid matching "Zen" reference layout perfectly! */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {CATALOG_PRODUCTS.filter(p => p.isBestSeller).map(prod => {
+              {productsList.filter(p => p.isBestSeller).map(prod => {
                 const isFav = favorites.includes(prod.id);
                 const isBuyLater = buyLater.includes(prod.id);
                 const activeSize = selectedSizes[prod.id] || prod.sizes[0];
@@ -3734,7 +3815,7 @@ export default function Home() {
                 );
               }
 
-              const likedProducts = CATALOG_PRODUCTS.filter(p => favorites.includes(p.id));
+              const likedProducts = productsList.filter(p => favorites.includes(p.id));
 
               if (likedProducts.length === 0) {
                 return (
@@ -3816,7 +3897,7 @@ export default function Home() {
 
             {/* Grid showing both Filippo Sorcinelli artistic bottles + Marc-Antoine Barrois + Initio Oud */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {CATALOG_PRODUCTS.filter(p => p.id === 8 || p.id === 9 || p.id === 1 || p.id === 3).map(prod => {
+              {productsList.filter(p => p.id === 8 || p.id === 9 || p.id === 1 || p.id === 3).map(prod => {
                 const isFav = favorites.includes(prod.id);
                 const isBuyLater = buyLater.includes(prod.id);
                 const activeSize = selectedSizes[prod.id] || prod.sizes[0];
