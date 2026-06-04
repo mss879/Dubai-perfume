@@ -1275,13 +1275,13 @@ function AdminDashboardContent() {
                       setShowAddProduct(false);
                     }
                   }}
-                  className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6 cursor-pointer"
+                  className="fixed inset-0 bg-black/85 z-50 overflow-y-auto p-6 md:p-12 flex justify-center items-start cursor-pointer"
                 >
                   <motion.div 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[760px] max-h-[90vh] overflow-y-auto p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative cursor-default scrollbar-thin scrollbar-thumb-amber-800 scrollbar-track-black"
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[1400px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative cursor-default my-8"
                   >
                     <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
                     <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
@@ -1323,8 +1323,8 @@ function AdminDashboardContent() {
                         </div>
                       </div>
 
-                      {/* Row 2: Base Price, Cost Price, Target Margin */}
-                      <div className="grid grid-cols-3 gap-4">
+                      {/* Row 2: Base Price, Cost Price, Target Margin, Olfactory Group */}
+                      <div className="grid grid-cols-4 gap-4">
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">DECANT BASE PRICE (AED)</label>
                           <input 
@@ -1397,10 +1397,7 @@ function AdminDashboardContent() {
                             className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white"
                           />
                         </div>
-                      </div>
 
-                      {/* Row 3: Olfactory Note Group & Marketing Tagline */}
-                      <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">OLFATIVE NOTE GROUP</label>
                           <select
@@ -1414,7 +1411,10 @@ function AdminDashboardContent() {
                             <option value="Amber & Oriental">AMBER & ORIENTAL</option>
                           </select>
                         </div>
+                      </div>
 
+                      {/* Row 3: Marketing Tagline and Search Tags */}
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-1.5">
                           <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">MARKETING TAGLINE</label>
                           <input 
@@ -1425,25 +1425,20 @@ function AdminDashboardContent() {
                             className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-xs tracking-wider text-white placeholder-[#EAE3DB]/20"
                           />
                         </div>
-                      </div>
 
-                      {/* Row 4: Dynamic Telemetry Banner */}
-                      <div className="bg-[#120a06] border border-amber-900/30 p-4 flex items-center justify-between rounded-none mb-1">
-                        <div className="flex flex-col">
-                          <span className="text-[8px] text-[#EAE3DB]/40 tracking-[0.18em] font-black uppercase">ESTIMATED NET PROFIT PER UNIT</span>
-                          <span className={`text-base font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)).toFixed(2)} AED
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[8px] text-[#EAE3DB]/40 tracking-[0.18em] font-black uppercase">MARGIN YIELD</span>
-                          <span className={`text-base font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                            {(parseFloat(newProductPrice) || 0) > 0 ? Math.round((((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)) / (parseFloat(newProductPrice) || 1)) * 100) : 0}%
-                          </span>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">SEARCH TAGS (COMMA SEPARATED)</label>
+                          <input 
+                            type="text" 
+                            value={newProductTags}
+                            onChange={(e) => setNewProductTags(e.target.value)}
+                            placeholder="e.g. memoir, noble, wood, oud"
+                            className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20"
+                          />
                         </div>
                       </div>
 
-                      {/* Row 5: Flacon Sizes */}
+                      {/* Row 4: Flacon Sizes */}
                       <div className="flex flex-col gap-2">
                         <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">FLACON SIZES (SELECT PROTOCOL)</label>
                         <div className="flex flex-wrap gap-2 mb-1">
@@ -1512,21 +1507,9 @@ function AdminDashboardContent() {
                         )}
                       </div>
 
-                      {/* Row 6: Search Tags */}
+                      {/* Row 5: Olfactory Story Details */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">SEARCH TAGS (COMMA SEPARATED)</label>
-                        <input 
-                          type="text" 
-                          value={newProductTags}
-                          onChange={(e) => setNewProductTags(e.target.value)}
-                          placeholder="e.g. memoir, noble, wood, oud"
-                          className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20"
-                        />
-                      </div>
-
-                      {/* Row 7: Olfactory Story Details */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">OLFACRY STORY DETAILS</label>
+                        <label className="text-[9.5px] tracking-[0.18em] text-[#EAE3DB]/40 font-black">OLFACTORY STORY DETAILS</label>
                         <textarea 
                           value={newProductDescription}
                           onChange={(e) => setNewProductDescription(e.target.value)}
@@ -1534,6 +1517,22 @@ function AdminDashboardContent() {
                           rows={3}
                           className="bg-white/5 border border-white/[0.08] px-4 py-3 outline-none focus:border-amber-500 font-bold uppercase w-full resize-none font-sans text-xs tracking-wider text-white placeholder-[#EAE3DB]/20"
                         />
+                      </div>
+
+                      {/* Row 6: Dynamic Telemetry Banner */}
+                      <div className="bg-[#120a06] border border-amber-900/30 p-4 flex items-center justify-between rounded-none mb-1">
+                        <div className="flex flex-col">
+                          <span className="text-[8px] text-[#EAE3DB]/40 tracking-[0.18em] font-black uppercase">ESTIMATED NET PROFIT PER UNIT</span>
+                          <span className={`text-base font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)).toFixed(2)} AED
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[8px] text-[#EAE3DB]/40 tracking-[0.18em] font-black uppercase">MARGIN YIELD</span>
+                          <span className={`text-base font-bold font-sans ${(parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {(parseFloat(newProductPrice) || 0) > 0 ? Math.round((((parseFloat(newProductPrice) || 0) - (parseFloat(newProductCost) || 0)) / (parseFloat(newProductPrice) || 1)) * 100) : 0}%
+                          </span>
+                        </div>
                       </div>
 
                       <button
