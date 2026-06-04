@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import gsap from "gsap";
 
 interface Product {
   id: number;
@@ -388,6 +389,165 @@ const MEGA_MENU_OLFACTORY = [
   },
 ];
 
+interface GenderSelectorProps {
+  onSelect: (genderId: string) => void;
+}
+
+const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const leftCardRef = useRef<HTMLDivElement>(null);
+  const rightCardRef = useRef<HTMLDivElement>(null);
+  const dividerRef = useRef<HTMLDivElement>(null);
+  const leftTextRef = useRef<HTMLDivElement>(null);
+  const rightTextRef = useRef<HTMLDivElement>(null);
+
+  const [hovered, setHovered] = useState<"men" | "women" | null>(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline();
+      
+      // Slide in cards
+      tl.fromTo(
+        leftCardRef.current,
+        { x: -80, opacity: 0 },
+        { x: 0, opacity: 1, duration: 1.2, ease: "power4.out" }
+      );
+      tl.fromTo(
+        rightCardRef.current,
+        { x: 80, opacity: 0 },
+        { x: 0, opacity: 1, duration: 1.2, ease: "power4.out" },
+        "<"
+      );
+
+      // Draw down vertical divider
+      tl.fromTo(
+        dividerRef.current,
+        { scaleY: 0 },
+        { scaleY: 1, duration: 1.4, ease: "power3.inOut" },
+        "-=0.8"
+      );
+
+      // Fade/slide up texts
+      const textElements: HTMLElement[] = [];
+      if (leftTextRef.current) textElements.push(...Array.from(leftTextRef.current.children) as HTMLElement[]);
+      if (rightTextRef.current) textElements.push(...Array.from(rightTextRef.current.children) as HTMLElement[]);
+      
+      tl.fromTo(
+        textElements,
+        { y: 20, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", stagger: 0.06 },
+        "-=0.6"
+      );
+    }, containerRef);
+
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <div ref={containerRef} className="w-full max-w-5xl mx-auto px-4 md:px-8 py-8 relative font-sans-luxury">
+      <div className="flex flex-col md:flex-row h-[360px] md:h-[400px] border border-amber-800/10 relative overflow-hidden bg-black/5">
+        
+        {/* Left Card: MEN */}
+        <div
+          ref={leftCardRef}
+          onClick={() => onSelect("men")}
+          onMouseEnter={() => setHovered("men")}
+          onMouseLeave={() => setHovered(null)}
+          style={{ transition: "flex 0.8s cubic-bezier(0.16, 1, 0.3, 1)" }}
+          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${
+            hovered === "men" ? "flex-[1.3]" : hovered === "women" ? "flex-[0.7]" : "flex-[1]"
+          }`}
+        >
+          {/* Cover image */}
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-[1200ms] ease-out"
+            style={{ 
+              backgroundImage: "url('/men-perfume.jpg')",
+              transform: hovered === "men" ? "scale(1.05)" : "scale(1)" 
+            }}
+          />
+          {/* Dimming overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-500" />
+          
+          {/* Content */}
+          <div ref={leftTextRef} className="relative z-10 flex flex-col gap-1.5">
+            <span className="text-[9px] font-black tracking-[0.3em] text-amber-500 uppercase">
+              COLLECTION
+            </span>
+            <h3 className="text-2xl md:text-3xl font-extrabold tracking-[0.15em] text-[#EAE3DB]">
+              MEN
+            </h3>
+            <p className="text-[10px] leading-relaxed text-neutral-300 tracking-wider font-medium max-w-xs uppercase">
+              Intense, woody, and smoky formulations.
+            </p>
+            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 translate-x-[-8px] group-hover:translate-x-0 transition-all duration-500">
+              ✧ DISCOVER COLLECTION →
+            </span>
+          </div>
+          
+          {/* Elegant gold hairline border on hover */}
+          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${
+            hovered === "men" ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          }`} />
+        </div>
+
+        {/* Dynamic vertical Gold line Divider */}
+        <div 
+          ref={dividerRef} 
+          style={{ transformOrigin: "top" }}
+          className="hidden md:block w-[1px] bg-gradient-to-b from-transparent via-amber-600/40 to-transparent self-stretch z-20 relative pointer-events-none"
+        />
+
+        {/* Right Card: WOMEN */}
+        <div
+          ref={rightCardRef}
+          onClick={() => onSelect("women")}
+          onMouseEnter={() => setHovered("women")}
+          onMouseLeave={() => setHovered(null)}
+          style={{ transition: "flex 0.8s cubic-bezier(0.16, 1, 0.3, 1)" }}
+          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${
+            hovered === "women" ? "flex-[1.3]" : hovered === "men" ? "flex-[0.7]" : "flex-[1]"
+          }`}
+        >
+          {/* Cover image */}
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-transform duration-[1200ms] ease-out"
+            style={{ 
+              backgroundImage: "url('/women-perfume.jpg')",
+              transform: hovered === "women" ? "scale(1.05)" : "scale(1)" 
+            }}
+          />
+          {/* Dimming overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-500" />
+          
+          {/* Content */}
+          <div ref={rightTextRef} className="relative z-10 flex flex-col gap-1.5">
+            <span className="text-[9px] font-black tracking-[0.3em] text-amber-500 uppercase">
+              COLLECTION
+            </span>
+            <h3 className="text-2xl md:text-3xl font-extrabold tracking-[0.15em] text-[#EAE3DB]">
+              WOMEN
+            </h3>
+            <p className="text-[10px] leading-relaxed text-neutral-300 tracking-wider font-medium max-w-xs uppercase">
+              Sensual, floral, and sweet blends.
+            </p>
+            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 translate-x-[-8px] group-hover:translate-x-0 transition-all duration-500">
+              ✧ DISCOVER COLLECTION →
+            </span>
+          </div>
+
+          {/* Elegant gold hairline border on hover */}
+          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${
+            hovered === "women" ? "opacity-100 scale-100" : "opacity-0 scale-95"
+          }`} />
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
 const ProductCard: React.FC<{
   prod: CatalogProduct;
   isFav: boolean;
@@ -415,7 +575,7 @@ const ProductCard: React.FC<{
       <div className="absolute inset-0 border border-amber-600/0 group-hover:border-amber-600/10 pointer-events-none transition-all duration-500 z-20"></div>
 
       {/* Image Container */}
-      <div className="bg-[#F6F5F2] relative flex items-center justify-center p-0 w-full aspect-square overflow-hidden border-b border-[#EAE3DB]/50">
+      <Link href={`/product/${prod.id}`} className="bg-[#F6F5F2] relative flex items-center justify-center p-0 w-full aspect-square overflow-hidden border-b border-[#EAE3DB]/50 cursor-pointer block">
 
         {/* Luxury Badge */}
         {badgeText && (
@@ -497,19 +657,19 @@ const ProductCard: React.FC<{
             );
           })()}
         </div>
-      </div>
+      </Link>
 
       {/* Details Box */}
       <div className="p-4 flex-grow flex flex-col justify-between text-left bg-white transition-all duration-500 font-sans-luxury">
         {/* Brand & Name Row */}
-        <div>
+        <Link href={`/product/${prod.id}`} className="cursor-pointer block text-left group-hover:opacity-85 transition-opacity">
           <span className="text-[8px] tracking-[0.25em] font-extrabold text-amber-800 uppercase block mb-1">
             {prod.brand}
           </span>
           <h3 className="text-[13px] font-bold text-neutral-950 uppercase tracking-wider line-clamp-1 group-hover:text-amber-900 transition-colors duration-300 font-sans-luxury">
             {prod.name}
           </h3>
-        </div>
+        </Link>
 
         {/* Pricing & CTA Buttons on the same row */}
         <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-neutral-100">
@@ -892,38 +1052,7 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {[
-              { id: "men", title: "MEN", desc: "Intense, woody, and smoky formulations.", img: "/men-perfume.jpg" },
-              { id: "women", title: "WOMEN", desc: "Sensual, floral, and sweet blends.", img: "/women-perfume.jpg" }
-            ].map((gender) => (
-              <div
-                key={gender.id}
-                onClick={() => setSelectedMenuGender(gender.id)}
-                className="group relative h-[280px] overflow-hidden border border-amber-800/10 cursor-pointer shadow-lg hover:shadow-[0_20px_40px_rgba(27,15,10,0.12)] hover:border-amber-600/35 transition-all duration-500 flex flex-col justify-end p-6"
-              >
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                  style={{ backgroundImage: `url(${gender.img})` }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent transition-opacity duration-300 group-hover:opacity-90" />
-                <div className="relative z-10 flex flex-col gap-1 text-left">
-                  <span className="text-[10px] font-black tracking-[0.25em] text-amber-500 uppercase">
-                    COLLECTION
-                  </span>
-                  <h3 className="text-xl font-black tracking-[0.15em] text-white">
-                    {gender.title}
-                  </h3>
-                  <p className="text-[9.5px] leading-relaxed text-neutral-300 tracking-wider font-medium mt-1 uppercase">
-                    {gender.desc}
-                  </p>
-                </div>
-                <span className="absolute top-4 right-4 text-white text-[12px] opacity-0 group-hover:opacity-100 group-hover:translate-x-1.5 transition-all duration-300">
-                  ✧ Select →
-                </span>
-              </div>
-            ))}
-          </div>
+          <GenderSelector onSelect={(id) => setSelectedMenuGender(id)} />
         </div>
       );
     }
