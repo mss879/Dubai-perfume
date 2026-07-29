@@ -1,331 +1,265 @@
 "use client";
 
-import React, { useState, useEffect, useRef, use } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  ArrowLeft, ShoppingBag, Heart, Plus, Minus, 
-  Loader2, Check, HelpCircle, ChevronDown, ShieldCheck, Truck
-} from "lucide-react";
+import { Check, Truck, ShieldCheck, Droplet, Headphones, Minus, Plus } from "lucide-react";
 import { clientSafeSupabase } from "../../lib/supabase";
-import gsap from "gsap";
-import BrandsDropdown from "../../components/BrandsDropdown";
 import AppHeader from "../../components/AppHeader";
+import Footer from "../../components/Footer";
 
 interface ProductPageProps {
   params: Promise<{ id: string }>;
 }
 
+interface ProductRecord {
+  id: number;
+  brand: string;
+  name: string;
+  price: number | string;
+  sizes?: string[];
+  image?: string;
+  image_url?: string;
+  image_urls?: string[];
+  description?: string;
+  tagline?: string;
+  olfactory?: string;
+  olfactory_group?: string;
+  tags?: string[];
+  top_notes?: string[];
+  heart_notes?: string[];
+  base_notes?: string[];
+  is_new?: boolean;
+  is_bestseller?: boolean;
+  is_featured_large?: boolean;
+}
+
+interface ProductDetail extends ProductRecord {
+  price: string;
+  sizes: string[];
+  image: string;
+  images: string[];
+  olfactory: string;
+  top_notes: string[];
+  heart_notes: string[];
+  base_notes: string[];
+}
+
+interface RelatedProduct {
+  id: number;
+  brand: string;
+  name: string;
+  price: string;
+  sizes: string[];
+  image: string;
+  description: string;
+  tagline: string;
+  olfactory: string;
+}
+
+interface CartEntry {
+  product: {
+    id: number;
+    brand: string;
+    name: string;
+    price: string;
+    sizes: string[];
+    image: string;
+    image_url?: string;
+    description?: string;
+    tagline?: string;
+    olfactory?: string;
+  };
+  quantity: number;
+  selectedSize: string;
+}
+
+const PRODUCT_FIELDS =
+  "id, brand, name, price, sizes, image_url, image_urls, description, tagline, olfactory_group, is_new, is_bestseller, is_featured_large, tags, top_notes, heart_notes, base_notes";
+
+// Normalises a Supabase array column that may be null, a non-array, or contain blanks.
+const toArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim() !== "") : [];
+
 export default function ProductPage({ params }: ProductPageProps) {
   const resolvedParams = use(params);
   const productId = parseInt(resolvedParams.id, 10);
-  const router = useRouter();
 
   // Component States
-  const [product, setProduct] = useState<any | null>(null);
+  const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [activeImage, setActiveImage] = useState<string>("");
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
   const [isFav, setIsFav] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
-  const [activeCurrency, setActiveCurrency] = useState("AED");
+  const [activeCurrency] = useState(() =>
+    typeof window !== "undefined"
+      ? localStorage.getItem("gharib_active_currency") || "AED"
+      : "AED"
+  );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [allProducts, setAllProducts] = useState<RelatedProduct[]>([]);
+  const [entered, setEntered] = useState(false);
 
-  // FAQ Accordion State
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  // Navbar States
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isBrandsMenuOpen, setIsBrandsMenuOpen] = useState(false);
-  const brandsLeaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleBrandsMouseEnter = () => {
-    if (brandsLeaveTimeoutRef.current) {
-      clearTimeout(brandsLeaveTimeoutRef.current);
-      brandsLeaveTimeoutRef.current = null;
-    }
-    setIsBrandsMenuOpen(true);
-  };
-
-  const handleBrandsMouseLeave = () => {
-    if (brandsLeaveTimeoutRef.current) {
-      clearTimeout(brandsLeaveTimeoutRef.current);
-    }
-    brandsLeaveTimeoutRef.current = setTimeout(() => {
-      setIsBrandsMenuOpen(false);
-    }, 250);
-  };
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
-  const [exchangeRates] = useState<Record<string, number>>({
-    AED: 1.0, USD: 0.2722, EUR: 0.2514, GBP: 0.2154, SAR: 1.0208,
-    QAR: 0.9912, KWD: 0.0838, BHD: 0.1027, OMR: 0.1048, INR: 22.68
-  });
-  const [allProducts, setAllProducts] = useState<any[]>([]);
-
-  // GSAP Ref bindings
-  const pageContainerRef = useRef<HTMLDivElement>(null);
-  const leftPanelRef = useRef<HTMLDivElement>(null);
-  const rightPanelRef = useRef<HTMLDivElement>(null);
-  const imageContainerRef = useRef<HTMLDivElement>(null);
-  const activeImageRef = useRef<HTMLDivElement>(null);
-  const textStaggerRef = useRef<HTMLDivElement>(null);
-  const faqRef = useRef<HTMLDivElement>(null);
-  const notesContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const fetchProduct = async () => {
       setLoading(true);
+      setNotFound(false);
       try {
-        // Query products from Supabase
+        if (Number.isNaN(productId)) {
+          setProduct(null);
+          setNotFound(true);
+          return;
+        }
+
+        // Real catalogue rows — public.products (150 rows). No seed fallback.
         const { data: dbProducts, error } = await clientSafeSupabase
           .from("products")
-          .select("*");
-        const SEED_PRODUCTS = [
-          { id: 101, brand: "GHARIB", name: "Gold Memoir", price: 745.00, sizes: ["50ml", "100ml"], image_url: "/gold-memoir.png", description: "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.", tagline: "Aurum Noble Edition", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Saffron", "Cinnamon", "Bergamot"], heart_notes: ["Rose", "Jasmine", "Clove"], base_notes: ["Amber", "Agarwood (Oud)", "Sandalwood", "Vanilla"] },
-          { id: 102, brand: "GHARIB", name: "Enchanted Blooms", price: 437.00, sizes: ["30ml", "50ml"], image_url: "/enchanted-blooms.png", description: "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.", tagline: "Aura Floral Collection", olfactory_group: "Floral & Sweet", tags: ["floral"], top_notes: ["Pear", "Red Berries", "Jasmine"], heart_notes: ["Peony", "Freesia", "Orange Blossom"], base_notes: ["Vanilla", "White Musk", "Patchouli"] },
-          { id: 103, brand: "GHARIB", name: "Mystic Oud", price: 620.00, sizes: ["50ml", "100ml"], image_url: "/mystic-oud.png", description: "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.", tagline: "Royal Spice Reserve", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Saffron", "Cardamom", "Nutmeg"], heart_notes: ["Oud", "Incense", "Myrrh"], base_notes: ["Leather", "Amber", "Patchouli", "Cedarwood"] },
-          { id: 104, brand: "GHARIB", name: "Ocean Breeze", price: 532.00, sizes: ["50ml", "100ml"], image_url: "/ocean-breeze.png", description: "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.", tagline: "Aquamarine Coast Line", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"], top_notes: ["Italian Bergamot", "Mint Leaves", "Lemon"], heart_notes: ["Sea Salt", "Lavender", "Geranium"], base_notes: ["Amberwood", "Vetiver", "White Musk"] },
-          { id: 1, brand: "INITIO PARFUMS PRIVES", name: "Oud for greatness", price: 1215.00, sizes: ["50ml", "90ml"], image_url: "/catalog_initio_oud.png", description: "A highly concentrated woody fragrance with saffron, lavender, and nutmeg, dry down to heavy dark agarwood oud.", tagline: "Sacred Geometry", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Saffron", "Nutmeg", "Lavender"], heart_notes: ["Oud (Agarwood)"], base_notes: ["Patchouli", "Musk"] },
-          { id: 2, brand: "JULIETTE HAS A GUN", name: "Juliette", price: 360.00, sizes: ["30ml", "50ml"], image_url: "/catalog_juliette_gun.png", description: "A beautiful floral-sensual blend that balances elegant red berries, white blossoms, and sweet woods.", tagline: "Femme Fatale Signature", olfactory_group: "Floral & Sweet", tags: ["floral"], top_notes: ["Red Berries", "Jasmine Sambac"], heart_notes: ["Centifolia Rose", "White Blossoms"], base_notes: ["Sweet Woods", "Amber", "Musk"] },
-          { id: 3, brand: "RABANNE", name: "Phantom", price: 440.00, sizes: ["50ml", "100ml"], image_url: "/catalog_rabanne_phantom.png", description: "A fresh, futuristic composition featuring notes of lavender, creamy patchouli, vanilla, and sparkling vetiver.", tagline: "Metallic Modern Scent", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"], top_notes: ["Lavender", "Lemon Peel"], heart_notes: ["Patchouli", "Creamy Apple", "Smoke"], base_notes: ["Vanilla", "Vetiver"] },
-          { id: 4, brand: "HFC", name: "Devil's intrigue", price: 1358.00, sizes: ["75ml"], image_url: "/catalog_hfc_devils.png", description: "Deep, dramatic amber oriental profile combining warm vanilla, fine sandalwood, and exotic floral touches.", tagline: "Hypnotic Indulgence", olfactory_group: "Amber & Oriental", tags: ["amber", "orient"], top_notes: ["White Tea", "Osmanthus"], heart_notes: ["Orange Blossom", "Sandalwood"], base_notes: ["Cashmere Wood", "Vanilla", "Dry Amber"] },
-          { id: 5, brand: "TOM FORD", name: "Lost Cherry eau de parfum", price: 1196.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_tom_ford_cherry.png", description: "A contrasting scent that reveals a tempting dichotomy of playful, candy-like gleam on the outside and luscious flesh on the inside.", tagline: "Gourmand Masterpiece", olfactory_group: "Floral & Sweet", tags: ["floral", "sweet"], top_notes: ["Black Cherry", "Bitter Almond", "Cherry Liqueur"], heart_notes: ["Griotte Syrup", "Turkish Rose", "Jasmine Sambac"], base_notes: ["Tonka Bean", "Roasted Cocoa", "Sandalwood", "Vetiver", "Cedarwood"] },
-          { id: 6, brand: "MOSCHINO", name: "Toy Boy", price: 158.00, sizes: ["30ml", "50ml", "100ml"], image_url: "/catalog_moschino_teddy.png", description: "A unique, masculine fragrance blending dark woods, pink pepper, rose notes, and resinous amber highlights.", tagline: "Playful Sophistication", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Pink Pepper", "Pear", "Indonesian Nutmeg"], heart_notes: ["Rose", "Flax Flowers", "Magnolia"], base_notes: ["Haitian Vetiver", "Sandalwood", "Cashmeran", "Amber"] },
-          { id: 7, brand: "FILIPPO SORCINELLI", name: "Epicentro", price: 1196.00, sizes: ["50ml", "100ml"], image_url: "/catalog_sorcinelli_epicentro.png", description: "Epicentro is an artistic perfume that represents a deep volcanic impact. Topped with a heavy raw silver metal crumpled sculpture.", tagline: "Artistic Volcanic Shudder", olfactory_group: "Fresh & Aquatic", tags: ["fresh", "aquatic"], top_notes: ["Volcanic Silt", "Italian Bergamot"], heart_notes: ["Deep Sea Minerals", "Warm Earth", "Rust"], base_notes: ["Driftwood", "Dry Cedarwood"] },
-          { id: 8, brand: "FILIPPO SORCINELLI", name: "Eio_non_ho_mani_che_mi_accarezzino_il_volto", price: 862.00, sizes: ["100ml"], image_url: "/catalog_sorcinelli_leather.png", description: "An avante-garde olfactory masterpiece encased in a bottle wrapped dramatically in draped, textured organic matte black leather folds.", tagline: "Gothic Draped Incense", olfactory_group: "Amber & Oriental", tags: ["amber", "orient"], top_notes: ["Clerics Cassock", "Incense Smoke"], heart_notes: ["Organic Dark Leather", "Petrichor"], base_notes: ["Gothic Resin", "Myrrh", "Warm Amber"] },
-          { id: 9, brand: "MARC-ANTOINE BARROIS", name: "Ganymede Extrait", price: 1170.00, sizes: ["30ml", "50ml"], image_url: "/catalog_marc_barrois.png", description: "Deeply woody and metallic masterpiece with leather, saffron, mandarin, and heavy warm immortelle.", tagline: "Cosmic Leather Harmony", olfactory_group: "Woody & Oud", tags: ["wood", "oud"], top_notes: ["Mandarin Orange", "Saffron"], heart_notes: ["Violet Leaves", "Immortelle Flower"], base_notes: ["Suede Leather", "Akigalawood"] }
-        ];
+          .select(PRODUCT_FIELDS);
 
-        let foundProduct = null;
-        let productsList = [];
-        if (dbProducts && !error && dbProducts.length > 0) {
-          productsList = dbProducts;
-          foundProduct = dbProducts.find((p: any) => p.id === productId);
-        }
+        if (error) throw error;
+
+        const productsList: ProductRecord[] = Array.isArray(dbProducts)
+          ? (dbProducts as ProductRecord[])
+          : [];
+        const foundProduct = productsList.find((p) => Number(p.id) === productId) || null;
+
+        // Related rail / cross-sell source
+        setAllProducts(
+          productsList.map((p) => ({
+            id: p.id,
+            brand: p.brand || "",
+            name: p.name || "",
+            price: String(p.price ?? ""),
+            sizes: toArray(p.sizes),
+            image: p.image_url || toArray(p.image_urls)[0] || "",
+            description: p.description || "",
+            tagline: p.tagline || "",
+            olfactory: p.olfactory_group || ""
+          }))
+        );
 
         if (!foundProduct) {
-          productsList = SEED_PRODUCTS;
-          foundProduct = SEED_PRODUCTS.find((p: any) => p.id === productId);
+          setProduct(null);
+          setNotFound(true);
+          return;
         }
 
-        // Format and set allProducts list for header search suggestions
-        const formattedList = productsList.map((p: any) => ({
-          id: p.id,
-          brand: p.brand,
-          name: p.name,
-          price: String(p.price),
-          image: p.image_url || p.image || "/catalog_initio_oud.png",
-          olfactory: p.olfactory_group || p.olfactory || "Woody & Oud"
-        }));
-        setAllProducts(formattedList);
+        const galleryImages = (() => {
+          const fromArray = toArray(foundProduct.image_urls);
+          if (fromArray.length > 0) return fromArray;
+          return foundProduct.image_url ? [foundProduct.image_url] : [];
+        })();
 
-        if (foundProduct) {
-          // Parse values for dynamic page
-          const formattedProduct = {
-            ...foundProduct,
-            image: foundProduct.image_url || foundProduct.image || "/catalog_initio_oud.png",
-            images: foundProduct.image_urls || (foundProduct.image_url ? [foundProduct.image_url] : [foundProduct.image || ""]),
-            price: String(foundProduct.price),
-            sizes: foundProduct.sizes || ["50ml", "100ml"],
-            olfactory: foundProduct.olfactory_group || "Woody & Oud",
-            top_notes: foundProduct.top_notes || [],
-            heart_notes: foundProduct.heart_notes || [],
-            base_notes: foundProduct.base_notes || []
-          };
-          setProduct(formattedProduct);
-          setActiveImage(formattedProduct.image);
-          setSelectedSize(formattedProduct.sizes[0]);
-          
-          // Check if in wishlist
-          if (typeof window !== "undefined") {
-            const userId = localStorage.getItem("userId") || "";
-            const { data: wishlists } = await clientSafeSupabase.from("wishlists").select("*").match({
-              customer_id: userId,
-              product_id: formattedProduct.id,
-              wishlist_type: "favorite"
-            });
-            if (wishlists && wishlists.length > 0) {
-              setIsFav(true);
-            }
+        const formattedProduct: ProductDetail = {
+          ...foundProduct,
+          image: foundProduct.image_url || galleryImages[0] || "",
+          images: galleryImages,
+          price: String(foundProduct.price ?? ""),
+          sizes: toArray(foundProduct.sizes),
+          olfactory: foundProduct.olfactory_group || "",
+          top_notes: toArray(foundProduct.top_notes),
+          heart_notes: toArray(foundProduct.heart_notes),
+          base_notes: toArray(foundProduct.base_notes)
+        };
+
+        setProduct(formattedProduct);
+        setActiveImage(formattedProduct.image || galleryImages[0] || "");
+        setSelectedSize(formattedProduct.sizes[0] || "");
+
+        // Wishlist state for the signed-in customer
+        if (typeof window !== "undefined") {
+          const userId = localStorage.getItem("userId") || "";
+          if (userId) {
+            const { data: wishlists } = await clientSafeSupabase
+              .from("wishlists")
+              .select("*")
+              .match({
+                customer_id: userId,
+                product_id: formattedProduct.id,
+                wishlist_type: "favorite"
+              });
+            setIsFav(Array.isArray(wishlists) && wishlists.length > 0);
           }
         }
       } catch (err) {
         console.error("Error loading product detail:", err);
+        setProduct(null);
+        setNotFound(true);
       } finally {
         setLoading(false);
       }
     };
 
     fetchProduct();
-
-    // Load Local Storage Configuration (Cart, Currency)
-    if (typeof window !== "undefined") {
-      const savedCurrency = localStorage.getItem("gharib_active_currency") || "AED";
-      setActiveCurrency(savedCurrency);
-
-      const email = localStorage.getItem("userEmail");
-      if (email) setUserEmail(email);
-
-      const savedCart = localStorage.getItem("gharib_cart");
-      if (savedCart) {
-        try {
-          const items = JSON.parse(savedCart);
-          const count = items.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0);
-          setCartCount(count);
-        } catch (_) {}
-      }
-    }
   }, [productId]);
-  // Entrance Animations Timeline
+
+  // Single one-shot fade + rise on entry (design-system §7)
   useEffect(() => {
     if (loading || !product) return;
-
-    const ctx = gsap.context(() => {
-      const tl = gsap.timeline();
-
-      // Fade page entrance
-      tl.fromTo(pageContainerRef.current, { opacity: 0 }, { opacity: 1, duration: 0.6 });
-
-      // Left Panel reveal
-      tl.fromTo(
-        leftPanelRef.current,
-        { x: -50, opacity: 0 },
-        { x: 0, opacity: 1, duration: 1.2, ease: "power4.out" },
-        "-=0.4"
-      );
-
-      // Right Panel text stagger
-      if (textStaggerRef.current) {
-        tl.fromTo(
-          Array.from(textStaggerRef.current.children),
-          { y: 30, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.8, ease: "power3.out", stagger: 0.08 },
-          "-=0.9"
-        );
-      }
-
-      // FAQ Entrance reveal
-      if (faqRef.current) {
-        tl.fromTo(
-          Array.from(faqRef.current.children),
-          { y: 15, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", stagger: 0.1 },
-          "-=0.5"
-        );
-      }
-
-      // Detailed Scent Tiers scale-in stagger
-      if (notesContainerRef.current) {
-        const tiers = notesContainerRef.current.querySelectorAll(".scent-tier");
-        const badges = notesContainerRef.current.querySelectorAll(".scent-badge");
-        
-        tl.fromTo(
-          tiers,
-          { y: 20, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.8, ease: "power2.out", stagger: 0.15 },
-          "-=0.8"
-        );
-        
-        tl.fromTo(
-          badges,
-          { scale: 0.85, opacity: 0 },
-          { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.5)", stagger: 0.03 },
-          "-=0.6"
-        );
-      }
-    }, pageContainerRef);
-
-    return () => ctx.revert();
+    const frame = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(frame);
   }, [loading, product]);
-
-  // GSAP Hover animations for olfactory notes architecture
-  const handleTierEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    const badges = target.querySelectorAll(".scent-badge");
-    const container = notesContainerRef.current;
-    if (!container) return;
-    const allTiers = container.querySelectorAll(".scent-tier");
-
-    // Hovered tier: scale up slightly, enrich border, add subtle shadow
-    gsap.to(target, {
-      scale: 1.03,
-      borderColor: "#92400e", // amber-800
-      boxShadow: "0 12px 30px rgba(180, 138, 83, 0.08)",
-      duration: 0.4,
-      ease: "power2.out",
-      overwrite: "auto"
-    });
-
-    // Animate badges inside hovered tier floating up slightly
-    gsap.to(badges, {
-      y: -3,
-      stagger: 0.02,
-      duration: 0.3,
-      ease: "power2.out",
-      overwrite: "auto"
-    });
-
-    // Fade out other tiers to focus attention
-    allTiers.forEach((tier) => {
-      if (tier !== target) {
-        gsap.to(tier, {
-          opacity: 0.4,
-          scale: 0.98,
-          duration: 0.4,
-          ease: "power2.out",
-          overwrite: "auto"
-        });
-      }
-    });
-  };
-
-  const handleTierLeave = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    const badges = target.querySelectorAll(".scent-badge");
-    const container = notesContainerRef.current;
-    if (!container) return;
-    const allTiers = container.querySelectorAll(".scent-tier");
-
-    // Reset hovered tier
-    gsap.to(target, {
-      scale: 1,
-      borderColor: target.getAttribute("data-default-border") || "#EAE3DB",
-      boxShadow: "none",
-      duration: 0.4,
-      ease: "power2.out",
-      overwrite: "auto"
-    });
-
-    // Reset badges y position
-    gsap.to(badges, {
-      y: 0,
-      duration: 0.3,
-      ease: "power2.out",
-      overwrite: "auto"
-    });
-
-    // Restore all tiers opacity/scale
-    allTiers.forEach((tier) => {
-      gsap.to(tier, {
-        opacity: 1,
-        scale: 1,
-        duration: 0.4,
-        ease: "power2.out",
-        overwrite: "auto"
-      });
-    });
-  };
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Shared cart writer — keeps the existing gharib_cart item shape
+  const writeToCart = (
+    item: {
+      id: number;
+      brand: string;
+      name: string;
+      price: string;
+      sizes: string[];
+      image: string;
+      description?: string;
+      tagline?: string;
+      olfactory?: string;
+    },
+    size: string,
+    qty: number
+  ) => {
+    if (typeof window === "undefined") return;
+    const savedCart = localStorage.getItem("gharib_cart_v2") || "[]";
+    let cart: CartEntry[] = [];
+    try {
+      cart = JSON.parse(savedCart);
+    } catch {
+      cart = [];
+    }
+
+    const existingIdx = cart.findIndex(
+      (entry) => entry.product?.id === item.id && entry.selectedSize === size
+    );
+
+    if (existingIdx > -1) {
+      cart[existingIdx].quantity += qty;
+    } else {
+      cart.push({
+        product: {
+          id: item.id,
+          brand: item.brand,
+          name: item.name,
+          price: item.price,
+          sizes: item.sizes,
+          image: item.image,
+          image_url: item.image,
+          description: item.description,
+          tagline: item.tagline,
+          olfactory: item.olfactory
+        },
+        quantity: qty,
+        selectedSize: size
+      });
+    }
+
+    localStorage.setItem("gharib_cart_v2", JSON.stringify(cart));
   };
 
   // Add Scent to Selection Cart
@@ -334,47 +268,34 @@ export default function ProductPage({ params }: ProductPageProps) {
     setIsAdding(true);
 
     setTimeout(() => {
-      if (typeof window !== "undefined") {
-        const savedCart = localStorage.getItem("gharib_cart") || "[]";
-        let cart = [];
-        try {
-          cart = JSON.parse(savedCart);
-        } catch (_) {}
+      writeToCart(
+        {
+          id: product.id,
+          brand: product.brand,
+          name: product.name,
+          price: product.price,
+          sizes: product.sizes,
+          image: product.image,
+          description: product.description,
+          tagline: product.tagline,
+          olfactory: product.olfactory
+        },
+        selectedSize,
+        quantity
+      );
 
-        const existingIdx = cart.findIndex(
-          (item: any) => item.product.id === product.id && item.selectedSize === selectedSize
-        );
+      setIsAdding(false);
+      setAddedSuccess(true);
+      triggerToast(`${product.name} — ${selectedSize} added to your bag`);
+      setTimeout(() => setAddedSuccess(false), 2500);
+    }, 700);
+  };
 
-        if (existingIdx > -1) {
-          cart[existingIdx].quantity += quantity;
-        } else {
-          cart.push({
-            product: {
-              id: product.id,
-              brand: product.brand,
-              name: product.name,
-              price: product.price,
-              sizes: product.sizes,
-              image: product.image,
-              description: product.description,
-              tagline: product.tagline,
-              olfactory: product.olfactory
-            },
-            quantity: quantity,
-            selectedSize: selectedSize
-          });
-        }
-
-        localStorage.setItem("gharib_cart", JSON.stringify(cart));
-        const newCount = cart.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0);
-        setCartCount(newCount);
-
-        setIsAdding(false);
-        setAddedSuccess(true);
-        triggerToast(`Added ${quantity}x ${product.name} (${selectedSize}) to Selection.`);
-        setTimeout(() => setAddedSuccess(false), 2500);
-      }
-    }, 1200);
+  // Quick add from the related-products rail
+  const handleQuickAdd = (item: RelatedProduct) => {
+    const size = item.sizes?.[0] || "";
+    writeToCart(item, size, 1);
+    triggerToast(size ? `${item.name} — ${size} added to your bag` : `${item.name} added to your bag`);
   };
 
   // Toggle Scent Wishlist Favorite
@@ -383,7 +304,7 @@ export default function ProductPage({ params }: ProductPageProps) {
     try {
       const userId = localStorage.getItem("userId") || "";
       if (!userId) {
-        triggerToast("Please log in to save to your Vault.");
+        triggerToast("Please sign in to use your wishlist");
         return;
       }
 
@@ -398,7 +319,7 @@ export default function ProductPage({ params }: ProductPageProps) {
           });
         if (!error) {
           setIsFav(false);
-          triggerToast("Removed scent from your Scent Vault.");
+          triggerToast("Removed from your wishlist");
         }
       } else {
         const { error } = await clientSafeSupabase
@@ -410,26 +331,12 @@ export default function ProductPage({ params }: ProductPageProps) {
           });
         if (!error) {
           setIsFav(true);
-          triggerToast("Secured scent in your Scent Vault!");
+          triggerToast("Saved to your wishlist");
         }
       }
     } catch (err) {
       console.error(err);
     }
-  };
-
-  const handleThumbnailClick = (imgUrl: string) => {
-    if (activeImage === imgUrl) return;
-    
-    // Smooth image transition using GSAP cross-fade scale bounce
-    if (activeImageRef.current) {
-      gsap.fromTo(
-        activeImageRef.current,
-        { opacity: 0.6, scale: 0.98 },
-        { opacity: 1, scale: 1, duration: 0.5, ease: "power2.out" }
-      );
-    }
-    setActiveImage(imgUrl);
   };
 
   // Format local price conversion
@@ -447,226 +354,171 @@ export default function ProductPage({ params }: ProductPageProps) {
     return `${symbol} ${(aedAmount * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const faqs = [
+  const deliveryFrom = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 3);
+    return date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  }, []);
+
+  const serviceNotes = [
     {
-      q: "Shipping & Delivery details",
-      a: "We offer complimentary express shipping across the GCC (1-2 business days) and globally (3-5 business days). Each order is hand-packed in our signature thermal-insulated coffret with temperature protection to preserve olfactory integrity during transport.",
-      icon: <Truck className="w-4 h-4 text-amber-700" />
+      q: "Shipping & delivery",
+      a: "Complimentary express shipping across the GCC (1–2 business days) and worldwide (3–5 business days). Every order is hand-packed in a thermal-insulated coffret so the composition travels intact."
     },
     {
-      q: "Returns & Scent Verification",
-      a: "To ensure your absolute satisfaction, every order includes a matching 2ml sampler vial. We invite you to experience the sampler before opening the full bottle. Unopened flacons in original sealed packaging may be returned within 14 days for a full refund.",
-      icon: <ShieldCheck className="w-4 h-4 text-amber-700" />
+      q: "Returns & scent verification",
+      a: "Each order includes a matching 2ml sampler vial — live with it before you open the flacon. Unopened bottles in sealed packaging may be returned within 14 days for a full refund."
     },
     {
-      q: "Authenticity & Decant Sourcing",
-      a: "Every bottle is 100% authentic, directly sourced from authorized perfume houses or decanted by master curators at our flagship Dubai workshop. Each shipment includes a unique batch number card mapping its precise decanting logs.",
-      icon: <HelpCircle className="w-4 h-4 text-amber-700" />
+      q: "Authenticity & sourcing",
+      a: "Every bottle is sourced directly from authorised perfume houses or decanted by our curators in Dubai. Each shipment carries a batch card mapping its provenance."
     }
   ];
 
+  const relatedProducts = useMemo(() => {
+    if (!product) return [];
+    const others = allProducts.filter((p) => p.id !== product.id);
+    const sameFamily = others.filter((p) => p.olfactory === product.olfactory);
+    const rest = others.filter((p) => p.olfactory !== product.olfactory);
+    return [...sameFamily, ...rest].slice(0, 4);
+  }, [allProducts, product]);
+
+  // Quiet skeleton — flat #F5F5F5 blocks at the real aspect ratios, no motion.
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center flex-col gap-4">
-        <Loader2 className="w-8 h-8 text-amber-700 animate-spin" />
-        <span className="text-[9px] tracking-[0.3em] text-[#6C5F54]/70 uppercase font-black">
-          Decrypting Olfactory Geometry...
-        </span>
+      <div className="maison min-h-screen flex flex-col overflow-x-hidden">
+        <AppHeader activePage="shop" />
+        <main className="flex-grow">
+          <div className="maison-container pt-8 pb-14 md:pt-12 md:pb-20">
+            <div className="grid grid-cols-1 lg:grid-cols-[65fr_35fr] gap-10 lg:gap-0 items-start">
+              <div className="flex flex-col gap-4">
+                <div className="w-full aspect-square bg-[var(--surface-2)]" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="w-full aspect-square bg-[var(--surface-2)]" />
+                  <div className="w-full aspect-square bg-[var(--surface-2)]" />
+                </div>
+              </div>
+              <div className="lg:pl-10 flex flex-col">
+                <div className="h-3 w-28 bg-[var(--surface-2)]" />
+                <div className="h-9 w-4/5 bg-[var(--surface-2)] mt-4" />
+                <div className="h-3 w-40 bg-[var(--surface-2)] mt-4" />
+                <div className="flex gap-3 mt-9">
+                  <div className="w-[100px] h-[37px] bg-[var(--surface-2)]" />
+                  <div className="w-[100px] h-[37px] bg-[var(--surface-2)]" />
+                </div>
+                <div className="h-12 w-full bg-[var(--surface-2)] mt-9" />
+                <div className="h-24 w-full bg-[var(--surface-2)] mt-9" />
+                <div className="h-3 w-full bg-[var(--surface-2)] mt-9" />
+                <div className="h-3 w-11/12 bg-[var(--surface-2)] mt-3" />
+                <div className="h-3 w-3/5 bg-[var(--surface-2)] mt-3" />
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
       </div>
     );
   }
 
-  if (!product) {
+  if (!product || notFound) {
     return (
-      <div className="min-h-screen bg-white text-[#1C120C] flex flex-col justify-center items-center gap-6 p-6">
-        <h1 className="text-2xl font-serif-luxury tracking-widest text-[#6C5F54]">Scent Not Discovered</h1>
-        <p className="text-xs text-neutral-500 tracking-widest uppercase">The requested item does not exist in our curations.</p>
-        <Link href="/" className="border border-amber-800/30 text-amber-800 text-[10px] tracking-widest uppercase py-3.5 px-8 hover:bg-amber-800 hover:text-white transition-all">
-          Back to Catalogue
-        </Link>
+      <div className="maison min-h-screen flex flex-col overflow-x-hidden">
+        <AppHeader activePage="shop" />
+        <main className="flex-grow flex flex-col items-center justify-center gap-6 px-5 py-32 text-center">
+          <h1 className="maison-page-title">Fragrance not found</h1>
+          <p className="text-[14px] font-light text-[#646464] max-w-[46ch]">
+            This piece is no longer part of our curation, or the link you followed is out of date.
+          </p>
+          <Link href="/shop" className="maison-btn-outline h-12 px-10 mt-2 inline-flex items-center">
+            Browse the catalogue
+          </Link>
+        </main>
+        <Footer />
       </div>
     );
   }
+
+  const priceValue = parseFloat(String(product.price).replace("$", "")) || 0;
+  const gallery: string[] = (product.images || []).filter(Boolean);
+  const badgeLabel = product.is_featured_large
+    ? "Iconic"
+    : product.is_new || (product.tags && product.tags.includes("new"))
+      ? "New"
+      : product.is_bestseller
+        ? "Best Seller"
+        : null;
+
+  const pyramid: { label: string; notes: string[] }[] = [
+    { label: "Top", notes: product.top_notes || [] },
+    { label: "Heart", notes: product.heart_notes || [] },
+    { label: "Base", notes: product.base_notes || [] }
+  ].filter((row) => row.notes.length > 0);
+
+  const reassurance = [
+    { Icon: Truck, label: "Complimentary delivery" },
+    { Icon: ShieldCheck, label: "Guaranteed authentic" },
+    { Icon: Droplet, label: "Complimentary samples" },
+    { Icon: Headphones, label: "Responsive client care" }
+  ];
 
   return (
-    <div 
-      ref={pageContainerRef}
-      className="min-h-screen bg-white text-[#1C120C] flex flex-col justify-between font-sans-luxury relative overflow-x-hidden pt-16 md:pt-20"
-    >
-      {/* Ambient background glows */}
-      <div className="absolute top-[-10%] right-[-10%] w-[55%] h-[55%] bg-radial from-amber-600/[0.03] via-transparent to-transparent blur-[120px] pointer-events-none z-0" />
-      <div className="absolute bottom-[20%] left-[-10%] w-[45%] h-[45%] bg-radial from-amber-500/[0.02] via-transparent to-transparent blur-[120px] pointer-events-none z-0" />
-
-      {/* Floating Toast Message */}
+    <div className="maison min-h-screen flex flex-col overflow-x-hidden">
+      {/* Toast */}
       {toastMessage && (
-        <div className="fixed top-6 right-6 bg-[#FFFFFF] border border-[#EAE3DB] text-[#1C120C] text-[10px] tracking-[0.2em] uppercase font-bold py-4 px-6 shadow-[0_15px_40px_rgba(28,18,12,0.08)] z-50 flex items-center gap-3 rounded-none">
-          <Check className="w-3.5 h-3.5 text-amber-600" />
-          <span>{toastMessage}</span>
+        <div className="fixed top-24 right-5 z-50 bg-[#121212] text-white text-[12px] tracking-[0.1em] uppercase px-5 py-4">
+          {toastMessage}
         </div>
       )}
 
       <AppHeader activePage="shop" />
 
-      {/* Mobile Luxury Navigation Drawer */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 bg-[#FAF6F0]/98 border-l border-amber-800/10 backdrop-blur-xl z-50 flex flex-col justify-between p-8 font-sans-luxury text-neutral-800"
-          >
-            <div className="flex items-center justify-between border-b border-amber-800/10 pb-5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/logo.png"
-                alt="Gharib"
-                className="h-8 w-auto object-contain rounded-lg overflow-hidden brightness-0"
-              />
-              <button
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="w-10 h-10 flex items-center justify-center border border-amber-800/20 rounded-full text-neutral-600 hover:text-neutral-900 hover:border-amber-800/40 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
+      <main
+        className={`flex-grow transition-[opacity,transform] duration-[600ms] ease-out ${
+          entered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+        }`}
+      >
+        {/* ── PDP core ─────────────────────────────────────────────── */}
+        <div className="maison-container pt-8 pb-14 md:pt-12 md:pb-20">
+          <div className="grid grid-cols-1 lg:grid-cols-[65fr_35fr] gap-10 lg:gap-0 items-start">
 
-            <div className="flex-grow overflow-y-auto py-8 flex flex-col gap-8 text-left">
-              <div className="flex flex-col gap-5">
-                <Link
-                  href="/"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase text-left transition-colors decoration-none"
-                >
-                  HOME
-                </Link>
-                <Link
-                  href="/#about"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors decoration-none"
-                >
-                  ABOUT
-                </Link>
-                <Link
-                  href="/contact"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-amber-800 uppercase transition-colors decoration-none"
-                >
-                  CONTACT
-                </Link>
-                <Link
-                  href="/blogs"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors decoration-none"
-                >
-                  BLOGS
-                </Link>
-                <Link
-                  href="/#new-in"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors decoration-none"
-                >
-                  SHOP
-                </Link>
-              </div>
-
-              <div className="flex flex-col border-t border-amber-800/10 pt-6">
-                <span className="text-[10px] font-black tracking-[0.25em] text-amber-800 uppercase mb-4 pl-[0.1em]">
-                  Shop Collections
-                </span>
-                <div className="grid grid-cols-2 gap-3.5 text-xs font-bold tracking-widest text-neutral-500">
-                  <Link
-                    href="/#new-in"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="hover:text-amber-800 text-left uppercase decoration-none"
-                  >
-                    ✧ New In
-                  </Link>
-                  <Link
-                    href="/#new-in"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="hover:text-amber-800 text-left uppercase decoration-none"
-                  >
-                    ✧ Bestsellers
-                  </Link>
-                  <Link
-                    href="/#offers"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="hover:text-amber-800 text-left uppercase decoration-none"
-                  >
-                    ✧ Special Offers
-                  </Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-amber-800/10 pt-6 flex flex-col gap-1.5 text-[9px] tracking-widest uppercase text-neutral-400 font-bold text-left">
-              <span>© Gharib Atelier • Dubai</span>
-              <span>Complimentary Thermal Insulated Delivery</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Product Template Content */}
-      <main className="flex-grow max-w-7xl w-full mx-auto px-6 pt-4 pb-12 md:pt-6 md:pb-20 z-10 relative">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-          
-          {/* LEFT PANEL: Sticky Visual Column & FAQ below image */}
-          <div ref={leftPanelRef} className="lg:col-span-6 lg:sticky lg:top-[90px] flex flex-col gap-8">
-            
-            <div className="flex flex-col gap-6">
-              {/* Primary Image Container */}
-              <div 
-                ref={imageContainerRef}
-                className="relative w-full aspect-square bg-[#FFFFFF] border border-[#EAE3DB] flex items-center justify-center p-8 overflow-hidden rounded-none group/visual shadow-[0_8px_30px_rgba(28,18,12,0.02)]"
-              >
-                {/* Gold framing border details */}
-                <div className="absolute inset-4 border border-[#EAE3DB] pointer-events-none transition-all duration-700"></div>
-                <div className="absolute top-4 left-4 w-4 h-4 border-t border-l border-amber-600/35 pointer-events-none"></div>
-                <div className="absolute top-4 right-4 w-4 h-4 border-t border-r border-amber-600/35 pointer-events-none"></div>
-                <div className="absolute bottom-4 left-4 w-4 h-4 border-b border-l border-amber-600/35 pointer-events-none"></div>
-                <div className="absolute bottom-4 right-4 w-4 h-4 border-b border-r border-amber-600/35 pointer-events-none"></div>
-
-                {/* Luxury Badge */}
-                <span className="absolute top-6 left-6 bg-[#1C120C] text-[#FAF9F6] text-[7.5px] font-black tracking-[0.35em] uppercase px-3 py-1.5 border border-white/5 select-none z-20">
-                  ✦ EXCLUSIF ATELIER
-                </span>
-
-                {/* Main Image */}
-                <div 
-                  ref={activeImageRef} 
-                  className="absolute inset-8 flex items-center justify-center transition-transform duration-[1200ms] ease-out group-hover/visual:scale-102"
-                >
+            {/* LEFT — media stage */}
+            <div className="flex flex-col gap-4">
+              <div className="relative w-full aspect-square bg-[var(--surface-2)]">
+                {badgeLabel && (
+                  <span className="absolute top-0 left-0 z-10 bg-black text-white text-[12px] leading-none tracking-[0.1em] uppercase px-4 py-2.5">
+                    {badgeLabel}
+                  </span>
+                )}
+                {(activeImage || product.image) && (
                   <Image
-                    src={activeImage}
+                    src={activeImage || product.image}
                     alt={product.name}
                     fill
-                    className="object-contain filter drop-shadow-[0_15px_30px_rgba(28,18,12,0.06)]"
+                    sizes="(min-width: 1024px) 60vw, 100vw"
+                    className="object-contain p-12 md:p-20"
                     priority
                   />
-                </div>
+                )}
               </div>
 
-              {/* Thumbnail Carousel Selector */}
-              {product.images && product.images.length > 1 && (
-                <div className="flex gap-4 overflow-x-auto py-2 pr-4 justify-start scrollbar-thin">
-                  {product.images.map((imgUrl: string, idx: number) => (
+              {gallery.length > 1 && (
+                <div className="grid grid-cols-2 gap-4">
+                  {gallery.map((imgUrl: string, idx: number) => (
                     <button
-                      key={idx}
-                      onClick={() => handleThumbnailClick(imgUrl)}
-                      className={`relative w-20 aspect-square flex-shrink-0 bg-[#FFFFFF] border transition-all duration-300 ${
-                        activeImage === imgUrl 
-                          ? "border-amber-600 shadow-[0_4px_12px_rgba(180,138,83,0.15)] scale-102" 
-                          : "border-[#EAE3DB] opacity-60 hover:opacity-100 hover:border-amber-600/40"
+                      key={`${imgUrl}-${idx}`}
+                      type="button"
+                      onClick={() => setActiveImage(imgUrl)}
+                      aria-label={`View image ${idx + 1} of ${product.name}`}
+                      className={`relative w-full aspect-square bg-[var(--surface-2)] cursor-pointer border transition-colors duration-300 ${
+                        activeImage === imgUrl ? "border-black" : "border-transparent hover:border-[rgba(0,0,0,0.12)]"
                       }`}
                     >
                       <Image
                         src={imgUrl}
-                        alt={`Thumbnail ${idx + 1}`}
+                        alt={`${product.name} — view ${idx + 1}`}
                         fill
-                        className="object-cover p-1.5"
+                        sizes="(min-width: 1024px) 30vw, 50vw"
+                        className="object-contain p-10 md:p-14"
                       />
                     </button>
                   ))}
@@ -674,291 +526,285 @@ export default function ProductPage({ params }: ProductPageProps) {
               )}
             </div>
 
-            {/* FAQ Accordion Section (Below Image) */}
-            <div ref={faqRef} className="border-t border-[#EAE3DB] pt-8 flex flex-col gap-4 text-left">
-              <span className="text-[9px] font-black tracking-[0.3em] text-[#8C8276] uppercase block mb-2">
-                ✦ CLIENT SERVICE FAQS
-              </span>
-
-              {faqs.map((faq, idx) => (
-                <div 
-                  key={idx} 
-                  className="border border-[#EAE3DB] bg-[#FFFFFF] transition-all duration-300 shadow-[0_2px_8px_rgba(28,18,12,0.01)]"
-                >
-                  <button
-                    onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                    className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left cursor-pointer group hover:bg-neutral-50/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      {faq.icon}
-                      <span className="text-[11.5px] font-bold uppercase tracking-wider text-[#1C120C]">
-                        {faq.q}
-                      </span>
-                    </div>
-                    <ChevronDown className={`w-4 h-4 text-[#8C8276] transition-transform duration-300 ${
-                      openFaq === idx ? "rotate-180 text-amber-700" : ""
-                    }`} />
-                  </button>
-
-                  <div className={`overflow-hidden transition-all duration-500 ease-in-out ${
-                    openFaq === idx ? "max-h-[200px] border-t border-[#EAE3DB]/50" : "max-h-0"
-                  }`}>
-                    <div className="p-5 text-[11px] leading-relaxed text-[#6C5F54] font-medium tracking-wide">
-                      {faq.a}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-          </div>
-
-          {/* RIGHT PANEL: Scrollable Scent Details & Controls */}
-          <div ref={rightPanelRef} className="lg:col-span-6 text-left flex flex-col gap-10">
-            
-            {/* Header info */}
-            <div ref={textStaggerRef} className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-[9px] font-black tracking-[0.3em] text-amber-800 uppercase px-2 py-0.5 border border-amber-600/25 bg-amber-600/5">
+            {/* RIGHT — info column */}
+            <div className="lg:pl-10">
+              {/* 1. Title */}
+              <span className="maison-eyebrow block">{product.brand}</span>
+              <h1 className="font-display text-[28px] md:text-[36px] leading-[1.1] tracking-[0.1em] uppercase text-black mt-3">
+                {product.name}
+              </h1>
+              {product.olfactory && (
+                <p className="text-[12px] tracking-[0.02em] uppercase text-[#646464] mt-3">
                   {product.olfactory}
-                </span>
-                {product.tags && product.tags.includes("new") && (
-                  <span className="text-[9px] font-black tracking-[0.3em] text-[#8C8276] uppercase">
-                    ✧ NEW ARRIVAL
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <span className="text-[10px] tracking-[0.3em] font-extrabold text-[#8C8276] uppercase block mb-1">
-                  {product.brand}
-                </span>
-                <h1 className="text-3xl md:text-5xl font-serif-luxury tracking-widest text-[#1C120C] uppercase leading-tight font-extrabold font-serif-luxury">
-                  {product.name}
-                </h1>
-              </div>
-
-              {product.tagline && (
-                <p className="text-[11.5px] font-serif font-medium italic text-amber-700 tracking-widest pl-0.5">
-                  &ldquo;{product.tagline}&rdquo;
                 </p>
               )}
 
-              <p className="text-[12.5px] leading-relaxed text-[#6C5F54] tracking-wider font-medium mt-2">
-                {product.description}
-              </p>
-
-              {/* Olfactory Notes Architecture (Animated Stacked Scent Pyramid) */}
-              {((product.top_notes && product.top_notes.length > 0) || 
-                (product.heart_notes && product.heart_notes.length > 0) || 
-                (product.base_notes && product.base_notes.length > 0)) && (
-                <div 
-                  ref={notesContainerRef} 
-                  className="border-t border-[#EAE3DB]/50 pt-8 flex flex-col gap-6 text-left"
-                >
-                  <span className="text-[9px] font-black tracking-[0.3em] text-[#8C8276] uppercase block">
-                    ✦ OLFACTORY NOTES ARCHITECTURE
-                  </span>
-                  
-                  {/* Outer pyramid wrapper with subtle warm white background and structured border */}
-                  <div className="relative flex flex-col items-center w-full bg-[#FAF9F6] border border-[#EAE3DB] p-6 sm:p-8 rounded-none shadow-[0_10px_35px_rgba(28,18,12,0.02)] overflow-hidden">
-                    
-                    <div className="flex flex-col items-center gap-4 w-full relative z-10">
-                      {/* Top Notes (Apex) */}
-                      {product.top_notes && product.top_notes.length > 0 && (
-                        <div 
-                          className="scent-tier w-full max-w-[280px] bg-[#FCFAF6] border border-[#EAE3DB] p-4 text-center relative group/tier cursor-pointer rounded-sm"
-                          data-default-border="#EAE3DB"
-                          onMouseEnter={handleTierEnter}
-                          onMouseLeave={handleTierLeave}
-                        >
-                          <span className="text-[9px] font-black tracking-[0.25em] text-amber-800/60 uppercase block mb-2.5 select-none transition-colors duration-300">
-                            TOP NOTES (APEX)
-                          </span>
-                          <div className="flex flex-wrap justify-center gap-1.5">
-                            {product.top_notes.map((note: string, i: number) => (
-                              <span 
-                                key={i} 
-                                className="scent-badge text-[10.5px] tracking-wide font-bold text-[#1C120C] bg-white border border-neutral-200/80 px-3 py-1.5 transition-all duration-300 select-none shadow-[0_1px_3px_rgba(0,0,0,0.01)]"
-                              >
-                                {note}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Middle (Heart) Notes */}
-                      {product.heart_notes && product.heart_notes.length > 0 && (
-                        <div 
-                          className="scent-tier w-full max-w-[360px] bg-[#F5EFE6] border border-[#DFD6C8] p-4 text-center relative group/tier cursor-pointer rounded-sm"
-                          data-default-border="#DFD6C8"
-                          onMouseEnter={handleTierEnter}
-                          onMouseLeave={handleTierLeave}
-                        >
-                          <span className="text-[9px] font-black tracking-[0.25em] text-amber-800/85 uppercase block mb-2.5 select-none transition-colors duration-300">
-                            HEART NOTES (CORE)
-                          </span>
-                          <div className="flex flex-wrap justify-center gap-1.5">
-                            {product.heart_notes.map((note: string, i: number) => (
-                              <span 
-                                key={i} 
-                                className="scent-badge text-[10.5px] tracking-wide font-bold text-[#1C120C] bg-white border border-neutral-200/80 px-3 py-1.5 transition-all duration-300 select-none shadow-[0_1px_3px_rgba(0,0,0,0.01)]"
-                              >
-                                {note}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Base Notes */}
-                      {product.base_notes && product.base_notes.length > 0 && (
-                        <div 
-                          className="scent-tier w-full max-w-[440px] bg-[#EBE3D5] border border-[#CFC1AF] p-4 text-center relative group/tier cursor-pointer rounded-sm"
-                          data-default-border="#CFC1AF"
-                          onMouseEnter={handleTierEnter}
-                          onMouseLeave={handleTierLeave}
-                        >
-                          <span className="text-[9px] font-black tracking-[0.25em] text-amber-950 uppercase block mb-2.5 select-none transition-colors duration-300">
-                            BASE NOTES (DRY DOWN)
-                          </span>
-                          <div className="flex flex-wrap justify-center gap-1.5">
-                            {product.base_notes.map((note: string, i: number) => (
-                              <span 
-                                key={i} 
-                                className="scent-badge text-[10.5px] tracking-wide font-bold text-[#1C120C] bg-white border border-neutral-200/80 px-3 py-1.5 transition-all duration-300 select-none shadow-[0_1px_3px_rgba(0,0,0,0.01)]"
-                              >
-                                {note}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+              {/* 2 + 3. Size swatches and price */}
+              <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5 mt-9">
+                <div className="flex flex-wrap gap-3">
+                  {product.sizes.map((size: string) => {
+                    const isSelected = selectedSize === size;
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => setSelectedSize(size)}
+                        className={`w-[100px] h-[37px] bg-white text-black text-[12px] tracking-[0.08em] uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-colors duration-300 ${
+                          isSelected ? "border-2 border-black" : "border border-black hover:bg-[var(--surface-2)]"
+                        }`}
+                      >
+                        {size}
+                        {isSelected && <Check className="w-3 h-3" strokeWidth={1.5} />}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-
-            {/* Flacon Selection Controls */}
-            <div className="border-t border-[#EAE3DB] pt-8 flex flex-col gap-6">
-              {/* Flacon Sizes Selection */}
-              <div className="flex flex-col gap-2.5">
-                <span className="text-[9px] font-black tracking-[0.3em] text-[#8C8276] uppercase block">
-                  AVAILABLE SIZES
+                <span className="text-[20px] font-medium leading-none text-black">
+                  {formatCurrency(priceValue)}
                 </span>
-                <div className="flex gap-3">
-                  {product.sizes.map((size: string) => (
-                    <button
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      className={`text-[10px] font-black tracking-[0.2em] uppercase px-6 py-3 border transition-all cursor-pointer ${
-                        selectedSize === size
-                          ? "bg-amber-600/10 border-amber-600 text-amber-700 shadow-sm"
-                          : "border-[#EAE3DB] text-[#6C5F54] hover:border-amber-600/30 hover:text-[#1C120C]"
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
               </div>
 
-              {/* Pricing section */}
-              <div className="flex items-center justify-between py-5 border-y border-[#EAE3DB]">
-                <div>
-                  <span className="text-[9px] font-black tracking-[0.3em] text-[#8C8276] uppercase block mb-1">
-                    TOTAL INVESTMENT
-                  </span>
-                  <span className="text-2xl font-serif font-extrabold text-[#1C120C] tracking-widest">
-                    {formatCurrency(parseFloat(product.price.replace("$", "")) || 0)}
-                  </span>
-                </div>
+              {/* 4. Delivery estimate */}
+              <p className="text-[13px] font-light text-[#646464] mt-5">
+                Delivery from {deliveryFrom}
+              </p>
 
-                {/* Quantity Control Selector */}
-                <div className="flex items-center border border-[#EAE3DB] bg-[#FFFFFF]">
+              {/* Quantity */}
+              <div className="flex items-center justify-between border-t border-b border-[var(--line)] py-4 mt-6">
+                <span className="maison-eyebrow">Quantity</span>
+                <div className="flex items-center border border-[var(--line)]">
                   <button
-                    onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                    className="w-10 h-10 flex items-center justify-center text-[#6C5F54] hover:text-[#1C120C] transition-colors cursor-pointer border-r border-[#EAE3DB] active:bg-neutral-50"
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    aria-label="Decrease quantity"
+                    className="w-10 h-10 flex items-center justify-center text-black cursor-pointer transition-colors duration-300 hover:bg-[var(--surface-2)]"
                   >
-                    <Minus className="w-3 h-3" />
+                    <Minus className="w-3 h-3" strokeWidth={1.25} />
                   </button>
-                  <span className="w-12 text-center text-xs font-serif font-bold text-[#1C120C] select-none">
+                  <span className="w-10 text-center text-[14px] font-light text-black select-none">
                     {quantity}
                   </span>
                   <button
-                    onClick={() => setQuantity(q => q + 1)}
-                    className="w-10 h-10 flex items-center justify-center text-[#6C5F54] hover:text-[#1C120C] transition-colors cursor-pointer border-l border-[#EAE3DB] active:bg-neutral-50"
+                    type="button"
+                    onClick={() => setQuantity((q) => q + 1)}
+                    aria-label="Increase quantity"
+                    className="w-10 h-10 flex items-center justify-center text-black cursor-pointer transition-colors duration-300 hover:bg-[var(--surface-2)]"
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3 h-3" strokeWidth={1.25} />
                   </button>
                 </div>
               </div>
 
-              {/* Action Trigger Buttons */}
-              <div className="flex gap-4">
-                <button
-                  onClick={handleAddToSelection}
-                  disabled={isAdding || addedSuccess}
-                  className="flex-grow bg-[#1C120C] text-[#FAF9F6] text-[10px] font-black tracking-[0.25em] uppercase h-14 transition-all duration-500 rounded-none cursor-pointer border border-[#1C120C] active:scale-[0.98] shadow-md relative overflow-hidden group/buynow flex items-center justify-center disabled:bg-neutral-200 disabled:border-neutral-200 disabled:text-neutral-400 disabled:cursor-default"
-                >
-                  {/* Background sweep effects */}
-                  <span className="absolute inset-0 bg-gradient-to-r from-amber-900 to-amber-700 translate-y-full group-hover/buynow:translate-y-0 transition-transform duration-500 ease-out z-0"></span>
-                  <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-[150%] group-hover/buynow:translate-x-[150%] transition-transform duration-1000 ease-in-out z-0"></span>
-                  
-                  <span className="relative z-10 flex items-center gap-2">
-                    {isAdding ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-[#FAF9F6]" />
-                        REGISTERING SELECTION...
-                      </>
-                    ) : addedSuccess ? (
-                      <>
-                        <Check className="w-4 h-4 text-[#FAF9F6]" />
-                        ADDED TO SELECTION
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingBag className="w-4 h-4" />
-                        ADD TO SCENT SELECTION
-                      </>
-                    )}
-                  </span>
-                </button>
+              {/* 5. Add to cart + wishlist */}
+              <button
+                type="button"
+                onClick={handleAddToSelection}
+                disabled={isAdding || addedSuccess}
+                className="maison-btn w-full h-12 mt-6"
+              >
+                {isAdding ? "Adding…" : addedSuccess ? "Added to cart" : "Add to cart"}
+              </button>
 
-                {/* Scent Vault Favoriting Button */}
-                <button
-                  onClick={handleToggleFavorite}
-                  className={`w-14 h-14 border flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-95 ${
-                    isFav 
-                      ? "bg-red-50 border-red-200 text-red-500" 
-                      : "border-[#EAE3DB] text-[#6C5F54] hover:border-amber-600/30 hover:text-amber-700"
-                  }`}
-                  title={isFav ? "Secure Scent in Vault" : "Remove from Scent Vault"}
-                >
-                  <Heart className={`w-4 h-4 ${isFav ? "fill-red-500 text-red-500" : ""}`} />
+              <div className="mt-5 text-center">
+                <button type="button" onClick={handleToggleFavorite} className="maison-link cursor-pointer">
+                  {isFav ? "In wishlist" : "Add to wishlist"}
                 </button>
               </div>
-            </div>
 
+              {/* 6. Offer panel */}
+              <div className="bg-[var(--surface-2)] p-5 mt-9">
+                <span className="maison-eyebrow block">Complimentary samples</span>
+                <p className="text-[14px] font-light leading-relaxed text-black mt-2.5">
+                  Two 2ml discovery vials accompany every order, so you may live with the composition
+                  before opening your flacon.
+                </p>
+              </div>
+
+              {/* 7. Reassurance grid */}
+              <div className="grid grid-cols-2 gap-x-6 mt-9">
+                {reassurance.map(({ Icon, label }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-3 py-4 border-b border-[var(--line)]"
+                  >
+                    <Icon className="w-4 h-4 shrink-0 text-black" strokeWidth={1.25} />
+                    <span className="text-[13px] font-light text-black leading-tight">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 8. Short description */}
+              {product.description && (
+                <p className="text-[15px] font-light leading-[1.6] text-black mt-9">
+                  {product.description}
+                </p>
+              )}
+
+              {/* 9. Accordions */}
+              <div className="mt-10">
+                <details className="maison-accordion">
+                  <summary>Description</summary>
+                  <div className="pb-6 text-[14px] font-light leading-[1.7] text-[rgba(0,0,0,0.75)] flex flex-col gap-3">
+                    <p>{product.description}</p>
+                    {product.tagline && <p>{product.tagline}.</p>}
+                    {(product.olfactory || product.sizes.length > 0) && (
+                      <p>
+                        {product.olfactory}
+                        {product.olfactory && product.sizes.length > 0 ? " composition, presented in " : ""}
+                        {product.sizes.join(" and ")}.
+                      </p>
+                    )}
+                  </div>
+                </details>
+
+                {pyramid.length > 0 && (
+                  <details className="maison-accordion">
+                    <summary>Olfactive pyramid</summary>
+                    <div className="pb-6">
+                      {pyramid.map((row, idx) => (
+                        <div
+                          key={row.label}
+                          className={`flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-8 py-4 ${
+                            idx > 0 ? "border-t border-[var(--line)]" : ""
+                          }`}
+                        >
+                          <span className="maison-eyebrow sm:w-20 shrink-0">{row.label}</span>
+                          <span className="text-[14px] font-light leading-relaxed text-black">
+                            {row.notes.join(", ")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                <details className="maison-accordion">
+                  <summary>Ingredients</summary>
+                  <div className="pb-6 text-[14px] font-light leading-[1.7] text-[rgba(0,0,0,0.75)]">
+                    Alcohol Denat., Parfum (Fragrance), Aqua (Water), Limonene, Linalool, Coumarin,
+                    Citral, Geraniol, Eugenol, Benzyl Salicylate. Full ingredient declaration is printed
+                    on the outer carton of each flacon.
+                  </div>
+                </details>
+
+                {relatedProducts.length > 0 && (
+                  <details className="maison-accordion">
+                    <summary>You may also like</summary>
+                    <div className="pb-6 flex flex-col">
+                      {relatedProducts.slice(0, 3).map((item) => (
+                        <Link
+                          key={item.id}
+                          href={`/product/${item.id}`}
+                          className="flex items-center gap-4 py-4 border-b border-[var(--line)] last:border-b-0"
+                        >
+                          <span className="relative w-16 h-16 shrink-0 bg-[var(--surface-2)]">
+                            {item.image && (
+                              <Image
+                                src={item.image}
+                                alt={item.name}
+                                fill
+                                sizes="64px"
+                                className="object-contain p-2"
+                              />
+                            )}
+                          </span>
+                          <span className="flex flex-col gap-1">
+                            <span className="font-display text-[14px] tracking-[0.08em] uppercase text-black">
+                              {item.name}
+                            </span>
+                            <span className="maison-price">
+                              {formatCurrency(parseFloat(String(item.price).replace("$", "")) || 0)}
+                            </span>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
+                <details className="maison-accordion">
+                  <summary>Precautions for use</summary>
+                  <div className="pb-6 text-[14px] font-light leading-[1.7] text-[rgba(0,0,0,0.75)]">
+                    For external use only. Keep away from direct sunlight and heat sources. Avoid contact
+                    with the eyes. Do not spray on jewellery, pearls or delicate fabrics. Keep out of the
+                    reach of children. Flammable — do not use near an open flame.
+                  </div>
+                </details>
+
+                {serviceNotes.map((note) => (
+                  <details key={note.q} className="maison-accordion">
+                    <summary>{note.q}</summary>
+                    <div className="pb-6 text-[14px] font-light leading-[1.7] text-[rgba(0,0,0,0.75)]">
+                      {note.a}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* ── Pull-quote ───────────────────────────────────────────── */}
+        <section className="maison-section border-t border-[var(--line)]">
+          <div className="maison-container">
+            <blockquote className="max-w-[46ch] mx-auto text-center">
+              <p className="font-display italic text-[20px] md:text-[24px] leading-[1.5] tracking-[0.02em] text-black">
+                {product.tagline
+                  ? `“${product.tagline}.”`
+                  : "“A fragrance is a memory you can wear — composed once, remembered always.”"}
+              </p>
+              <cite className="maison-eyebrow not-italic block mt-8">{product.brand}</cite>
+            </blockquote>
+          </div>
+        </section>
+
+        {/* ── Related products rail ────────────────────────────────── */}
+        {relatedProducts.length > 0 && (
+          <section className="maison-section border-t border-[var(--line)]">
+            <div className="maison-container">
+              <h2 className="maison-page-title text-center">You may also like</h2>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 mt-12 md:mt-16">
+                {relatedProducts.map((item) => (
+                  <div key={item.id} className="group flex flex-col">
+                    <Link href={`/product/${item.id}`} className="maison-card-media block">
+                      {item.image && (
+                        <Image
+                          src={item.image}
+                          alt={item.name}
+                          fill
+                          sizes="(min-width: 1024px) 22vw, (min-width: 768px) 30vw, 45vw"
+                          className="object-contain p-4 md:p-6"
+                        />
+                      )}
+                    </Link>
+
+                    <Link href={`/product/${item.id}`} className="maison-card-title mt-6 block">
+                      {item.name}
+                    </Link>
+
+                    <span className="maison-card-notes mt-2 block">{item.olfactory}</span>
+
+                    <span className="maison-price mt-3 text-center block">
+                      {formatCurrency(parseFloat(String(item.price).replace("$", "")) || 0)}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAdd(item)}
+                      className="maison-btn-outline w-full h-12 mt-5"
+                    >
+                      Add to cart
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
-      {/* Footer */}
-      <footer className="w-full border-t border-[#EAE3DB]/50 bg-white py-6 z-10 relative">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="text-[8px] tracking-[0.2em] text-[#6C5F54]/80 uppercase font-bold">
-            © {new Date().getFullYear()} GHARIB. ALL RIGHTS RESERVED.
-          </span>
-          <div className="flex items-center gap-4 text-[8px] tracking-[0.2em] text-[#6C5F54]/85 font-bold uppercase">
-            <span className="hover:text-amber-700 transition-colors cursor-pointer">PRIVACY STATEMENT</span>
-            <span>•</span>
-            <span className="hover:text-amber-700 transition-colors cursor-pointer">TERMS OF SERVICE</span>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

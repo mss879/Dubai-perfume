@@ -2,12 +2,22 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Search, Clock, ArrowRight, BookOpen, Sparkles, UserCheck } from "lucide-react";
+import { Search } from "lucide-react";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import { BLOG_POSTS, BlogPost } from "../data/blogPosts";
 import { clientSafeSupabase } from "../lib/supabase";
+
+interface BlogPostRow {
+  id: string | number;
+  title: string;
+  slug: string;
+  summary?: string | null;
+  content?: string | null;
+  cover_image?: string | null;
+  author?: string | null;
+  created_at: string;
+}
 
 export default function BlogsPage() {
   const [postsList, setPostsList] = useState<BlogPost[]>(BLOG_POSTS);
@@ -24,7 +34,7 @@ export default function BlogsPage() {
           .order("created_at", { ascending: false });
 
         if (!error && data && data.length > 0) {
-          const dbMapped: BlogPost[] = data.map((item: any) => ({
+          const dbMapped: BlogPost[] = data.map((item: BlogPostRow) => ({
             id: String(item.id),
             title: item.title,
             slug: item.slug,
@@ -41,7 +51,7 @@ export default function BlogsPage() {
               avatar: "/bento-oud-imperial.png"
             },
             targetKeyword: item.title,
-            contentHtml: item.content,
+            contentHtml: item.content || "",
             toc: [],
             faqs: [],
             relatedProducts: []
@@ -69,192 +79,164 @@ export default function BlogsPage() {
     return matchesCategory && matchesSearch;
   });
 
-  const featuredPost = postsList[0];
+  // The lead story only heads the page while the reader is browsing everything;
+  // once a category or a search narrows the list, every match sits in the grid.
+  const isBrowsingAll = selectedCategory === "All" && searchQuery.trim() === "";
+  const featuredPost = isBrowsingAll ? postsList[0] : undefined;
+  const gridPosts = featuredPost
+    ? filteredPosts.filter((post) => post.id !== featuredPost.id)
+    : filteredPosts;
 
   return (
-    <div className="min-h-screen bg-[#FAF6F0] text-[#1C120C] flex flex-col justify-between font-sans-luxury relative overflow-x-hidden pt-20">
+    <div className="maison min-h-screen flex flex-col relative overflow-x-hidden">
       {/* Shared Unified White Navbar */}
       <AppHeader activePage="blogs" />
 
-      {/* Hero Section */}
-      <section className="relative py-16 px-6 md:px-12 max-w-[1440px] mx-auto w-full">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-800/10 border border-amber-800/20 text-amber-900 text-[10px] tracking-[0.25em] font-extrabold uppercase mb-4">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>The Olfactory Journal</span>
-          </div>
-          <h1 className="text-3xl md:text-5xl font-serif-luxury text-[#3B1F0B] tracking-tight leading-tight mb-4">
-            Dubai Perfume Insights & Authenticity Guides
+      <main className="flex-grow">
+        {/* Masthead */}
+        <section className="maison-container pt-14 md:pt-20 pb-10 md:pb-14 text-center">
+          <p className="maison-eyebrow">The Journal</p>
+          <h1 className="maison-page-title mt-5">
+            Dubai Perfume Insights &amp; Authenticity Guides
           </h1>
-          <p className="text-xs md:text-sm text-neutral-600 tracking-wider leading-relaxed uppercase font-light max-w-2xl mx-auto">
-            Expert editorial guides on buying authentic perfumes online in Dubai, beast-mode long-lasting notes, brand spotlights, and Middle Eastern perfumery heritage.
+          <p className="mx-auto mt-6 max-w-[60ch] text-[15px] font-light leading-[1.8] text-[rgba(0,0,0,0.75)]">
+            Editorial guides on buying authentic perfume online in Dubai, longevity in desert heat,
+            brand spotlights, and the heritage of Middle Eastern perfumery.
           </p>
-        </div>
+        </section>
 
-        {/* Featured Post Card */}
+        {/* Lead story */}
         {featuredPost && (
-          <div className="mb-16 bg-white border border-amber-800/15 shadow-[0_15px_40px_rgba(28,18,12,0.05)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0 group">
-            <div className="lg:col-span-7 relative min-h-[340px] lg:min-h-[460px] overflow-hidden">
+          <section className="maison-container pb-14 md:pb-20">
+            <Link href={`/blogs/${featuredPost.slug}`} className="group block overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={featuredPost.heroImage}
                 alt={featuredPost.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                className="w-full h-[280px] md:h-[560px] object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
               />
-              <div className="absolute top-6 left-6 bg-[#3B1F0B] text-white text-[9px] tracking-widest font-bold uppercase py-1.5 px-4 shadow-md">
-                Featured Editorial
-              </div>
-            </div>
-            <div className="lg:col-span-5 p-8 md:p-12 flex flex-col justify-between bg-white">
-              <div>
-                <div className="flex items-center gap-3 text-[10px] font-bold text-amber-800 tracking-widest uppercase mb-3">
-                  <span>{featuredPost.category}</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {featuredPost.readTime}
-                  </span>
-                </div>
-                <Link href={`/blogs/${featuredPost.slug}`}>
-                  <h2 className="text-2xl md:text-3xl font-serif-luxury text-[#3B1F0B] hover:text-amber-800 transition-colors leading-snug mb-4">
-                    {featuredPost.title}
-                  </h2>
-                </Link>
-                <p className="text-xs text-neutral-600 leading-relaxed tracking-wide mb-6">
-                  {featuredPost.excerpt}
-                </p>
-              </div>
+            </Link>
 
-              <div className="pt-6 border-t border-amber-800/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={featuredPost.author.avatar}
-                    alt={featuredPost.author.name}
-                    className="w-10 h-10 rounded-full object-cover border border-amber-800/20"
-                  />
-                  <div>
-                    <span className="block text-[11px] font-bold text-[#3B1F0B] uppercase tracking-wider">
-                      {featuredPost.author.name}
-                    </span>
-                    <span className="block text-[9px] text-neutral-500 font-medium">
-                      {featuredPost.publishDate}
-                    </span>
-                  </div>
-                </div>
+            <div className="mx-auto mt-10 max-w-[60ch] text-center">
+              <Link href={`/blogs/${featuredPost.slug}`}>
+                <h2 className="font-display uppercase text-[22px] md:text-[28px] leading-[1.25] tracking-[0.08em] text-black transition-opacity duration-300 hover:opacity-60">
+                  {featuredPost.title}
+                </h2>
+              </Link>
 
-                <Link
-                  href={`/blogs/${featuredPost.slug}`}
-                  className="inline-flex items-center gap-2 text-[11px] font-bold text-amber-800 hover:text-amber-900 tracking-widest uppercase transition-colors"
-                >
-                  <span>Read Article</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+              <p className="maison-eyebrow mt-5">
+                {featuredPost.publishDate} — {featuredPost.category}
+              </p>
+
+              <p className="mt-6 text-[15px] font-light leading-[1.8] text-[rgba(0,0,0,0.75)]">
+                {featuredPost.excerpt}
+              </p>
+
+              <div className="mt-8">
+                <Link href={`/blogs/${featuredPost.slug}`} className="maison-link">
+                  Read the story
                 </Link>
               </div>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Filter & Search Bar */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-12 border-b border-amber-800/15 pb-8">
-          {/* Categories */}
-          <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-300 cursor-pointer ${
-                  selectedCategory === cat
-                    ? "bg-[#3B1F0B] text-white shadow-md"
-                    : "bg-white border border-amber-800/15 text-neutral-700 hover:border-amber-800/40 hover:text-[#3B1F0B]"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+        {/* Filter + search rail */}
+        <div className="maison-container">
+          <div className="flex flex-col gap-5 border-y border-[rgba(0,0,0,0.12)] py-5 md:flex-row md:items-center md:justify-between md:gap-10">
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`cursor-pointer border-b pb-1 text-[12px] uppercase tracking-[0.1em] transition-colors duration-300 ${
+                    selectedCategory === cat
+                      ? "border-black text-black"
+                      : "border-transparent text-[#646464] hover:text-black"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
 
-          {/* Search Bar */}
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-neutral-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search blogs & keywords..."
-              className="w-full bg-white border border-amber-800/15 pl-10 pr-4 py-2.5 text-xs text-neutral-800 outline-none focus:border-amber-800 transition-colors uppercase font-medium placeholder-neutral-400"
-            />
+            <div className="relative w-full md:w-[280px] md:shrink-0">
+              <Search
+                strokeWidth={1.25}
+                className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-[#646464]"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search the journal"
+                className="w-full border-b border-[rgba(0,0,0,0.12)] bg-transparent py-2 pl-7 text-[12px] font-light uppercase tracking-[0.08em] text-black outline-none transition-colors duration-300 placeholder:text-[#757575] focus:border-black"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Articles Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
-          {filteredPosts.map((post) => (
-            <motion.article
-              key={post.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="bg-white border border-amber-800/15 shadow-[0_10px_30px_rgba(28,18,12,0.03)] flex flex-col justify-between overflow-hidden group"
-            >
-              <div>
-                <div className="relative h-56 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={post.heroImage}
-                    alt={post.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                  />
-                  <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md text-[#3B1F0B] text-[8px] tracking-widest font-extrabold uppercase py-1 px-3 border border-amber-800/20">
-                    {post.category}
-                  </div>
-                </div>
-
-                <div className="p-6">
-                  <div className="flex items-center gap-2 text-[9px] font-semibold text-neutral-500 uppercase tracking-widest mb-3">
-                    <Clock className="w-3 h-3 text-amber-800" />
-                    <span>{post.readTime}</span>
-                    <span>•</span>
-                    <span>{post.publishDate}</span>
-                  </div>
-
-                  <Link href={`/blogs/${post.slug}`}>
-                    <h3 className="text-lg font-serif-luxury text-[#3B1F0B] hover:text-amber-800 transition-colors leading-snug mb-3 line-clamp-2">
-                      {post.title}
-                    </h3>
+        {/* Story grid */}
+        <section className="maison-container maison-section">
+          {gridPosts.length === 0 ? (
+            <div className="py-20 text-center">
+              <h2 className="font-display uppercase text-[20px] tracking-[0.1em] text-black">
+                No stories match your search
+              </h2>
+              <p className="mx-auto mt-6 max-w-[46ch] text-[14px] font-light leading-[1.75] text-[#646464]">
+                Try another category, or clear the search to read the whole journal.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategory("All");
+                  setSearchQuery("");
+                }}
+                className="maison-btn-outline h-12 px-10 mt-8 inline-flex items-center"
+              >
+                Show every story
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-x-8 gap-y-16 md:grid-cols-2 lg:grid-cols-3">
+              {gridPosts.map((post) => (
+                <article key={post.id} className="group flex flex-col">
+                  <Link href={`/blogs/${post.slug}`} className="block overflow-hidden">
+                    <div className="w-full aspect-[3/2] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={post.heroImage}
+                        alt={post.title}
+                        className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                      />
+                    </div>
                   </Link>
 
-                  <p className="text-xs text-neutral-600 leading-relaxed line-clamp-3 mb-4">
+                  <p className="maison-eyebrow mt-6">
+                    {post.publishDate} — {post.category}
+                  </p>
+
+                  <Link href={`/blogs/${post.slug}`}>
+                    <h2 className="mt-3 font-display uppercase text-[18px] leading-[1.3] tracking-[0.08em] text-black transition-opacity duration-300 group-hover:opacity-60">
+                      {post.title}
+                    </h2>
+                  </Link>
+
+                  <p className="mt-4 text-[14px] font-light leading-[1.8] text-[rgba(0,0,0,0.75)]">
                     {post.excerpt}
                   </p>
-                </div>
-              </div>
 
-              <div className="px-6 pb-6 pt-0 flex items-center justify-between border-t border-neutral-100 mt-auto pt-4">
-                <div className="flex items-center gap-2.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={post.author.avatar}
-                    alt={post.author.name}
-                    className="w-7 h-7 rounded-full object-cover border border-amber-800/20"
-                  />
-                  <span className="text-[10px] font-bold text-[#3B1F0B] uppercase tracking-wider">
-                    {post.author.name}
-                  </span>
-                </div>
-
-                <Link
-                  href={`/blogs/${post.slug}`}
-                  className="text-[10px] font-bold text-amber-800 hover:text-amber-900 uppercase tracking-widest flex items-center gap-1"
-                >
-                  <span>Read</span>
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-            </motion.article>
-          ))}
-        </div>
-      </section>
+                  <div className="mt-auto pt-6">
+                    <Link href={`/blogs/${post.slug}`} className="maison-link">
+                      Read
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
 
       <Footer />
     </div>

@@ -2,37 +2,32 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import {
-  Clock,
-  ArrowLeft,
-  Share2,
-  Bookmark,
-  Check,
-  ChevronRight,
-  ShieldCheck,
-  Award,
-  Sparkles,
-  ShoppingBag,
-  HelpCircle,
-  BookOpen
-} from "lucide-react";
+import { useParams } from "next/navigation";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
 import { BLOG_POSTS, BlogPost } from "../../data/blogPosts";
 import { clientSafeSupabase } from "../../lib/supabase";
 
+/** A fragrance named in the copy that was matched to a real row in public.products. */
+interface MentionedProduct {
+  id: number;
+  name: string;
+  brand: string | null;
+}
+
+const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
 export default function BlogDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const slug = params?.slug as string;
 
-  const [post, setPost] = useState<BlogPost | undefined>(() => 
+  const [post, setPost] = useState<BlogPost | undefined>(() =>
     BLOG_POSTS.find((p) => p.slug === slug)
   );
   const [activeTocId, setActiveTocId] = useState<string>("");
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  // Fragrances named in the story, resolved against the live catalogue.
+  const [mentionedProducts, setMentionedProducts] = useState<MentionedProduct[]>([]);
 
   useEffect(() => {
     if (!slug) return;
@@ -76,6 +71,43 @@ export default function BlogDetailPage() {
     fetchDbPost();
   }, [slug]);
 
+  // Resolve the fragrances named in the story against public.products. Anything
+  // the shop does not actually carry is dropped rather than linked to nothing.
+  useEffect(() => {
+    const names = post?.relatedProducts ?? [];
+    if (names.length === 0) return;
+
+    let cancelled = false;
+    const resolveMentions = async () => {
+      try {
+        const { data, error } = await clientSafeSupabase
+          .from("products")
+          .select("id, name, brand");
+        if (error || !Array.isArray(data) || cancelled) return;
+
+        const rows = data as MentionedProduct[];
+        const resolved: MentionedProduct[] = [];
+        names.forEach((mention) => {
+          const key = normalise(mention);
+          const match = rows.find((row) => {
+            const rowKey = normalise(row.name || "");
+            return rowKey === key || rowKey.includes(key) || key.includes(rowKey);
+          });
+          if (match && !resolved.some((r) => r.id === match.id)) resolved.push(match);
+        });
+
+        if (!cancelled) setMentionedProducts(resolved);
+      } catch (err) {
+        console.error("Could not resolve the fragrances named in this story:", err);
+      }
+    };
+
+    resolveMentions();
+    return () => {
+      cancelled = true;
+    };
+  }, [post]);
+
   // Set active scroll spy for Table of Contents
   useEffect(() => {
     if (!post) return;
@@ -97,22 +129,23 @@ export default function BlogDetailPage() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-[#FAF6F0] text-[#1C120C] flex flex-col justify-center items-center gap-6 p-6">
-        <h1 className="text-2xl font-serif-luxury text-[#3B1F0B]">Article Not Found</h1>
-        <p className="text-xs text-neutral-500 uppercase tracking-widest">
+      <div className="maison min-h-screen flex flex-col items-center justify-center gap-6 px-6 text-center">
+        <p className="maison-eyebrow">The Journal</p>
+        <h1 className="maison-page-title">Article Not Found</h1>
+        <p className="max-w-[46ch] text-[15px] font-light leading-[1.8] text-[rgba(0,0,0,0.75)]">
           The requested perfume guide does not exist or has been relocated.
         </p>
-        <Link
-          href="/blogs"
-          className="border border-amber-800 text-amber-800 text-[10px] tracking-widest uppercase py-3 px-8 hover:bg-amber-800 hover:text-white transition-all font-bold"
-        >
-          Return to Olfactory Journal
+        <Link href="/blogs" className="maison-btn-outline mt-2">
+          Return to the journal
         </Link>
       </div>
     );
   }
 
   const relatedPosts = BLOG_POSTS.filter((p) => p.slug !== post.slug).slice(0, 3);
+  const canonicalUrl = `https://gharibperfumes.ae/blogs/${post.slug}`;
+  const encodedShare = encodeURIComponent(canonicalUrl);
+  const encodedTitle = encodeURIComponent(post.title);
 
   const handleShare = () => {
     if (navigator.clipboard) {
@@ -164,7 +197,7 @@ export default function BlogDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF6F0] text-[#1C120C] flex flex-col justify-between font-sans-luxury relative overflow-x-hidden pt-20">
+    <div className="maison min-h-screen flex flex-col relative overflow-x-hidden">
       {/* Schema.org Structured Data Injection */}
       <script
         type="application/ld+json"
@@ -178,252 +211,207 @@ export default function BlogDetailPage() {
       {/* Shared Unified White Navbar */}
       <AppHeader activePage="blogs" />
 
-      {/* Top Breadcrumb Header */}
-      <div className="bg-white border-b border-amber-800/10 py-4 px-6 md:px-12">
-        <div className="max-w-[1440px] mx-auto flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-neutral-500">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="hover:text-amber-800 transition-colors">
+      <main className="flex-grow">
+        {/* Breadcrumb */}
+        <div className="border-b border-[rgba(0,0,0,0.12)]">
+          <nav className="maison-container flex items-center gap-3 py-5 text-[12px] uppercase tracking-[0.1em] text-[#646464]">
+            <Link href="/" className="transition-colors duration-300 hover:text-black">
               Home
             </Link>
-            <ChevronRight className="w-3 h-3 text-neutral-400" />
-            <Link href="/blogs" className="hover:text-amber-800 transition-colors">
-              Blogs
+            <span>/</span>
+            <Link href="/blogs" className="transition-colors duration-300 hover:text-black">
+              Journal
             </Link>
-            <ChevronRight className="w-3 h-3 text-neutral-400" />
-            <span className="text-[#3B1F0B] truncate max-w-[200px] md:max-w-md">
+            <span>/</span>
+            <span className="truncate max-w-[180px] text-black md:max-w-[520px]">
               {post.title}
             </span>
-          </div>
-
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-1.5 text-amber-800 hover:text-amber-900 font-extrabold cursor-pointer border border-amber-800/20 px-3 py-1.5 bg-amber-800/5 transition-colors"
-          >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? "Copied Link!" : "Share"}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Article Container */}
-      <article className="max-w-[1440px] mx-auto px-6 md:px-12 py-10 w-full flex-grow">
-        {/* Article Header Info */}
-        <div className="max-w-4xl mx-auto mb-10 text-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-amber-800/10 text-amber-900 text-[9px] tracking-[0.2em] font-extrabold uppercase mb-4 border border-amber-800/20">
-            <span>{post.category}</span>
-          </div>
-
-          <h1 className="text-3xl md:text-5xl font-serif-luxury text-[#3B1F0B] tracking-tight leading-tight mb-6">
-            {post.title}
-          </h1>
-
-          <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-neutral-600 border-y border-amber-800/10 py-4">
-            <div className="flex items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={post.author.avatar}
-                alt={post.author.name}
-                className="w-8 h-8 rounded-full object-cover border border-amber-800/20"
-              />
-              <div className="text-left">
-                <span className="block font-bold text-[#3B1F0B] uppercase tracking-wider text-[11px]">
-                  {post.author.name}
-                </span>
-                <span className="block text-[9px] text-neutral-500 font-medium">
-                  {post.author.role}
-                </span>
-              </div>
-            </div>
-
-            <div className="h-6 w-px bg-amber-800/15 hidden sm:block" />
-
-            <div className="flex items-center gap-1.5 font-bold uppercase text-[10px] tracking-widest text-neutral-500">
-              <Clock className="w-3.5 h-3.5 text-amber-800" />
-              <span>{post.readTime}</span>
-            </div>
-
-            <div className="h-6 w-px bg-amber-800/15 hidden sm:block" />
-
-            <div className="flex items-center gap-1.5 font-bold uppercase text-[10px] tracking-widest text-neutral-500">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Verified Authentic Sourcing</span>
-            </div>
-          </div>
+          </nav>
         </div>
 
-        {/* Hero Image */}
-        <div className="max-w-5xl mx-auto mb-12 relative rounded-none overflow-hidden border border-amber-800/15 shadow-[0_15px_40px_rgba(28,18,12,0.06)]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={post.heroImage}
-            alt={post.title}
-            className="w-full h-[360px] md:h-[520px] object-cover"
-          />
-          <div className="p-3 bg-[#3B1F0B] text-white text-[9px] tracking-widest font-semibold uppercase flex items-center justify-between">
-            <span>Official Gharib Dubai Fragrance Intelligence</span>
-            <span>Focus: {post.targetKeyword}</span>
-          </div>
-        </div>
+        {/* Full-bleed hero */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={post.heroImage}
+          alt={post.title}
+          className="w-full h-[300px] md:h-[620px] object-cover"
+        />
 
-        {/* Grid Layout: TOC Sidebar + Main Article HTML Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 max-w-6xl mx-auto">
-          
-          {/* Left Sticky Table of Contents Sidebar */}
-          <aside className="lg:col-span-4">
-            <div className="sticky top-28 bg-white p-6 border border-amber-800/15 shadow-[0_10px_30px_rgba(28,18,12,0.03)]">
-              <div className="flex items-center gap-2 text-[#3B1F0B] pb-3 border-b border-amber-800/10 mb-4">
-                <BookOpen className="w-4 h-4 text-amber-800" />
-                <h3 className="text-xs font-bold uppercase tracking-widest">
-                  Table of Contents
-                </h3>
-              </div>
+        <article className="maison-container">
+          <div className="mx-auto w-full max-w-[720px] pt-12 md:pt-16 pb-16 md:pb-24">
+            {/* Article masthead */}
+            <p className="maison-eyebrow text-center">
+              {post.category} — {post.publishDate} — {post.readTime}
+            </p>
 
-              <nav className="space-y-2">
-                {post.toc.map((item) => {
-                  const isActive = activeTocId === item.id;
-                  return (
-                    <a
-                      key={item.id}
-                      href={`#${item.id}`}
-                      className={`block text-[11px] font-bold tracking-wide transition-all py-1.5 px-3 border-l-2 ${
-                        isActive
-                          ? "border-amber-800 bg-amber-800/10 text-amber-900 font-extrabold translate-x-1"
-                          : "border-transparent text-neutral-600 hover:text-[#3B1F0B] hover:border-amber-800/40"
-                      }`}
-                    >
-                      {item.text}
-                    </a>
-                  );
-                })}
+            <h1 className="mt-6 text-center font-display uppercase text-[22px] md:text-[32px] leading-[1.3] tracking-[0.08em] text-black">
+              {post.title}
+            </h1>
+
+            <p className="maison-eyebrow mt-6 text-center">
+              By {post.author.name} — {post.author.role}
+            </p>
+
+            <hr className="maison-rule mt-10" />
+
+            {/* Contents */}
+            {post.toc.length > 0 && (
+              <nav className="border-b border-[rgba(0,0,0,0.12)] py-8">
+                <p className="maison-eyebrow">Contents</p>
+                <ul className="mt-5 space-y-2.5">
+                  {post.toc.map((item) => {
+                    const isActive = activeTocId === item.id;
+                    return (
+                      <li key={item.id}>
+                        <a
+                          href={`#${item.id}`}
+                          className={`text-[14px] font-light leading-[1.6] transition-colors duration-300 ${
+                            isActive ? "text-black" : "text-[#646464] hover:text-black"
+                          }`}
+                        >
+                          {item.text}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
               </nav>
+            )}
 
-              {/* Direct Buying Callout Banner */}
-              <div className="mt-8 p-5 bg-[#FAF6F0] border border-amber-800/20 text-center">
-                <Sparkles className="w-5 h-5 text-amber-800 mx-auto mb-2" />
-                <h4 className="font-serif-luxury text-sm text-[#3B1F0B] mb-2">
-                  Looking to Buy Authentic Perfume in Dubai?
-                </h4>
-                <p className="text-[10px] text-neutral-600 leading-relaxed mb-4">
-                  Shop 100% factory-direct Arabian and niche fragrances with same-day Dubai express delivery.
-                </p>
-                <Link
-                  href="/#new-in"
-                  className="inline-flex items-center justify-center gap-2 bg-[#3B1F0B] text-white text-[9px] tracking-widest font-extrabold uppercase py-2.5 px-4 w-full hover:bg-amber-900 transition-colors"
-                >
-                  <ShoppingBag className="w-3 h-3" />
-                  <span>Shop Verified Catalogue</span>
-                </Link>
-              </div>
-            </div>
-          </aside>
-
-          {/* Right Main Article HTML Content */}
-          <main className="lg:col-span-8 bg-white p-8 md:p-12 border border-amber-800/15 shadow-[0_10px_30px_rgba(28,18,12,0.03)] text-[#1C120C]">
+            {/* Article body */}
             <div
-              className="prose prose-stone max-w-none prose-headings:font-serif-luxury prose-headings:text-[#3B1F0B] prose-a:text-amber-800 prose-strong:text-[#3B1F0B]"
+              className="maison-prose mt-12"
               dangerouslySetInnerHTML={{ __html: post.contentHtml }}
             />
 
-            {/* Author Bio Box */}
-            <div className="mt-12 pt-8 border-t border-amber-800/15 bg-[#FAF6F0] p-6 flex flex-col sm:flex-row items-center sm:items-start gap-5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={post.author.avatar}
-                alt={post.author.name}
-                className="w-16 h-16 rounded-full object-cover border-2 border-amber-800/30 shadow-md flex-shrink-0"
-              />
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-serif-luxury text-base text-[#3B1F0B] font-bold">
-                    Written by {post.author.name}
-                  </span>
-                  <Award className="w-4 h-4 text-amber-800" />
-                </div>
-                <span className="block text-[10px] font-bold text-amber-900 tracking-wider uppercase mb-2">
-                  {post.author.role}
-                </span>
-                <p className="text-xs text-neutral-600 leading-relaxed font-light">
-                  Specializing in Middle Eastern perfumery heritage, factory batch authentication, and olfactory molecular chemistry in high-temperature desert climates.
-                </p>
-              </div>
-            </div>
-
-            {/* Internal Product Quick-Shop Section */}
-            <div className="mt-12 p-8 bg-white border-2 border-amber-800/20">
-              <h3 className="text-xl font-serif-luxury text-[#3B1F0B] mb-2 text-center">
-                Featured Fragrances Mentioned in Article
-              </h3>
-              <p className="text-xs text-neutral-500 uppercase tracking-widest text-center mb-6">
-                100% Authentic Factory-Sealed Stock • Express UAE Delivery
+            {/* Shop callout */}
+            <aside className="mt-16 bg-[#F5F5F5] px-6 py-12 text-center md:px-12">
+              <p className="maison-eyebrow">Verified authentic sourcing</p>
+              <h2 className="mt-5 font-display uppercase text-[18px] md:text-[22px] leading-[1.35] tracking-[0.08em] text-black">
+                Looking to buy authentic perfume in Dubai?
+              </h2>
+              <p className="mx-auto mt-5 max-w-[46ch] text-[15px] font-light leading-[1.8] text-[rgba(0,0,0,0.75)]">
+                Shop 100% factory-direct Arabian and niche fragrances with same-day Dubai express
+                delivery.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {post.relatedProducts.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-4 bg-[#FAF6F0] border border-amber-800/15 flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <span className="block text-[8px] text-amber-800 font-extrabold uppercase tracking-widest">
-                        Official Direct Stock
-                      </span>
-                      <span className="block text-xs font-bold text-[#3B1F0B] uppercase tracking-wide">
-                        {item}
-                      </span>
-                    </div>
-                    <Link
-                      href={`/?search=${encodeURIComponent(item)}`}
-                      className="px-3 py-1.5 bg-[#3B1F0B] text-white text-[9px] font-bold uppercase tracking-wider hover:bg-amber-900 transition-colors flex-shrink-0"
+              <div className="mt-8">
+                <Link href="/#new-in" className="maison-btn-outline">
+                  Shop the collection
+                </Link>
+              </div>
+            </aside>
+
+            {/* Fragrances mentioned */}
+            {mentionedProducts.length > 0 && (
+              <section className="mt-16">
+                <p className="maison-eyebrow">Fragrances in this story</p>
+                <ul className="mt-6 border-t border-[rgba(0,0,0,0.12)]">
+                  {mentionedProducts.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-6 border-b border-[rgba(0,0,0,0.12)] py-5"
                     >
-                      Buy Online
+                      <span className="font-display uppercase text-[15px] leading-[1.3] tracking-[0.08em] text-black">
+                        {item.name}
+                      </span>
+                      <Link href={`/product/${item.id}`} className="maison-link shrink-0">
+                        Shop
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Author */}
+            <section className="mt-16 border-t border-[rgba(0,0,0,0.12)] pt-10">
+              <p className="maison-eyebrow">Written by</p>
+              <h2 className="mt-4 font-display uppercase text-[18px] leading-[1.3] tracking-[0.08em] text-black">
+                {post.author.name}
+              </h2>
+              <p className="maison-eyebrow mt-3">{post.author.role}</p>
+              <p className="mt-5 max-w-[60ch] text-[14px] font-light leading-[1.8] text-[rgba(0,0,0,0.75)]">
+                Specializing in Middle Eastern perfumery heritage, factory batch authentication, and
+                olfactory molecular chemistry in high-temperature desert climates.
+              </p>
+            </section>
+
+            {/* Share */}
+            <footer className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-5 border-t border-[rgba(0,0,0,0.12)] pt-8">
+              <span className="maison-eyebrow">Share this story</span>
+              <button onClick={handleShare} className="maison-link cursor-pointer">
+                {copiedLink ? "Link copied" : "Copy link"}
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodedTitle}%20${encodedShare}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="maison-link"
+              >
+                WhatsApp
+              </a>
+              <a
+                href={`https://x.com/intent/post?text=${encodedTitle}&url=${encodedShare}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="maison-link"
+              >
+                X
+              </a>
+              <a
+                href={`https://www.facebook.com/sharer/sharer.php?u=${encodedShare}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="maison-link"
+              >
+                Facebook
+              </a>
+            </footer>
+          </div>
+        </article>
+
+        {/* More stories */}
+        {relatedPosts.length > 0 && (
+          <section className="border-t border-[rgba(0,0,0,0.12)]">
+            <div className="maison-container maison-section">
+              <p className="maison-eyebrow text-center">More stories</p>
+
+              <div className="mt-12 grid grid-cols-1 gap-x-8 gap-y-14 md:grid-cols-3">
+                {relatedPosts.map((rPost) => (
+                  <article key={rPost.id} className="group flex flex-col">
+                    <Link href={`/blogs/${rPost.slug}`} className="block overflow-hidden">
+                      <div className="w-full aspect-[3/2] overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={rPost.heroImage}
+                          alt={rPost.title}
+                          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                        />
+                      </div>
                     </Link>
-                  </div>
+
+                    <p className="maison-eyebrow mt-6">
+                      {rPost.publishDate} — {rPost.category}
+                    </p>
+
+                    <Link href={`/blogs/${rPost.slug}`}>
+                      <h2 className="mt-3 font-display uppercase text-[18px] leading-[1.3] tracking-[0.08em] text-black transition-opacity duration-300 group-hover:opacity-60">
+                        {rPost.title}
+                      </h2>
+                    </Link>
+
+                    <div className="mt-auto pt-6">
+                      <Link href={`/blogs/${rPost.slug}`} className="maison-link">
+                        Read
+                      </Link>
+                    </div>
+                  </article>
                 ))}
               </div>
             </div>
-          </main>
-        </div>
-
-        {/* Bottom Related Articles */}
-        <section className="max-w-6xl mx-auto mt-20 pt-12 border-t border-amber-800/15">
-          <h2 className="text-2xl font-serif-luxury text-[#3B1F0B] text-center mb-8">
-            Explore More Dubai Perfume Articles
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {relatedPosts.map((rPost) => (
-              <div
-                key={rPost.id}
-                className="bg-white border border-amber-800/15 p-5 flex flex-col justify-between group hover:border-amber-800/40 transition-colors"
-              >
-                <div>
-                  <div className="h-40 overflow-hidden mb-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={rPost.heroImage}
-                      alt={rPost.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-                  <span className="text-[9px] font-bold text-amber-800 uppercase tracking-widest block mb-1">
-                    {rPost.category}
-                  </span>
-                  <Link href={`/blogs/${rPost.slug}`}>
-                    <h4 className="text-sm font-serif-luxury text-[#3B1F0B] line-clamp-2 hover:text-amber-800 transition-colors leading-tight mb-2">
-                      {rPost.title}
-                    </h4>
-                  </Link>
-                </div>
-                <Link
-                  href={`/blogs/${rPost.slug}`}
-                  className="text-[9px] font-bold text-amber-800 uppercase tracking-widest flex items-center gap-1 mt-4"
-                >
-                  <span>Read Guide</span>
-                  <ChevronRight className="w-3 h-3" />
-                </Link>
-              </div>
-            ))}
-          </div>
-        </section>
-      </article>
+          </section>
+        )}
+      </main>
 
       <Footer />
     </div>

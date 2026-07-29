@@ -4,26 +4,106 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  User, Heart, ShoppingBag, Lock, Package, MapPin, 
-  ChevronRight, Check, Loader2, LogOut, Trash2, Eye, EyeOff, AlertCircle,
-  Bookmark, ArrowLeftRight
-} from "lucide-react";
 import { clientSafeSupabase } from "../../lib/supabase";
+import AppHeader from "../../components/AppHeader";
+import Footer from "../../components/Footer";
+
+type TabKey = "orders" | "wishlist" | "tracking" | "settings";
+
+type WishlistType = "favorite" | "buy_later";
+
+interface ShippingAddress {
+  name?: string | null;
+  city?: string | null;
+  country?: string | null;
+}
+
+interface OrderRecord {
+  id: string;
+  email: string;
+  status?: string | null;
+  created_at: string;
+  shipping_address?: ShippingAddress | null;
+  total_price: string | number;
+  packing_charges?: string | number | null;
+  tracking_number?: string | null;
+  tracking_url?: string | null;
+}
+
+interface TrackingLog {
+  id: number;
+  order_id: string;
+  status: string;
+  location?: string | null;
+  description?: string | null;
+  updated_at: string;
+}
+
+interface CatalogProduct {
+  id: number;
+  brand?: string | null;
+  name: string;
+  price: string | number;
+  sizes?: string[] | null;
+  image_url?: string | null;
+  image_urls?: string[] | null;
+  description?: string | null;
+  tagline?: string | null;
+  olfactory_group?: string | null;
+}
+
+type WishlistProduct = CatalogProduct & { wishlist_type: WishlistType };
+
+interface WishlistRow {
+  customer_id: string;
+  product_id: number;
+  wishlist_type?: WishlistType | null;
+}
+
+interface CartEntry {
+  product: {
+    id: number;
+    brand?: string | null;
+    name: string;
+    price: string | number;
+    sizes?: string[] | null;
+    image: string;
+    description?: string | null;
+    tagline: string;
+    olfactory?: string | null;
+  };
+  quantity: number;
+  selectedSize: string;
+}
+
+/** Columns that actually exist on public.products. */
+const PRODUCT_FIELDS =
+  "id, brand, name, price, sizes, image_url, image_urls, description, tagline, olfactory_group";
+
+/** Normalises a Postgres array column that may arrive as null or with blank entries. */
+const toArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim() !== "") : [];
+
+const NAV_ITEMS: { key: TabKey; label: string }[] = [
+  { key: "orders", label: "Order history" },
+  { key: "wishlist", label: "Wishlist" },
+  { key: "tracking", label: "Order tracking" },
+  { key: "settings", label: "Security" },
+];
 
 export default function CustomerDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "wishlist" | "tracking" | "settings">("orders");
+  const [activeTab, setActiveTab] = useState<TabKey>("orders");
   const [wishlistTab, setWishlistTab] = useState<"favorite" | "buy_later">("favorite");
-  
+
   // Data States
-  const [orders, setOrders] = useState<any[]>([]);
-  const [wishlist, setWishlist] = useState<any[]>([]);
-  const [trackingLogs, setTrackingLogs] = useState<any[]>([]);
-  const [selectedTrackingOrderId, setSelectedTrackingOrderId] = useState<string>("ORD-9922");
-  
+  const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [wishlist, setWishlist] = useState<WishlistProduct[]>([]);
+  const [trackingLogs, setTrackingLogs] = useState<TrackingLog[]>([]);
+  const [selectedTrackingOrderId, setSelectedTrackingOrderId] = useState<string>("");
+
   // Settings Form States
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -32,7 +112,7 @@ export default function CustomerDashboard() {
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
-  
+
   // Toast notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -41,68 +121,69 @@ export default function CustomerDashboard() {
       // Sync auth state
       const { data: { user } } = await clientSafeSupabase.auth.getUser();
       const storedEmail = localStorage.getItem("userEmail");
-      
+
       if (!user && !storedEmail) {
         // Redirect to login if not authenticated
         router.push("/signin");
         return;
       }
-      
+
       const email = user?.email || storedEmail || "";
       setUserEmail(email);
 
       try {
-        // Fetch Orders
+        const userId = localStorage.getItem("userId") || "";
+
+        // This shopper's own orders only — never another customer's, and never a
+        // fallback list when they have none.
         const { data: ordersData } = await clientSafeSupabase
           .from("orders")
-          .select("*");
-        
-        // In real Supabase we'd filter by .eq('email', email)
-        // For mock/robust support we display orders, prioritizing matching emails or listing default luxury ones
-        const filteredOrders = ordersData 
-          ? ordersData.filter((o: any) => o.email.toLowerCase() === email.toLowerCase() || o.email === "alex.mercer@gmail.com")
-          : [];
-        setOrders(filteredOrders.length > 0 ? filteredOrders : (ordersData || []));
+          .select("*")
+          .eq("email", email);
 
-        // Fetch products
-        const { data: allProducts } = await clientSafeSupabase.from("products").select("*");
+        const myOrders = (Array.isArray(ordersData) ? ordersData : []).filter(
+          (o: OrderRecord) => (o.email || "").toLowerCase() === email.toLowerCase()
+        ) as OrderRecord[];
+        setOrders(myOrders);
 
-        // Fetch Wishlist (Mock or Real)
-        const { data: wishlistData } = await clientSafeSupabase
-          .from("wishlists")
-          .select("*");
-        
-        const userId = localStorage.getItem("userId") || "";
-        const userWishlistRows = wishlistData ? wishlistData.filter((w: any) => w.customer_id === userId) : [];
-        
-        const mappedWishlist = userWishlistRows.map((w: any) => {
-          const prod = allProducts?.find((p: any) => p.id === w.product_id);
-          return prod ? { ...prod, wishlist_type: w.wishlist_type || "favorite" } : null;
-        }).filter(Boolean);
+        // The tracking tab opens on the shopper's most recent order, if any.
+        setSelectedTrackingOrderId(myOrders.length > 0 ? myOrders[myOrders.length - 1].id : "");
 
-        if (mappedWishlist.length === 0 && allProducts && allProducts.length > 0) {
-          // Seed Gold Memoir and Mystic Oud into wishlist in database/mock db
-          const seeds = allProducts.filter((p: any) => p.id === 101 || p.id === 103);
-          for (const prod of seeds) {
-            await clientSafeSupabase.from("wishlists").insert({
-              customer_id: userId,
-              product_id: prod.id,
-              wishlist_type: "favorite"
-            });
-          }
-          setWishlist(seeds.map((s: any) => ({ ...s, wishlist_type: "favorite" })));
-        } else {
-          setWishlist(mappedWishlist);
-        }
+        const [{ data: allProducts, error: productsError }, { data: wishlistData }] =
+          await Promise.all([
+            clientSafeSupabase.from("products").select(PRODUCT_FIELDS),
+            clientSafeSupabase.from("wishlists").select("*").eq("customer_id", userId)
+          ]);
 
-        // Fetch Tracking Logs
+        if (productsError) throw productsError;
+
+        const catalog = (Array.isArray(allProducts) ? allProducts : []) as CatalogProduct[];
+        const wishlistRows = (Array.isArray(wishlistData) ? wishlistData : []) as WishlistRow[];
+
+        // Saved rows joined against the live catalogue. Nothing is ever seeded in.
+        setWishlist(
+          wishlistRows
+            .map((w) => {
+              const prod = catalog.find((p) => p.id === w.product_id);
+              return prod ? { ...prod, wishlist_type: w.wishlist_type || "favorite" } : null;
+            })
+            .filter((item): item is WishlistProduct => item !== null)
+        );
+
         const { data: trackData } = await clientSafeSupabase
           .from("order_tracking")
           .select("*");
-        setTrackingLogs(trackData || []);
-
+        const myOrderIds = new Set(myOrders.map((o) => o.id));
+        setTrackingLogs(
+          (Array.isArray(trackData) ? trackData : []).filter((log: TrackingLog) =>
+            myOrderIds.has(log.order_id)
+          ) as TrackingLog[]
+        );
       } catch (err) {
         console.error("Error loading customer data", err);
+        setOrders([]);
+        setWishlist([]);
+        setTrackingLogs([]);
       } finally {
         setLoading(false);
       }
@@ -127,7 +208,7 @@ export default function CustomerDashboard() {
           wishlist_type: type
         });
       setWishlist(prev => prev.filter(item => !(item.id === productId && item.wishlist_type === type)));
-      triggerToast("Item removed from your vault wishlist.");
+      triggerToast("Item removed from your wishlist.");
     } catch (e) {
       console.error(e);
     }
@@ -136,7 +217,7 @@ export default function CustomerDashboard() {
   const handleMoveItem = async (productId: number, fromType: "favorite" | "buy_later", toType: "favorite" | "buy_later") => {
     try {
       const userId = localStorage.getItem("userId") || "";
-      
+
       await clientSafeSupabase
         .from("wishlists")
         .delete()
@@ -145,7 +226,7 @@ export default function CustomerDashboard() {
           product_id: productId,
           wishlist_type: fromType
         });
-        
+
       const { error } = await clientSafeSupabase
         .from("wishlists")
         .insert({
@@ -161,23 +242,27 @@ export default function CustomerDashboard() {
           }
           return item;
         }));
-        triggerToast(`Moved scent to ${toType === "favorite" ? "Favorites" : "Save to Buy Later"}.`);
+        triggerToast(`Moved to ${toType === "favorite" ? "Favorites" : "Buy later"}.`);
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleAddToBag = (item: any) => {
+  const handleAddToBag = (item: WishlistProduct) => {
     if (typeof window !== "undefined") {
-      const savedCart = localStorage.getItem("cart") || "[]";
-      let cart = [];
+      // Same key the header, shop, PDP and checkout all read.
+      const savedCart = localStorage.getItem("gharib_cart_v2") || "[]";
+      let cart: CartEntry[] = [];
       try {
-        cart = JSON.parse(savedCart);
-      } catch (_) {}
+        cart = JSON.parse(savedCart) as CartEntry[];
+      } catch {
+        cart = [];
+      }
 
-      const defaultSize = item.sizes?.[0] || "50ml";
-      const existingIdx = cart.findIndex((i: any) => i.product.id === item.id && i.selectedSize === defaultSize);
+      const sizes = toArray(item.sizes);
+      const defaultSize = sizes[0] || "";
+      const existingIdx = cart.findIndex((i) => i.product.id === item.id && i.selectedSize === defaultSize);
 
       if (existingIdx > -1) {
         cart[existingIdx].quantity += 1;
@@ -188,8 +273,8 @@ export default function CustomerDashboard() {
             brand: item.brand,
             name: item.name,
             price: item.price,
-            sizes: item.sizes,
-            image: item.image_url || "/gold-memoir.png",
+            sizes,
+            image: item.image_url || toArray(item.image_urls)[0] || "",
             description: item.description,
             tagline: item.tagline || "",
             olfactory: item.olfactory_group
@@ -199,8 +284,12 @@ export default function CustomerDashboard() {
         });
       }
 
-      localStorage.setItem("cart", JSON.stringify(cart));
-      triggerToast(`Added ${item.name} by ${item.brand} (${defaultSize}) to your Selection.`);
+      localStorage.setItem("gharib_cart_v2", JSON.stringify(cart));
+      triggerToast(
+        defaultSize
+          ? `Added ${item.name} (${defaultSize}) to your selection.`
+          : `Added ${item.name} to your selection.`
+      );
     }
   };
 
@@ -224,12 +313,13 @@ export default function CustomerDashboard() {
       if (error) {
         setFormError(error.message);
       } else {
-        setFormSuccess("Your security credentials have been updated successfully.");
+        setFormSuccess("Your password has been updated successfully.");
         setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
       }
-    } catch (err: any) {
+    } catch (err) {
+      console.error("Error updating password", err);
       setFormError("An unexpected error occurred. Please try again.");
     } finally {
       setFormSubmitting(false);
@@ -270,959 +360,624 @@ export default function CustomerDashboard() {
 
   const activeStepIdx = getActiveStepIndex();
 
+  const orderTotal = (order: OrderRecord) =>
+    (parseFloat(String(order.total_price)) || 0) +
+    (parseFloat(String(order.packing_charges ?? 0)) || 0);
 
+  const lifetimeTotal = orders.reduce(
+    (sum, order) => sum + orderTotal(order),
+    0
+  );
 
-  return (
-    <div className="relative min-h-screen bg-[#FAF9F6] text-[#2A1A0F] flex flex-col justify-between font-sans-luxury overflow-x-hidden selection:bg-amber-100 selection:text-amber-900 customer-dashboard-container">
-      
-      {/* Premium Amber Aura Grid */}
-      <div className="absolute top-0 right-0 w-[45%] h-[55%] bg-gradient-to-bl from-amber-900/15 via-orange-950/5 to-transparent blur-[160px] pointer-events-none z-0" />
-      <div className="absolute bottom-0 left-0 w-[40%] h-[40%] bg-gradient-to-tr from-amber-950/10 via-amber-900/5 to-transparent blur-[140px] pointer-events-none z-0" />
+  const visibleWishlist = wishlist.filter(item => item.wishlist_type === wishlistTab);
 
-      {/* Main Grid Header */}
-      <header className="w-full border-b border-[#EAE3DB]/10 bg-[#0f0702]/85 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center">
-              <img
-                src="/logo.png"
-                alt="Gharib"
-                className="h-[52px] w-auto object-contain mix-blend-multiply"
-              />
-            </Link>
-            <Link 
-              href="/"
-              className="text-[9px] tracking-[0.2em] text-[#2A1A0F]/60 hover:text-[#2A1A0F] font-bold uppercase transition-all flex items-center gap-1.5 border-l border-[#2A1A0F]/15 pl-6 h-6"
-            >
-              ← Back to Shop
-            </Link>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <span className="hidden md:inline-block text-[9px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-bold">
-              Operator: <span className="text-[#EAE3DB]">{userEmail}</span>
-            </span>
-            <button 
-              onClick={handleSignOut}
-              className="flex items-center gap-2 text-[9px] tracking-[0.25em] text-red-400/80 hover:text-red-400 font-black uppercase transition-all"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
+  const stats: { value: string; label: string }[] = [
+    { value: String(orders.length), label: "Orders placed" },
+    { value: String(wishlist.length), label: "Saved fragrances" },
+    { value: `$${lifetimeTotal.toFixed(2)}`, label: "Lifetime total" },
+  ];
 
-      {/* Main Interactive Workspace */}
-      <main className="flex-grow max-w-7xl w-full mx-auto px-6 py-12 z-10 relative">
-        
-        {/* Toast Toast Alert */}
-        <AnimatePresence>
-          {toastMessage && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className="fixed top-20 right-6 bg-[#1a0f07] border border-amber-600/40 text-amber-100 text-[10px] tracking-[0.2em] uppercase font-bold py-4 px-6 shadow-[0_12px_40px_rgba(0,0,0,0.7)] z-50 rounded-none flex items-center gap-3 max-w-[400px]"
-            >
-              <Check className="w-4 h-4 text-amber-500 flex-shrink-0" />
-              <span>{toastMessage}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+  const wishlistTabs: { key: "favorite" | "buy_later"; label: string }[] = [
+    { key: "favorite", label: "Favorites" },
+    { key: "buy_later", label: "Buy later" },
+  ];
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          
-          {/* LEFT: Premium Sidebar Profile Details */}
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <div className="bg-white/[0.02] border border-[#EAE3DB]/10 p-6 flex flex-col items-center text-center relative group">
-              <div className="absolute inset-0 bg-gradient-to-b from-amber-600/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-              
-              {/* Crown Emblem badge */}
-              <div className="w-20 h-20 rounded-full border border-amber-600/30 bg-amber-950/20 flex items-center justify-center mb-4 relative shadow-[0_0_25px_rgba(217,119,6,0.1)]">
-                <User className="w-8 h-8 text-amber-500/80" />
-                <span className="absolute inset-0 rounded-full border border-amber-600/20 animate-ping opacity-30 scale-105" />
+  const panelMotion = {
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.5, ease: "easeOut" as const },
+  };
+
+  // Quiet skeleton — flat #F5F5F5 blocks, no motion.
+  if (loading) {
+    return (
+      <div className="maison min-h-screen flex flex-col">
+        <AppHeader />
+        <main className="flex-grow">
+          <div className="maison-container maison-section">
+            <div className="h-7 w-64 bg-[#F5F5F5]" />
+            <div className="mt-10">
+              <hr className="maison-rule" />
+            </div>
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-24 bg-[#F5F5F5]" />
+              ))}
+            </div>
+            <div className="mt-14 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-12">
+              <div className="flex flex-col gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-5 w-36 bg-[#F5F5F5]" />
+                ))}
               </div>
-              
-              <span className="text-[8px] tracking-[0.3em] text-amber-500 uppercase font-black">
-                ELITE MEMBER
-              </span>
-              <h2 className="text-[12px] font-semibold text-[#EAE3DB] mt-2 mb-6 break-all max-w-[200px] uppercase tracking-wider">
-                {userEmail?.split("@")[0]}
-              </h2>
-
-              <div className="w-full border-t border-[#EAE3DB]/10 pt-6 flex flex-col gap-2">
-                <button
-                  onClick={() => setActiveTab("orders")}
-                  className={`w-full py-3.5 px-4 text-left text-[9px] tracking-[0.25em] font-black uppercase flex items-center justify-between transition-all duration-300 ${
-                    activeTab === "orders" 
-                      ? "bg-amber-600/10 text-amber-400 border-l-2 border-amber-500" 
-                      : "text-[#EAE3DB]/60 hover:text-white hover:bg-white/[0.02] border-l-2 border-transparent"
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Package className="w-4 h-4" />
-                    ORDER HISTORY
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("wishlist")}
-                  className={`w-full py-3.5 px-4 text-left text-[9px] tracking-[0.25em] font-black uppercase flex items-center justify-between transition-all duration-300 ${
-                    activeTab === "wishlist" 
-                      ? "bg-amber-600/10 text-amber-400 border-l-2 border-amber-500" 
-                      : "text-[#EAE3DB]/60 hover:text-white hover:bg-white/[0.02] border-l-2 border-transparent"
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Heart className="w-4 h-4" />
-                    MY WISHLIST
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("tracking")}
-                  className={`w-full py-3.5 px-4 text-left text-[9px] tracking-[0.25em] font-black uppercase flex items-center justify-between transition-all duration-300 ${
-                    activeTab === "tracking" 
-                      ? "bg-amber-600/10 text-amber-400 border-l-2 border-amber-500" 
-                      : "text-[#EAE3DB]/60 hover:text-white hover:bg-white/[0.02] border-l-2 border-transparent"
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <MapPin className="w-4 h-4" />
-                    TRACK ORDER
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className={`w-full py-3.5 px-4 text-left text-[9px] tracking-[0.25em] font-black uppercase flex items-center justify-between transition-all duration-300 ${
-                    activeTab === "settings" 
-                      ? "bg-amber-600/10 text-amber-400 border-l-2 border-amber-500" 
-                      : "text-[#EAE3DB]/60 hover:text-white hover:bg-white/[0.02] border-l-2 border-transparent"
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5">
-                    <Lock className="w-4 h-4" />
-                    SECURITY SETTINGS
-                  </span>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
+              <div className="flex flex-col gap-5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-28 bg-[#F5F5F5]" />
+                ))}
               </div>
             </div>
           </div>
+        </main>
+      </div>
+    );
+  }
 
-          {/* RIGHT: Dynamic content stage based on Tab */}
-          <div className="lg:col-span-3">
-            <AnimatePresence mode="wait">
-              
-              {/* TAB 1: ORDER HISTORY */}
-              {activeTab === "orders" && (
-                <motion.div
-                  key="orders-panel"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.4 }}
-                  className="flex flex-col gap-6"
+  return (
+    <div className="maison min-h-screen flex flex-col">
+      <AppHeader />
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="fixed bottom-6 right-5 md:right-10 z-[120] bg-[#121212] text-white px-6 py-4 max-w-[360px] text-[12px] tracking-[0.1em] uppercase"
+          >
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <main className="flex-grow">
+        <div className="maison-container maison-section">
+
+          {/* Page header */}
+          <header className="text-center">
+            <span className="maison-eyebrow block">Account</span>
+            <h1 className="maison-page-title mt-5">My account</h1>
+            {userEmail && (
+              <p className="mt-6 text-[14px] font-light leading-[1.7] text-[#646464] break-all">
+                Signed in as {userEmail}
+              </p>
+            )}
+          </header>
+
+          {/* Stats — no cards, no borders */}
+          <div className="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-10 text-center">
+            {stats.map(stat => (
+              <div key={stat.label}>
+                <span className="font-display block text-[28px] leading-none text-black">
+                  {stat.value}
+                </span>
+                <span className="maison-eyebrow mt-3 block">{stat.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* .maison-rule forces margin:0, so spacing lives on the wrapper */}
+          <div className="mt-14">
+            <hr className="maison-rule" />
+          </div>
+
+          <div className="mt-12 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 lg:gap-16">
+
+            {/* Sidebar nav — horizontal tab row on mobile */}
+            <nav className="flex lg:flex-col gap-8 lg:gap-0 overflow-x-auto no-scrollbar border-b lg:border-b-0 border-[rgba(0,0,0,0.12)] pb-4 lg:pb-0 lg:border-t lg:border-t-[rgba(0,0,0,0.12)]">
+              {NAV_ITEMS.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveTab(item.key)}
+                  className="text-left whitespace-nowrap lg:border-b lg:border-[rgba(0,0,0,0.12)] lg:py-4 cursor-pointer"
                 >
-                  <div className="bg-white/[0.01] border border-[#EAE3DB]/10 p-8">
-                    <div className="mb-8">
-                      <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-2">
-                        SCENT TRANSACTION RECORD
-                      </span>
-                      <h3 className="text-xl font-serif-luxury font-medium tracking-widest text-[#EAE3DB] uppercase">
-                        YOUR ORDER HISTORY
-                      </h3>
-                    </div>
+                  <span
+                    className={`inline-block pb-1 text-[14px] transition-colors duration-300 ${
+                      activeTab === item.key
+                        ? "text-black border-b border-black"
+                        : "text-[#646464] border-b border-transparent hover:text-black"
+                    }`}
+                    style={{ fontWeight: 350 }}
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              ))}
 
-                    {orders.length === 0 ? (
-                      <div className="py-16 text-center border border-dashed border-[#EAE3DB]/10 flex flex-col items-center justify-center">
-                        <ShoppingBag className="w-8 h-8 text-amber-700/50 mb-4" />
-                        <p className="text-[10px] tracking-widest text-[#EAE3DB]/50 uppercase font-bold">
-                          No bespoke transactions logged under this account.
-                        </p>
-                        <Link 
-                          href="/" 
-                          className="mt-6 border border-amber-600/35 hover:border-amber-500 text-amber-400 text-[9px] tracking-[0.25em] uppercase px-6 py-3 font-bold transition-all"
-                        >
-                          EXPLORE LA MAISON
+              <button
+                onClick={handleSignOut}
+                className="text-left whitespace-nowrap lg:border-b lg:border-[rgba(0,0,0,0.12)] lg:py-4 cursor-pointer"
+              >
+                <span
+                  className="inline-block pb-1 text-[14px] text-[#646464] border-b border-transparent hover:text-black transition-colors duration-300"
+                  style={{ fontWeight: 350 }}
+                >
+                  Sign out
+                </span>
+              </button>
+            </nav>
+
+            {/* Content panels */}
+            <div className="min-w-0">
+
+              {/* ── ORDER HISTORY ─────────────────────────────────── */}
+              {activeTab === "orders" && (
+                <motion.section key="orders-panel" {...panelMotion}>
+                  <span className="maison-eyebrow block">Order history</span>
+
+                  {orders.length === 0 ? (
+                    <div className="py-20 text-center">
+                      <h2 className="maison-page-title">No orders yet</h2>
+                      <p className="mt-6 mx-auto max-w-[46ch] text-[14px] font-light leading-[1.7] text-[#646464]">
+                        When you place an order it will appear here, with its delivery status.
+                      </p>
+                      <div className="mt-10">
+                        <Link href="/shop" className="maison-btn-outline">
+                          Discover the collection
                         </Link>
                       </div>
-                    ) : (
-                      <div className="flex flex-col gap-4">
-                        {orders.map((order) => (
-                          <div 
-                            key={order.id}
-                            className="bg-white/[0.015] border border-[#EAE3DB]/10 p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all hover:bg-white/[0.03]"
-                          >
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex items-center gap-3">
-                                <span className="text-[11px] tracking-widest font-black text-amber-400 uppercase">
-                                  {order.id}
-                                </span>
-                                <span className={`text-[7.5px] tracking-widest uppercase font-black px-2.5 py-1 border ${
-                                  order.status === "delivered" ? "border-green-800/40 bg-green-950/15 text-green-400" :
-                                  order.status === "out_for_delivery" ? "border-indigo-800/40 bg-indigo-950/15 text-indigo-400" :
-                                  order.status === "fulfilled" ? "border-amber-600/40 bg-amber-950/20 text-amber-400" :
-                                  order.status === "accepted" ? "border-cyan-800/40 bg-cyan-950/15 text-cyan-400" :
-                                  "border-neutral-700/40 bg-neutral-800/15 text-neutral-400"
-                                }`}>
-                                  {order.status?.replace('_', ' ')}
-                                </span>
-                              </div>
-                              <span className="text-[9px] tracking-wider text-[#EAE3DB]/40 font-bold uppercase">
-                                Placed: {new Date(order.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}
-                              </span>
-                              <span className="text-[9px] tracking-widest text-[#EAE3DB]/80 font-semibold uppercase mt-0.5">
-                                Ship To: {order.shipping_address?.name} — {order.shipping_address?.city}, {order.shipping_address?.country}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto border-t md:border-t-0 border-[#EAE3DB]/5 pt-4 md:pt-0">
-                              <div className="text-right">
-                                <span className="text-[8px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black block mb-0.5">
-                                  TOTAL INVESTMENT
-                                </span>
-                                <span className="text-[12px] font-semibold text-amber-200 tracking-wider">
-                                  ${(parseFloat(order.total_price) + (parseFloat(order.packing_charges) || 0)).toFixed(2)}
-                                </span>
-                                {order.packing_charges !== undefined && parseFloat(order.packing_charges) > 0 && (
-                                  <span className="text-[7px] text-[#EAE3DB]/40 tracking-wider block mt-0.5 uppercase">
-                                    (incl. ${parseFloat(order.packing_charges).toFixed(2)} packing)
-                                  </span>
-                                )}
-                              </div>
-
-                              <button
-                                onClick={() => {
-                                  setSelectedTrackingOrderId(order.id);
-                                  setActiveTab("tracking");
-                                  triggerToast(`Loaded live tracking telemetry for order ${order.id}`);
-                                }}
-                                className="border border-[#EAE3DB]/20 hover:border-amber-600 bg-transparent text-[#EAE3DB]/80 hover:text-amber-400 text-[9px] tracking-[0.25em] uppercase px-4 py-3 font-black transition-all cursor-pointer"
-                              >
-                                TRACK
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                    </div>
+                  ) : (
+                    <div className="mt-8">
+                      {/* Column heads — desktop only */}
+                      <div className="hidden md:grid grid-cols-[1fr_1fr_1.6fr_1fr_0.8fr_auto] gap-6 border-b border-[rgba(0,0,0,0.12)] pb-4">
+                        <span className="maison-eyebrow">Order</span>
+                        <span className="maison-eyebrow">Placed</span>
+                        <span className="maison-eyebrow">Delivered to</span>
+                        <span className="maison-eyebrow">Status</span>
+                        <span className="maison-eyebrow text-right">Total</span>
+                        <span className="maison-eyebrow sr-only">Action</span>
                       </div>
-                    )}
-                  </div>
-                </motion.div>
+
+                      {orders.map(order => (
+                        <div
+                          key={order.id}
+                          className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.6fr_1fr_0.8fr_auto] gap-3 md:gap-6 md:items-center border-b border-[rgba(0,0,0,0.12)] py-6"
+                        >
+                          <div>
+                            <span className="maison-eyebrow block md:hidden">Order</span>
+                            <span className="text-[14px] uppercase tracking-[0.07em] text-black" style={{ fontWeight: 350 }}>
+                              {order.id}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="maison-eyebrow block md:hidden">Placed</span>
+                            <span className="text-[14px] font-light text-[#646464]">
+                              {new Date(order.created_at).toLocaleDateString(undefined, { dateStyle: "long" })}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="maison-eyebrow block md:hidden">Delivered to</span>
+                            <span className="text-[14px] font-light text-[#646464]">
+                              {order.shipping_address?.name} — {order.shipping_address?.city}, {order.shipping_address?.country}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="maison-eyebrow block md:hidden">Status</span>
+                            <span className="text-[12px] uppercase tracking-[0.1em] text-black">
+                              {order.status?.replace("_", " ")}
+                            </span>
+                          </div>
+
+                          <div className="md:text-right">
+                            <span className="maison-eyebrow block md:hidden">Total</span>
+                            <span className="maison-price">${orderTotal(order).toFixed(2)}</span>
+                            {(parseFloat(String(order.packing_charges ?? 0)) || 0) > 0 && (
+                              <span className="block mt-1 text-[12px] text-[#646464]">
+                                incl. ${parseFloat(String(order.packing_charges)).toFixed(2)} packing
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="md:text-right">
+                            <button
+                              onClick={() => {
+                                setSelectedTrackingOrderId(order.id);
+                                setActiveTab("tracking");
+                                triggerToast(`Loaded tracking for order ${order.id}`);
+                              }}
+                              className="maison-link cursor-pointer text-[#646464] hover:text-black"
+                            >
+                              Track
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.section>
               )}
 
-              {/* TAB 2: MY WISHLIST */}
+              {/* ── WISHLIST ──────────────────────────────────────── */}
               {activeTab === "wishlist" && (
-                <motion.div
-                  key="wishlist-panel"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.4 }}
-                  className="flex flex-col gap-6"
-                >
-                  <div className="bg-white/[0.01] border border-[#EAE3DB]/10 p-8">
-                    <div className="mb-8">
-                      <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-2">
-                        YOUR CURATED SELECTIONS
-                      </span>
-                      <h3 className="text-xl font-serif-luxury font-medium tracking-widest text-[#EAE3DB] uppercase">
-                        SCENT VAULT WISHLIST
-                      </h3>
-                    </div>
+                <motion.section key="wishlist-panel" {...panelMotion}>
+                  <span className="maison-eyebrow block">Wishlist</span>
 
-                    {/* Sub-tabs / Options */}
-                    <div className="flex border-b border-[#EAE3DB]/15 mb-8">
+                  {/* List switcher */}
+                  <nav className="mt-8 flex items-center gap-10 border-b border-[rgba(0,0,0,0.12)] pb-4">
+                    {wishlistTabs.map(tab => (
                       <button
-                        onClick={() => setWishlistTab("favorite")}
-                        className={`pb-4 px-6 text-[10px] tracking-[0.25em] font-black uppercase flex items-center gap-2 border-b-2 transition-all duration-300 ${
-                          wishlistTab === "favorite"
-                            ? "border-amber-600 text-amber-800"
-                            : "border-transparent text-neutral-400 hover:text-neutral-700"
+                        key={tab.key}
+                        onClick={() => setWishlistTab(tab.key)}
+                        className={`pb-1.5 text-[15px] uppercase tracking-[0.06em] transition-colors duration-300 cursor-pointer ${
+                          wishlistTab === tab.key
+                            ? "text-black border-b border-black"
+                            : "text-[#646464] border-b border-transparent hover:text-black"
                         }`}
+                        style={{ fontWeight: 350 }}
                       >
-                        <Heart className="w-3.5 h-3.5" />
-                        Favorites ({wishlist.filter(item => item.wishlist_type === "favorite").length})
+                        {tab.label} ({wishlist.filter(item => item.wishlist_type === tab.key).length})
                       </button>
+                    ))}
+                  </nav>
 
-                      <button
-                        onClick={() => setWishlistTab("buy_later")}
-                        className={`pb-4 px-6 text-[10px] tracking-[0.25em] font-black uppercase flex items-center gap-2 border-b-2 transition-all duration-300 ${
-                          wishlistTab === "buy_later"
-                            ? "border-amber-600 text-amber-800"
-                            : "border-transparent text-neutral-400 hover:text-neutral-700"
-                        }`}
-                      >
-                        <Bookmark className="w-3.5 h-3.5" />
-                        Save to Buy Later ({wishlist.filter(item => item.wishlist_type === "buy_later").length})
-                      </button>
-                    </div>
-
-                    {wishlist.filter(item => item.wishlist_type === wishlistTab).length === 0 ? (
-                      <div className="py-16 text-center border border-dashed border-[#EAE3DB]/10 flex flex-col items-center justify-center">
-                        {wishlistTab === "favorite" ? (
-                          <Heart className="w-8 h-8 text-amber-700/30 mb-4" />
-                        ) : (
-                          <Bookmark className="w-8 h-8 text-amber-700/30 mb-4" />
-                        )}
-                        <p className="text-[10px] tracking-widest text-[#EAE3DB]/50 uppercase font-bold">
-                          {wishlistTab === "favorite" ? "Your Favorites list is empty." : "Your Buy Later list is empty."}
-                        </p>
-                        <Link 
-                          href="/" 
-                          className="mt-6 border border-amber-600/35 hover:border-amber-500 text-amber-400 text-[9px] tracking-[0.25em] uppercase px-6 py-3 font-bold transition-all"
-                        >
-                          DISCOVER BOTTLES
+                  {visibleWishlist.length === 0 ? (
+                    <div className="py-20 text-center">
+                      <h2 className="maison-page-title">
+                        {wishlistTab === "favorite" ? "No favorites yet" : "Nothing saved for later"}
+                      </h2>
+                      <p className="mt-6 mx-auto max-w-[46ch] text-[14px] font-light leading-[1.7] text-[#646464]">
+                        Save the fragrances you love and they will be waiting here for you.
+                      </p>
+                      <div className="mt-10">
+                        <Link href="/shop" className="maison-btn-outline">
+                          Discover the collection
                         </Link>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {wishlist.filter(item => item.wishlist_type === wishlistTab).map((item) => (
-                          <div 
-                            key={item.id}
-                            className="bg-white/[0.015] border border-[#EAE3DB]/10 p-5 flex flex-col justify-between relative group hover:border-amber-600/35 transition-all duration-300"
+                    </div>
+                  ) : (
+                    <div>
+                      {visibleWishlist.map(item => (
+                        <div
+                          key={`${item.id}-${item.wishlist_type}`}
+                          className="flex flex-col sm:flex-row sm:items-center gap-6 border-b border-[rgba(0,0,0,0.12)] py-8"
+                        >
+                          <Link
+                            href={`/product/${item.id}`}
+                            className="w-24 h-24 flex-shrink-0 bg-[#F5F5F5] flex items-center justify-center p-3"
                           >
-                            {/* Remove Scent Button */}
+                            {(item.image_url || toArray(item.image_urls)[0]) && (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={item.image_url || toArray(item.image_urls)[0]}
+                                alt={item.name}
+                                className="w-full h-full object-contain"
+                              />
+                            )}
+                          </Link>
+
+                          <div className="flex-grow min-w-0">
+                            {item.brand && (
+                              <span className="maison-eyebrow block">{item.brand}</span>
+                            )}
+                            <Link href={`/product/${item.id}`} className="block mt-2">
+                              <h3 className="font-display text-[18px] leading-[1.3] tracking-[0.08em] uppercase text-black">
+                                {item.name}
+                              </h3>
+                            </Link>
+                            {item.olfactory_group && (
+                              <p className="mt-2 text-[12px] uppercase tracking-[0.02em] text-[#646464]">
+                                {item.olfactory_group}
+                              </p>
+                            )}
+                            <p className="maison-price mt-3 block">
+                              ${(parseFloat(String(item.price)) || 0).toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col items-start sm:items-end gap-4 sm:w-[200px] flex-shrink-0">
                             <button
-                              onClick={() => handleRemoveFromWishlist(item.id, wishlistTab)}
-                              className="absolute top-4 right-4 text-[#EAE3DB]/40 hover:text-red-400 transition-colors p-1"
-                              title="Remove Scent"
+                              onClick={() => handleAddToBag(item)}
+                              className="maison-btn-outline w-full"
+                              style={{ height: 48, paddingLeft: 12, paddingRight: 12 }}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              Add to cart
                             </button>
 
-                            {/* Move Scent Button */}
-                            <button
-                              onClick={() => handleMoveItem(
-                                item.id,
-                                wishlistTab,
-                                wishlistTab === "favorite" ? "buy_later" : "favorite"
-                              )}
-                              className="absolute top-4 left-4 text-[#EAE3DB]/40 hover:text-amber-600 transition-colors p-1"
-                              title={wishlistTab === "favorite" ? "Move to Save to Buy Later" : "Move to Favorites"}
-                            >
-                              <ArrowLeftRight className="w-4 h-4" />
-                            </button>
-
-                            <div className="flex gap-4 mb-6">
-                              <div className="w-20 h-20 bg-amber-950/20 border border-[#EAE3DB]/10 flex items-center justify-center p-1.5 flex-shrink-0">
-                                <img 
-                                  src={item.image_url} 
-                                  className="w-full h-full object-contain filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.4)]"
-                                  onError={(e: any) => {
-                                    e.target.src = "/catalog_initio_oud.png";
-                                  }}
-                                  alt={item.name} 
-                                />
-                              </div>
-
-                              <div className="flex flex-col gap-1.5 pr-6">
-                                <span className="text-[8px] tracking-[0.2em] text-amber-500 uppercase font-black">
-                                  {item.brand}
-                                </span>
-                                <h4 className="text-[11px] tracking-widest font-bold uppercase text-[#EAE3DB] line-clamp-1">
-                                  {item.name}
-                                </h4>
-                                <span className="text-[9px] tracking-widest text-[#EAE3DB]/50 uppercase font-medium">
-                                  Group: {item.olfactory_group}
-                                </span>
-                                <span className="text-[12px] font-semibold text-amber-200 mt-0.5">
-                                  ${parseFloat(item.price).toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2 w-full">
-                              {/* Basket Icon Button with Slide-Up Hover Effect */}
-                              <button
-                                onClick={() => handleAddToBag(item)}
-                                className="w-9 h-9 flex items-center justify-center border border-white/25 hover:border-amber-500 text-[#EAE3DB]/80 hover:text-amber-500 bg-transparent hover:bg-white/5 transition-all duration-300 rounded-none cursor-pointer active:scale-95 flex-shrink-0 group/basket overflow-hidden relative"
-                                title="Add to Basket"
-                              >
-                                <div className="relative w-4 h-4 overflow-hidden flex flex-col justify-center items-center">
-                                  <svg
-                                    className="w-4 h-4 absolute transition-all duration-300 transform group-hover/basket:-translate-y-6"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                  </svg>
-                                  <svg
-                                    className="w-4 h-4 absolute text-amber-500 transition-all duration-300 transform translate-y-6 group-hover/basket:translate-y-0"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                  </svg>
-                                </div>
-                              </button>
-
-                              {/* Buy Now Text Button with Shine and Slide Background Effect */}
+                            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:justify-end">
                               <button
                                 onClick={() => {
                                   handleAddToBag(item);
                                   router.push("/checkout");
                                 }}
-                                className="flex-grow bg-amber-600 text-white text-[9px] font-black tracking-[0.2em] hover:tracking-[0.28em] uppercase py-2.5 transition-all duration-500 rounded-none cursor-pointer border border-amber-600 active:scale-95 shadow-sm text-center relative overflow-hidden group/buynow flex items-center justify-center"
+                                className="text-[12px] uppercase tracking-[0.1em] text-[#646464] hover:text-black transition-colors duration-300 cursor-pointer"
                               >
-                                {/* Background gradient slide-up fill */}
-                                <span className="absolute inset-0 bg-gradient-to-r from-amber-850 to-amber-700 translate-y-full group-hover/buynow:translate-y-0 transition-transform duration-500 ease-out z-0"></span>
-                                {/* Shine Sweep Reflection */}
-                                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 -translate-x-[150%] group-hover/buynow:translate-x-[150%] transition-transform duration-1000 ease-in-out z-0"></span>
-                                
-                                <span className="relative z-10">BUY NOW</span>
+                                Buy now
+                              </button>
+                              <button
+                                onClick={() => handleMoveItem(
+                                  item.id,
+                                  wishlistTab,
+                                  wishlistTab === "favorite" ? "buy_later" : "favorite"
+                                )}
+                                className="text-[12px] uppercase tracking-[0.1em] text-[#646464] hover:text-black transition-colors duration-300 cursor-pointer"
+                              >
+                                {wishlistTab === "favorite" ? "Move to buy later" : "Move to favorites"}
+                              </button>
+                              <button
+                                onClick={() => handleRemoveFromWishlist(item.id, wishlistTab)}
+                                className="text-[12px] uppercase tracking-[0.1em] text-[#646464] hover:text-black transition-colors duration-300 cursor-pointer"
+                              >
+                                Remove
                               </button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.section>
               )}
 
-              {/* TAB 3: SHIPMENT TRACKING STEPPER */}
+              {/* ── ORDER TRACKING ────────────────────────────────── */}
               {activeTab === "tracking" && (
-                <motion.div
-                  key="tracking-panel"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.4 }}
-                  className="flex flex-col gap-6"
-                >
-                  <div className="bg-white/[0.01] border border-[#EAE3DB]/10 p-8">
-                    <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-2">
-                          REAL-TIME SCENT DISPATCH
-                        </span>
-                        <h3 className="text-xl font-serif-luxury font-medium tracking-widest text-[#EAE3DB] uppercase">
-                          SHIPMENT TRACKING SYSTEM
-                        </h3>
-                      </div>
+                <motion.section key="tracking-panel" {...panelMotion}>
+                  <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+                    <span className="maison-eyebrow block">Order tracking</span>
 
-                      {/* Select active tracking order */}
-                      {orders.length > 0 && (
-                        <div className="flex items-center gap-2.5">
-                          <label className="text-[8.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
-                            SELECT ORDER:
-                          </label>
-                          <select 
+                    {orders.length > 0 && (
+                      <div className="w-full md:w-[260px]">
+                        <label htmlFor="tracking-order" className="maison-label">
+                          Select order
+                        </label>
+                        <div className="relative">
+                          <select
+                            id="tracking-order"
                             value={selectedTrackingOrderId}
                             onChange={(e) => setSelectedTrackingOrderId(e.target.value)}
-                            className="bg-black border border-[#EAE3DB]/20 text-[#EAE3DB] text-[10px] tracking-widest uppercase font-black px-3.5 py-2 outline-none focus:border-amber-500 transition-all rounded-none cursor-pointer"
+                            className="maison-select cursor-pointer pr-10"
                           >
                             {orders.map(o => (
                               <option key={o.id} value={o.id}>{o.id}</option>
                             ))}
                           </select>
+                          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[12px] text-[#646464]">
+                            ▾
+                          </span>
                         </div>
-                      )}
-                    </div>
-
-                    {orders.length === 0 ? (
-                      <div className="py-16 text-center border border-dashed border-[#EAE3DB]/10 flex flex-col items-center justify-center">
-                        <MapPin className="w-8 h-8 text-amber-700/50 mb-4" />
-                        <p className="text-[10px] tracking-widest text-[#EAE3DB]/50 uppercase font-bold">
-                          Please place a luxury order to unlock shipment telemetry.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-10">
-                        
-                        {/* Order Metadata Details Banner */}
-                        {trackingOrderObj && (
-                          <div className="flex flex-col gap-4">
-                            <div className="bg-white/[0.01] border border-[#EAE3DB]/5 p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
-                              <div>
-                                <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase block mb-1">
-                                  TRACKING ID
-                                </span>
-                                <span className="text-[10px] tracking-widest font-black text-amber-400">
-                                  {trackingOrderObj.tracking_number || "DHL-DXB-99882"}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase block mb-1">
-                                  COURIER RAIL
-                                </span>
-                                <span className="text-[10px] tracking-widest font-bold text-[#EAE3DB]">
-                                  DHL Global Express
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase block mb-1">
-                                  DESTINATION
-                                </span>
-                                <span className="text-[10px] tracking-widest font-bold text-[#EAE3DB]">
-                                  {trackingOrderObj.shipping_address?.city}, {trackingOrderObj.shipping_address?.country}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase block mb-1">
-                                  EST. DELIVERY
-                                </span>
-                                <span className="text-[10px] tracking-widest font-bold text-[#EAE3DB]">
-                                  3-5 Business Days
-                                </span>
-                              </div>
-                            </div>
-
-                            {trackingOrderObj.tracking_url && (
-                              <div className="bg-amber-900/10 border border-amber-600/35 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                                <div className="text-left">
-                                  <span className="text-[8px] tracking-[0.2em] text-amber-500 uppercase font-black block mb-1">
-                                    LIVE CARRIER LINK AVAILABLE
-                                  </span>
-                                  <p className="text-[10px] tracking-wider text-[#EAE3DB]/80 font-bold uppercase">
-                                    The carrier has provided a direct live tracking URL for your delivery.
-                                  </p>
-                                </div>
-                                <a 
-                                  href={trackingOrderObj.tracking_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="bg-amber-600 hover:bg-amber-500 text-white text-[8.5px] tracking-[0.2em] uppercase font-black px-5 py-3 transition-all duration-300 flex items-center gap-1.5 cursor-pointer text-center whitespace-nowrap"
-                                >
-                                  TRACK VIA CARRIER PORTAL ↗
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Interactive Scent Stepper Visualization */}
-                        <div className="w-full py-6 px-2.5 overflow-x-auto">
-                          <div className="flex items-center justify-between min-w-[650px] relative">
-                            
-                            {/* Horizontal connecting background line */}
-                            <div className="absolute top-[17px] left-0 right-0 h-[2px] bg-white/5 z-0" />
-                            
-                            {/* Horizontal connecting active line */}
-                            <div 
-                              className="absolute top-[17px] left-0 h-[2px] bg-gradient-to-r from-amber-600 to-yellow-500 z-0 transition-all duration-700" 
-                              style={{ width: `${(activeStepIdx / (stepperStates.length - 1)) * 100}%` }}
-                            />
-
-                            {stepperStates.map((step, i) => {
-                              const isCompleted = i <= activeStepIdx;
-                              const isActive = i === activeStepIdx;
-
-                              return (
-                                <div key={step.key} className="flex flex-col items-center gap-3 z-10 w-1/5 relative">
-                                  
-                                  {/* Stepper node circle */}
-                                  <div className={`w-[36px] h-[36px] rounded-full border flex items-center justify-center transition-all duration-500 ${
-                                    isCompleted 
-                                      ? "bg-amber-600 border-amber-500 text-white shadow-[0_0_15px_rgba(217,119,6,0.5)]" 
-                                      : "bg-[#0f0702] border-white/10 text-white/40"
-                                  } ${isActive ? "scale-110 ring-4 ring-amber-500/15" : ""}`}>
-                                    {isCompleted ? (
-                                      <Check className="w-4 h-4" />
-                                    ) : (
-                                      <span className="text-[10px] font-black">{i + 1}</span>
-                                    )}
-                                  </div>
-
-                                  {/* Node label */}
-                                  <span className={`text-[9px] tracking-widest uppercase font-black text-center ${
-                                    isActive ? "text-amber-400" : isCompleted ? "text-[#EAE3DB]" : "text-[#EAE3DB]/30"
-                                  }`}>
-                                    {step.label}
-                                  </span>
-
-                                </div>
-                              );
-                            })}
-
-                          </div>
-                        </div>
-
-                        {/* Shipment Route logs list */}
-                        <div className="border-t border-[#EAE3DB]/10 pt-8">
-                          <h4 className="text-[10px] tracking-[0.25em] text-[#EAE3DB]/50 uppercase font-black mb-6">
-                            LATEST SHIPMENT TELEMETRY LOGS
-                          </h4>
-
-                          {activeOrderLogs.length === 0 ? (
-                            <div className="text-[#EAE3DB]/40 text-[9px] tracking-widest uppercase font-bold py-4">
-                              Connecting to DHL Dubai Express Server... No logs generated yet.
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-6">
-                              {activeOrderLogs.map((log: any, idx: number) => {
-                                const isLatest = idx === activeOrderLogs.length - 1;
-                                return (
-                                  <div key={log.id} className="flex gap-6 items-start relative pl-4">
-                                    {/* Left connection line block */}
-                                    <div className="flex flex-col items-center">
-                                      <div className={`w-2.5 h-2.5 rounded-full border ${isLatest ? "bg-amber-500 border-amber-400 animate-pulse scale-110" : "bg-neutral-800 border-neutral-700"} flex-shrink-0`} />
-                                      {idx < activeOrderLogs.length - 1 && (
-                                        <div className="w-[1px] h-12 bg-white/10 mt-1" />
-                                      )}
-                                    </div>
-
-                                    <div className="flex-grow flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-                                      <div className="flex flex-col gap-0.5">
-                                        <span className={`text-[10px] tracking-widest font-black uppercase ${isLatest ? "text-amber-400" : "text-[#EAE3DB]"}`}>
-                                          {log.status}
-                                        </span>
-                                        <p className="text-[10px] tracking-wider text-[#EAE3DB]/60 font-semibold mt-0.5">
-                                          {log.description}
-                                        </p>
-                                      </div>
-
-                                      <div className="text-left md:text-right flex-shrink-0">
-                                        <span className="text-[8px] tracking-widest text-amber-600 uppercase font-black flex items-center gap-1">
-                                          <MapPin className="w-2.5 h-2.5" />
-                                          {log.location}
-                                        </span>
-                                        <span className="text-[8px] tracking-widest text-[#EAE3DB]/30 uppercase font-bold block mt-0.5">
-                                          {new Date(log.updated_at).toLocaleString()}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-
                       </div>
                     )}
                   </div>
-                </motion.div>
+
+                  {orders.length === 0 ? (
+                    <div className="py-20 text-center">
+                      <h2 className="maison-page-title">Nothing to track yet</h2>
+                      <p className="mt-6 mx-auto max-w-[46ch] text-[14px] font-light leading-[1.7] text-[#646464]">
+                        Place an order and its delivery journey will be shown here.
+                      </p>
+                      <div className="mt-10">
+                        <Link href="/shop" className="maison-btn-outline">
+                          Discover the collection
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-12">
+
+                      {/* Shipment meta */}
+                      {trackingOrderObj && (
+                        <div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8">
+                            <div className="border-t border-[rgba(0,0,0,0.12)] py-5">
+                              <span className="maison-eyebrow block">Tracking id</span>
+                              <span className="mt-2 block text-[14px]" style={{ fontWeight: 350 }}>
+                                {trackingOrderObj.tracking_number || "Not yet assigned"}
+                              </span>
+                            </div>
+                            <div className="border-t border-[rgba(0,0,0,0.12)] py-5">
+                              <span className="maison-eyebrow block">Courier</span>
+                              <span className="mt-2 block text-[14px]" style={{ fontWeight: 350 }}>
+                                DHL Global Express
+                              </span>
+                            </div>
+                            <div className="border-t border-[rgba(0,0,0,0.12)] py-5">
+                              <span className="maison-eyebrow block">Destination</span>
+                              <span className="mt-2 block text-[14px]" style={{ fontWeight: 350 }}>
+                                {trackingOrderObj.shipping_address?.city}, {trackingOrderObj.shipping_address?.country}
+                              </span>
+                            </div>
+                            <div className="border-t border-[rgba(0,0,0,0.12)] py-5">
+                              <span className="maison-eyebrow block">Estimated delivery</span>
+                              <span className="mt-2 block text-[14px]" style={{ fontWeight: 350 }}>
+                                3—5 business days
+                              </span>
+                            </div>
+                          </div>
+
+                          {trackingOrderObj.tracking_url && (
+                            <div className="mt-8 bg-[#F5F5F5] px-6 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+                              <div>
+                                <span className="maison-eyebrow block">Live carrier link</span>
+                                <p className="mt-2 text-[14px] font-light leading-[1.6] text-[rgba(0,0,0,0.75)]">
+                                  The carrier has provided a direct tracking link for this delivery.
+                                </p>
+                              </div>
+                              <a
+                                href={trackingOrderObj.tracking_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="maison-link flex-shrink-0"
+                              >
+                                Track via carrier
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Shipment progress — flat, hairline rules */}
+                      <div className="mt-14 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-8">
+                        {stepperStates.map((step, i) => {
+                          const isCompleted = i <= activeStepIdx;
+                          return (
+                            <div
+                              key={step.key}
+                              className={`border-t pt-4 transition-colors duration-300 ${
+                                isCompleted ? "border-black" : "border-[rgba(0,0,0,0.12)]"
+                              }`}
+                            >
+                              <span
+                                className={`block text-[12px] uppercase tracking-[0.1em] ${
+                                  isCompleted ? "text-black" : "text-[#646464]"
+                                }`}
+                              >
+                                {String(i + 1).padStart(2, "0")}
+                              </span>
+                              <span
+                                className={`mt-2 block text-[14px] ${isCompleted ? "text-black" : "text-[#646464]"}`}
+                                style={{ fontWeight: 350 }}
+                              >
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Shipment log */}
+                      <div className="mt-16">
+                        <span className="maison-eyebrow block">Shipment log</span>
+
+                        {activeOrderLogs.length === 0 ? (
+                          <p className="mt-8 text-[14px] font-light leading-[1.7] text-[#646464]">
+                            No delivery updates have been recorded for this order yet.
+                          </p>
+                        ) : (
+                          <div className="mt-8">
+                            {activeOrderLogs.map((log) => (
+                              <div
+                                key={log.id}
+                                className="flex flex-col md:flex-row md:items-baseline justify-between gap-2 border-t border-[rgba(0,0,0,0.12)] py-6 last:border-b last:border-[rgba(0,0,0,0.12)]"
+                              >
+                                <div className="md:pr-10">
+                                  <span className="block text-[12px] uppercase tracking-[0.1em] text-black">
+                                    {log.status}
+                                  </span>
+                                  <p className="mt-2 text-[14px] font-light leading-[1.6] text-[rgba(0,0,0,0.75)]">
+                                    {log.description}
+                                  </p>
+                                </div>
+                                <div className="md:text-right flex-shrink-0">
+                                  <span className="block text-[12px] uppercase tracking-[0.1em] text-[#646464]">
+                                    {log.location}
+                                  </span>
+                                  <span className="mt-2 block text-[12px] text-[#646464]">
+                                    {new Date(log.updated_at).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </motion.section>
               )}
 
-              {/* TAB 4: SECURITY SETTINGS */}
+              {/* ── SECURITY ──────────────────────────────────────── */}
               {activeTab === "settings" && (
-                <motion.div
-                  key="settings-panel"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.4 }}
-                  className="flex flex-col gap-6"
-                >
-                  <div className="bg-white/[0.01] border border-[#EAE3DB]/10 p-8">
-                    <div className="mb-8">
-                      <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-2">
-                        ACCOUNT CREDENTIALS VAULT
-                      </span>
-                      <h3 className="text-xl font-serif-luxury font-medium tracking-widest text-[#EAE3DB] uppercase">
-                        SECURITY & CREDENTIALS
-                      </h3>
+                <motion.section key="settings-panel" {...panelMotion}>
+                  <span className="maison-eyebrow block">Security</span>
+                  <p className="mt-6 max-w-[46ch] text-[14px] font-light leading-[1.7] text-[#646464]">
+                    Update the password used to sign in to your account.
+                  </p>
+
+                  <form onSubmit={handleUpdatePassword} className="mt-10 flex flex-col gap-6 max-w-[420px]">
+
+                    {formSuccess && (
+                      <p className="border border-[rgba(0,0,0,0.12)] bg-[#F5F5F5] px-4 py-3 text-[12px] uppercase tracking-[0.1em] text-black">
+                        {formSuccess}
+                      </p>
+                    )}
+
+                    {formError && (
+                      <p className="border border-[rgba(0,0,0,0.12)] bg-[#F5F5F5] px-4 py-3 text-[12px] uppercase tracking-[0.1em] text-black">
+                        {formError}
+                      </p>
+                    )}
+
+                    <div>
+                      <label htmlFor="current-password" className="maison-label">
+                        Current password
+                      </label>
+                      <input
+                        id="current-password"
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={oldPassword}
+                        onChange={(e) => setOldPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="maison-input"
+                      />
                     </div>
 
-                    <form onSubmit={handleUpdatePassword} className="flex flex-col gap-6 max-w-xl">
-                      
-                      {formSuccess && (
-                        <div className="text-[9.5px] tracking-widest text-green-400 uppercase font-black text-center border border-green-500/20 bg-green-500/5 py-3 px-4">
-                          {formSuccess}
-                        </div>
-                      )}
-
-                      {formError && (
-                        <div className="text-[9.5px] tracking-widest text-red-500 uppercase font-black text-center border border-red-500/20 bg-red-500/5 py-3 px-4 flex items-center gap-2 justify-center">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                          <span>{formError}</span>
-                        </div>
-                      )}
-
-                      {/* Current Scent key */}
-                      <div className="flex flex-col gap-2 relative group">
-                        <label className="text-[8.5px] tracking-[0.25em] text-[#EAE3DB]/40 uppercase font-black pl-0.5">
-                          CURRENT PASSWORD
+                    <div>
+                      <div className="flex items-baseline justify-between">
+                        <label htmlFor="new-password" className="maison-label">
+                          New password
                         </label>
-                        <div className="relative">
-                          <input 
-                            type={showPassword ? "text" : "password"} 
-                            required
-                            value={oldPassword}
-                            onChange={(e) => setOldPassword(e.target.value)}
-                            placeholder="••••••••"
-                            className="bg-white/5 border border-[#EAE3DB]/10 focus:border-amber-600/50 focus:bg-white/10 rounded-none pl-4 pr-11 py-3.5 outline-none text-[11px] tracking-widest text-white font-medium placeholder-white/20 transition-all duration-300 w-full"
-                          />
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="mb-2 text-[12px] uppercase tracking-[0.1em] text-[#646464] hover:text-black transition-colors duration-300 cursor-pointer"
+                        >
+                          {showPassword ? "Hide" : "Show"}
+                        </button>
                       </div>
+                      <input
+                        id="new-password"
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Minimum 6 characters"
+                        className="maison-input"
+                      />
+                    </div>
 
-                      {/* New Scent Key */}
-                      <div className="flex flex-col gap-2 relative group">
-                        <label className="text-[8.5px] tracking-[0.25em] text-[#EAE3DB]/40 uppercase font-black pl-0.5">
-                          NEW SECRET PASSWORD
-                        </label>
-                        <div className="relative">
-                          <input 
-                            type={showPassword ? "text" : "password"} 
-                            required
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="Min 6 characters"
-                            className="bg-white/5 border border-[#EAE3DB]/10 focus:border-amber-600/50 focus:bg-white/10 rounded-none pl-4 pr-11 py-3.5 outline-none text-[11px] tracking-widest text-white font-medium placeholder-white/20 transition-all duration-300 w-full"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-amber-500 transition-colors p-1 cursor-pointer"
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
+                    <div>
+                      <label htmlFor="confirm-password" className="maison-label">
+                        Confirm new password
+                      </label>
+                      <input
+                        id="confirm-password"
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="maison-input"
+                      />
+                    </div>
 
-                      {/* Confirm secret key */}
-                      <div className="flex flex-col gap-2 relative group">
-                        <label className="text-[8.5px] tracking-[0.25em] text-[#EAE3DB]/40 uppercase font-black pl-0.5">
-                          CONFIRM NEW SECRET PASSWORD
-                        </label>
-                        <input 
-                          type={showPassword ? "text" : "password"} 
-                          required
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="bg-white/5 border border-[#EAE3DB]/10 focus:border-amber-600/50 focus:bg-white/10 rounded-none pl-4 pr-11 py-3.5 outline-none text-[11px] tracking-widest text-white font-medium placeholder-white/20 transition-all duration-300 w-full"
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={formSubmitting}
-                        className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-[9.5px] font-black tracking-[0.25em] uppercase py-4 transition-all duration-300 rounded-none cursor-pointer flex items-center justify-center gap-2.5 max-w-[240px] mt-4"
-                      >
-                        {formSubmitting ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            UPDATING VAULT...
-                          </>
-                        ) : (
-                          "UPDATE PASSWORD"
-                        )}
-                      </button>
-
-                    </form>
-                  </div>
-                </motion.div>
+                    <button type="submit" disabled={formSubmitting} className="maison-btn w-full mt-2">
+                      {formSubmitting ? "Updating" : "Update password"}
+                    </button>
+                  </form>
+                </motion.section>
               )}
 
-            </AnimatePresence>
+            </div>
           </div>
-
         </div>
-
       </main>
 
-      {/* Luxury Footer panel */}
-      <footer className="w-full border-t border-[#EAE3DB]/10 bg-black/60 py-6">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="text-[8px] tracking-[0.2em] text-[#EAE3DB]/30 uppercase font-bold">
-            © {new Date().getFullYear()} GHARIB. ALL RIGHTS RESERVED.
-          </span>
-          <div className="flex items-center gap-4 text-[8px] tracking-[0.2em] text-[#EAE3DB]/30 font-bold uppercase">
-            <span className="hover:text-amber-500 transition-colors cursor-pointer">PRIVACY STATEMENT</span>
-            <span>•</span>
-            <span className="hover:text-amber-500 transition-colors cursor-pointer">TERMS OF SERVICE</span>
-          </div>
-        </div>
-      </footer>
-
-      {/* Luxury Light Theme Global Overrides for Customer Dashboard */}
-      <style jsx global>{`
-        .customer-dashboard-container {
-          background-color: #FAF9F6 !important;
-          color: #2A1A0F !important;
-        }
-
-        .customer-dashboard-container header {
-          background-color: #F3EFE9 !important;
-          border-bottom-color: #E5DFD3 !important;
-          color: #2A1A0F !important;
-        }
-
-        .customer-dashboard-container header span,
-        .customer-dashboard-container header button,
-        .customer-dashboard-container header a {
-          color: #2A1A0F !important;
-        }
-
-        .customer-dashboard-container header a:hover {
-          color: #8C6239 !important;
-        }
-
-        .customer-dashboard-container header button:hover {
-          background-color: rgba(140, 98, 57, 0.05) !important;
-          border-color: rgba(140, 98, 57, 0.2) !important;
-        }
-
-        .customer-dashboard-container main {
-          background-color: #FAF9F6 !important;
-          color: #2A1A0F !important;
-        }
-
-        /* Sidebar profile styling */
-        .customer-dashboard-container div[class*="bg-white/"][class*="border-[#EAE3DB]"],
-        .customer-dashboard-container div.bg-white\/\[ {
-          background-color: #FFFFFF !important;
-          border-color: #E5DFD3 !important;
-          color: #2A1A0F !important;
-          box-shadow: 0 4px 20px rgba(140, 98, 57, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01) !important;
-        }
-
-        /* Menu buttons in customer sidebar */
-        .customer-dashboard-container button[class*="text-[#EAE3DB]"] {
-          color: #5C4E46 !important;
-          border-left-color: transparent !important;
-        }
-
-        .customer-dashboard-container button[class*="text-[#EAE3DB]"]:hover {
-          color: #1C120C !important;
-          background: rgba(140, 98, 57, 0.04) !important;
-          border-left-color: rgba(140, 98, 57, 0.3) !important;
-        }
-
-        .customer-dashboard-container button[class*="bg-amber-600/10"] {
-          color: #8C6239 !important;
-          background-color: rgba(140, 98, 57, 0.08) !important;
-          border-left-color: #8C6239 !important;
-        }
-
-        /* Profile crown emblem */
-        .customer-dashboard-container div[class*="bg-amber-950/20"] {
-          background-color: rgba(140, 98, 57, 0.06) !important;
-          border-color: rgba(140, 98, 57, 0.25) !important;
-          color: #8C6239 !important;
-        }
-
-        /* Customer portal tab sheets */
-        .customer-dashboard-container div[class*="bg-white/[0.01]"],
-        .customer-dashboard-container div[class*="bg-white/[0.015]"] {
-          background-color: #FFFFFF !important;
-          border-color: #E5DFD3 !important;
-          color: #2A1A0F !important;
-          box-shadow: 0 4px 20px rgba(140, 98, 57, 0.03), 0 1px 3px rgba(0, 0, 0, 0.01) !important;
-        }
-
-        /* Muted and subtext fields */
-        .customer-dashboard-container h2,
-        .customer-dashboard-container h3,
-        .customer-dashboard-container h4,
-        .customer-dashboard-container label,
-        .customer-dashboard-container select,
-        .customer-dashboard-container input {
-          color: #1C120C !important;
-        }
-
-        .customer-dashboard-container p,
-        .customer-dashboard-container span:not(.text-amber-400):not(.text-red-400):not(.text-green-400):not(.text-emerald-400) {
-          color: #2A1A0F !important;
-        }
-
-        .customer-dashboard-container .text-\[#EAE3DB\]\/40,
-        .customer-dashboard-container .text-\[#EAE3DB\]\/50,
-        .customer-dashboard-container .text-[#EAE3DB]\/30,
-        .customer-dashboard-container .text-white\/40,
-        .customer-dashboard-container .text-zinc-500,
-        .customer-dashboard-container .text-gray-400 {
-          color: #7C6E65 !important;
-        }
-
-        /* Order items and status badges */
-        .customer-dashboard-container span[class*="border"] {
-          font-weight: 700;
-        }
-
-        .customer-dashboard-container select,
-        .customer-dashboard-container input {
-          background-color: #FFFFFF !important;
-          border-color: #D8CFBF !important;
-          color: #1C120C !important;
-        }
-
-        .customer-dashboard-container select:focus,
-        .customer-dashboard-container input:focus {
-          border-color: #8C6239 !important;
-          background-color: #FFFFFF !important;
-        }
-
-        /* Stepper elements */
-        .customer-dashboard-container div[class*="bg-amber-600"] {
-          background-color: #8C6239 !important;
-          border-color: #8C6239 !important;
-        }
-
-        .customer-dashboard-container div[class*="bg-[#0f0702]"] {
-          background-color: #FAF9F6 !important;
-          border-color: #E5DFD3 !important;
-          color: #7C6E65 !important;
-        }
-
-        .customer-dashboard-container div[class*="bg-gradient-to-r"] {
-          background: linear-gradient(to right, #8C6239, #C59B27) !important;
-        }
-
-        /* Tracking logs connector line */
-        .customer-dashboard-container div[class*="bg-white/10"] {
-          background-color: #E5DFD3 !important;
-        }
-
-        /* Primary action Buttons */
-        .customer-dashboard-container button[class*="bg-amber-600"],
-        .customer-dashboard-container button[class*="bg-amber-900/30"] {
-          background-color: #8C6239 !important;
-          color: #FFFFFF !important;
-          border-color: #8C6239 !important;
-        }
-
-        .customer-dashboard-container button[class*="bg-amber-600"]:hover,
-        .customer-dashboard-container button[class*="bg-amber-900/30"]:hover {
-          background-color: #9E734A !important;
-          border-color: #9E734A !important;
-          color: #FFFFFF !important;
-        }
-
-        /* Secondary actions button style */
-        .customer-dashboard-container button[class*="border-[#EAE3DB]/"] {
-          border-color: #D8CFBF !important;
-          background-color: #FFFFFF !important;
-          color: #2A1A0F !important;
-        }
-
-        .customer-dashboard-container button[class*="border-[#EAE3DB]/"]:hover {
-          background-color: #FAF8F5 !important;
-          border-color: #8C6239 !important;
-        }
-
-        /* Toast overlays styling */
-        .customer-dashboard-container div[class*="bg-[#1a0f07]"] {
-          background-color: #FFFFFF !important;
-          border-color: #8C6239 !important;
-          color: #1C120C !important;
-          box-shadow: 0 12px 40px rgba(140, 98, 57, 0.15) !important;
-        }
-
-        /* Footer styling */
-        .customer-dashboard-container footer {
-          background-color: #F3EFE9 !important;
-          border-top-color: #E5DFD3 !important;
-          color: #7C6E65 !important;
-        }
-
-        .customer-dashboard-container footer span {
-          color: #7C6E65 !important;
-        }
-      `}</style>
-
+      <Footer />
     </div>
   );
 }

@@ -1,60 +1,46 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import gsap from "gsap";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
+import {
+  Search,
+  Bookmark,
+  ShoppingBag,
+  User,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import BrandsDropdown from "./components/BrandsDropdown";
 
-interface Product {
-  id: number;
-  title: string;
-  price: string;
-  image: string;
-  description: string;
-  tagline: string;
-}
+/* Hairline used across the maison header — matches --line in globals.css */
+const HAIRLINE = "rgba(0,0,0,0.12)";
 
-const PRODUCTS: Product[] = [
-  {
-    id: 1,
-    title: "Gold Memoir",
-    price: "745",
-    image: "/gold-memoir.png",
-    description:
-      "Elevate your everyday moments with our luxurious fragrances that transform routine into a sensory journey of pleasure and luxury.",
-    tagline: "Aurum Noble Edition",
-  },
-  {
-    id: 2,
-    title: "Enchanted Blooms",
-    price: "437",
-    image: "/enchanted-blooms.png",
-    description:
-      "A floral-centric perfume inspired by a magical garden with a delicate bouquet of blooming jasmine, fresh peony, and soft vanilla highlights.",
-    tagline: "Aura Floral Collection",
-  },
-  {
-    id: 3,
-    title: "Mystic Oud",
-    price: "620",
-    image: "/mystic-oud.png",
-    description:
-      "An oriental fragrance that combines the richness of exotic spices, warm agarwood, and rare dark cardamom for a mysterious, timeless appeal.",
-    tagline: "Royal Spice Reserve",
-  },
-  {
-    id: 4,
-    title: "Ocean Breeze",
-    price: "532",
-    image: "/ocean-breeze.png",
-    description:
-      "A fresh marine experience blending salty sea minerals, crushed mint leaves, amberwood, and bright Italian bergamot for clean coastal refinement.",
-    tagline: "Aquamarine Coast Line",
-  },
+/* Rotating announcement bar copy (row 1 of the sticky maison header) */
+const ANNOUNCEMENTS = [
+  "Complimentary delivery on every UAE order",
+  "Two discovery samples with every order",
+  "100% authentic Dubai fragrances",
 ];
+
+/* Plain link used through the mega menu columns and the drawer sub-lists */
+const MEGA_LINK_CLASS =
+  "inline-block w-full text-left py-2.5 text-[15px] font-[350] tracking-[0.02em] leading-none text-black cursor-pointer decoration-1 underline-offset-[6px] transition-opacity duration-300 hover:underline";
+
+/* "AL HARAMAIN" → "Al Haramain" */
+const toTitleCase = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/(^|[\s-])([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toUpperCase());
+
+/* Sub-headline under the hero wordmark. Previously supplied by the admin-driven
+   hero slider (is_hero products); now a fixed maison line. */
+const HERO_TAGLINE = "Aurum Noble Edition";
 
 /* 
   ==============================================
@@ -171,7 +157,7 @@ const PreloaderMistReveal: React.FC = () => {
   }, []);
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#070200] overflow-hidden">
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#070200] overflow-hidden font-sans-luxury">
       {/* Subtle warm glow vignette */}
       <div className="absolute inset-0 bg-radial from-[#3a1a0b]/35 via-transparent to-transparent blur-3xl scale-125 pointer-events-none"></div>
 
@@ -219,113 +205,52 @@ interface CatalogProduct {
   gender?: string;
 }
 
-const CATALOG_PRODUCTS: CatalogProduct[] = [
-  {
-    id: 1,
-    brand: "INITIO PARFUMS PRIVES",
-    name: "Oud for greatness",
-    price: "1215",
-    sizes: ["50ml", "90ml"],
-    image: "/catalog_initio_oud.png",
-    isNew: true,
-    olfactory: "Woody & Oud",
-    gender: "unisex",
-  },
-  {
-    id: 2,
-    brand: "JULIETTE HAS A GUN",
-    name: "Juliette",
-    price: "360",
-    sizes: ["30ml", "50ml"],
-    image: "/catalog_juliette_gun.png",
-    isBestSeller: true,
-    olfactory: "Floral & Sweet",
-    gender: "women",
-  },
-  {
-    id: 3,
-    brand: "RABANNE",
-    name: "Phantom",
-    price: "440",
-    sizes: ["50ml", "100ml"],
-    image: "/catalog_rabanne_phantom.png",
-    isNew: true,
-    olfactory: "Fresh & Aquatic",
-    gender: "men",
-  },
-  {
-    id: 4,
-    brand: "HFC",
-    name: "Devil's intrigue",
-    price: "1358",
-    sizes: ["75ml"],
-    image: "/catalog_hfc_devils.png",
-    isBestSeller: true,
-    olfactory: "Amber & Oriental",
-    gender: "women",
-  },
-  {
-    id: 5,
-    brand: "TOM FORD",
-    name: "Lost Cherry eau de parfum",
-    price: "1196",
-    sizes: ["30ml", "50ml", "100ml"],
-    image: "/catalog_tom_ford_cherry.png",
-    isBestSeller: true,
-    olfactory: "Floral & Sweet",
-    gender: "women",
-  },
-  {
-    id: 6,
-    brand: "MOSCHINO",
-    name: "Toy Boy",
-    price: "158",
-    sizes: ["30ml", "50ml", "100ml"],
-    image: "/catalog_moschino_teddy.png",
-    isNew: true,
-    olfactory: "Woody & Oud",
-    gender: "men",
-  },
-  {
-    id: 7,
-    brand: "FILIPPO SORCINELLI",
-    name: "Epicentro",
-    price: "1196",
-    sizes: ["50ml", "100ml"],
-    image: "/catalog_sorcinelli_epicentro.png",
-    isBestSeller: true,
-    isFeaturedLarge: true,
-    description: "Epicentro is an artistic perfume that represents a deep volcanic impact. Topped with a heavy raw silver metal crumpled sculpture that serves as both the cap and a piece of tactile art, reflecting the dramatic nature of Filippo Sorcinelli's olfactory expressions.",
-    olfactory: "Fresh & Aquatic",
-    gender: "unisex",
-  },
-  {
-    id: 8,
-    brand: "FILIPPO SORCINELLI",
-    name: "Eio_non_ho_mani_che_mi_accarezzino_il_volto",
-    price: "862",
-    sizes: ["100ml"],
-    image: "/catalog_sorcinelli_leather.png",
-    isNew: true,
-    isFeaturedLarge: true,
-    description: "An avante-garde olfactory masterpiece encased in a bottle wrapped dramatically in draped, textured organic matte black leather folds. The scent is a heavy gothic mixture of warm incense, cedarwood, and resinous leather accord.",
-    olfactory: "Amber & Oriental",
-    gender: "unisex",
-  },
-  {
-    id: 9,
-    brand: "MARC-ANTOINE BARROIS",
-    name: "Ganymede Extrait",
-    price: "1170",
-    sizes: ["30ml", "50ml"],
-    image: "/catalog_marc_barrois.png",
-    isNew: true,
-    olfactory: "Woody & Oud",
-    gender: "unisex",
-  }
-];
+/* Shapes returned by the Supabase tables this page reads. */
+interface DbProductRow {
+  id: number;
+  brand: string;
+  name: string;
+  price: number | string;
+  sizes?: string[] | null;
+  image_url?: string | null;
+  image_urls?: string[] | null;
+  is_new?: boolean;
+  is_bestseller?: boolean;
+  is_featured_large?: boolean;
+  description?: string | null;
+  tagline?: string | null;
+  olfactory_group?: string | null;
+  tags?: string[] | null;
+}
 
-const megaMenuContainerVariants: any = {
+interface DbCollectionRow {
+  id: string;
+  title: string;
+  description?: string | null;
+  cover_image?: string | null;
+  kind?: string | null;
+  sort_order?: number | null;
+}
+
+interface DbProductCollectionRow {
+  collection_id: string;
+  product_id: number;
+}
+
+interface DbWishlistRow {
+  customer_id: string;
+  product_id: number;
+  wishlist_type: "favorite" | "buy_later";
+}
+
+/* Collection entries rendered in the mega menu / in-page filter list. */
+interface CollectionEntry {
+  id: string;
+  title: string;
+  desc: string;
+}
+
+const megaMenuContainerVariants: Variants = {
   hidden: { opacity: 0, y: -6 },
   visible: {
     opacity: 1,
@@ -345,7 +270,7 @@ const megaMenuContainerVariants: any = {
   },
 };
 
-const megaMenuColumnVariants: any = {
+const megaMenuColumnVariants: Variants = {
   hidden: { opacity: 1 },
   visible: {
     opacity: 1,
@@ -356,191 +281,67 @@ const megaMenuColumnVariants: any = {
 };
 
 
-const MEGA_MENU_COLLECTIONS = [
-  { id: "new", title: "New Arrivals", desc: "Freshly decanted summer releases" },
-  { id: "bestsellers", title: "Bestsellers", desc: "Our most coveted scent signatures" },
-  { id: "favorites", title: "Exclusive Offers", desc: "Hand-selected custom vaults" },
-  { id: "trending", title: "Trending", desc: "Most wanted scent creations" },
-];
+/* House copy for the four standard curated collection ids. These are labels
+   only — an entry is rendered exclusively when a row with the same id actually
+   exists in the `collections` table. Nothing here invents a collection. */
+const STANDARD_COLLECTION_LABELS: Record<string, { title: string; desc: string }> = {
+  new: { title: "New Arrivals", desc: "Freshly decanted summer releases" },
+  bestsellers: { title: "Bestsellers", desc: "Our most coveted scent signatures" },
+  favorites: { title: "Exclusive Offers", desc: "Hand-selected custom vaults" },
+  trending: { title: "Trending", desc: "Most wanted scent creations" },
+};
 
+/* The standard ids lead the menu, in this order; everything else follows by
+   the sort_order stored on the row. */
+const STANDARD_COLLECTION_ORDER = ["new", "bestsellers", "favorites", "trending"];
+
+/* Olfactive families listed in the mega menu. Label only — the maison menu
+   renders bare text links (design-system.md §1: no gradients, no colour accents,
+   no decorative glyphs). */
 const MEGA_MENU_OLFACTORY = [
-  {
-    label: "Woody & Oud",
-    desc: "deep, raw, & dramatic sophistication",
-    glow: "from-amber-600/5 via-amber-500/2 to-transparent",
-    symbol: "🪵",
-  },
-  {
-    label: "Amber & Oriental",
-    desc: "warm resinous spices & sensuality",
-    glow: "from-yellow-600/5 via-amber-500/2 to-transparent",
-    symbol: "✨",
-  },
-  {
-    label: "Floral & Sweet",
-    desc: "blooming jasmine & rich velvet vanilla",
-    glow: "from-rose-600/5 via-rose-500/2 to-transparent",
-    symbol: "🌸",
-  },
-  {
-    label: "Fresh & Aquatic",
-    desc: "crisp marine breeze & mineral bergamot",
-    glow: "from-cyan-600/5 via-teal-500/2 to-transparent",
-    symbol: "🌊",
-  },
+  { label: "Woody & Oud" },
+  { label: "Amber & Oriental" },
+  { label: "Floral & Sweet" },
+  { label: "Fresh & Aquatic" },
 ];
 
 interface GenderSelectorProps {
   onSelect: (genderId: string) => void;
 }
 
+const GENDER_TILES: { id: string; label: string; image: string }[] = [
+  { id: "men", label: "Men", image: "/men-perfume.jpg" },
+  { id: "women", label: "Women", image: "/women-perfume.jpg" },
+];
+
 const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const leftCardRef = useRef<HTMLDivElement>(null);
-  const rightCardRef = useRef<HTMLDivElement>(null);
-  const dividerRef = useRef<HTMLDivElement>(null);
-  const leftTextRef = useRef<HTMLDivElement>(null);
-  const rightTextRef = useRef<HTMLDivElement>(null);
-
-  const [hovered, setHovered] = useState<"men" | "women" | null>(null);
-
-  useEffect(() => {
-    const ctx = gsap.context(() => {
-      const tl = gsap.timeline();
-
-      // Slide in cards
-      tl.fromTo(
-        leftCardRef.current,
-        { x: -80, opacity: 0 },
-        { x: 0, opacity: 1, duration: 1.2, ease: "power4.out" }
-      );
-      tl.fromTo(
-        rightCardRef.current,
-        { x: 80, opacity: 0 },
-        { x: 0, opacity: 1, duration: 1.2, ease: "power4.out" },
-        "<"
-      );
-
-      // Draw down vertical divider
-      tl.fromTo(
-        dividerRef.current,
-        { scaleY: 0 },
-        { scaleY: 1, duration: 1.4, ease: "power3.inOut" },
-        "-=0.8"
-      );
-
-      // Fade/slide up texts
-      const textElements: HTMLElement[] = [];
-      if (leftTextRef.current) textElements.push(...Array.from(leftTextRef.current.children) as HTMLElement[]);
-      if (rightTextRef.current) textElements.push(...Array.from(rightTextRef.current.children) as HTMLElement[]);
-
-      tl.fromTo(
-        textElements,
-        { y: 20, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.6, ease: "power2.out", stagger: 0.06 },
-        "-=0.6"
-      );
-    }, containerRef);
-
-    return () => ctx.revert();
-  }, []);
-
   return (
-    <div ref={containerRef} className="w-full max-w-5xl mx-auto px-4 md:px-8 py-8 relative font-sans-luxury">
-      <div className="flex flex-col md:flex-row h-[360px] md:h-[400px] border border-amber-800/10 relative overflow-hidden bg-black/5">
-
-        {/* Left Card: MEN */}
-        <div
-          ref={leftCardRef}
-          onClick={() => onSelect("men")}
-          onMouseEnter={() => setHovered("men")}
-          onMouseLeave={() => setHovered(null)}
-          style={{ transition: "flex 0.8s cubic-bezier(0.16, 1, 0.3, 1)" }}
-          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${hovered === "men" ? "flex-[1.3]" : hovered === "women" ? "flex-[0.7]" : "flex-[1]"
+    <div className="w-full font-body grid grid-cols-1 sm:grid-cols-2">
+      {GENDER_TILES.map((tile, index) => (
+        <button
+          key={tile.id}
+          type="button"
+          onClick={() => onSelect(tile.id)}
+          aria-label={`${tile.label} fragrances`}
+          className={`group relative block w-full cursor-pointer text-left ${index > 0 ? "border-t sm:border-t-0 sm:border-l" : ""
             }`}
+          style={index > 0 ? { borderColor: HAIRLINE } : undefined}
         >
-          {/* Cover image */}
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-transform duration-[1200ms] ease-out"
-            style={{
-              backgroundImage: "url('/men-perfume.jpg')",
-              transform: hovered === "men" ? "scale(1.05)" : "scale(1)"
-            }}
-          />
-          {/* Dimming overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-500" />
-
-          {/* Content */}
-          <div ref={leftTextRef} className="relative z-10 flex flex-col gap-1.5">
-            <span className="text-[9px] font-black tracking-[0.3em] text-amber-500 uppercase">
-              COLLECTION
-            </span>
-            <h3 className="text-2xl md:text-3xl font-extrabold tracking-[0.15em] text-[#EAE3DB]">
-              MEN
-            </h3>
-            <p className="text-[10px] leading-relaxed text-neutral-300 tracking-wider font-medium max-w-xs uppercase">
-              Intense, woody, and smoky formulations.
-            </p>
-            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 translate-x-[-8px] group-hover:translate-x-0 transition-all duration-500">
-              ✧ DISCOVER COLLECTION →
+          <div className="relative w-full aspect-[16/10] overflow-hidden bg-[#F5F5F5]">
+            <Image
+              src={tile.image}
+              alt={tile.label}
+              fill
+              sizes="(max-width: 640px) 100vw, 50vw"
+              className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+            />
+            <span className="absolute inset-0 bg-black/20 pointer-events-none" />
+            <span className="absolute inset-0 flex items-center justify-center font-display text-[20px] md:text-[24px] uppercase tracking-[0.12em] text-white leading-none">
+              {tile.label}
             </span>
           </div>
-
-          {/* Elegant gold hairline border on hover */}
-          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${hovered === "men" ? "opacity-100 scale-100" : "opacity-0 scale-95"
-            }`} />
-        </div>
-
-        {/* Dynamic vertical Gold line Divider */}
-        <div
-          ref={dividerRef}
-          style={{ transformOrigin: "top" }}
-          className="hidden md:block w-[1px] bg-gradient-to-b from-transparent via-amber-600/40 to-transparent self-stretch z-20 relative pointer-events-none"
-        />
-
-        {/* Right Card: WOMEN */}
-        <div
-          ref={rightCardRef}
-          onClick={() => onSelect("women")}
-          onMouseEnter={() => setHovered("women")}
-          onMouseLeave={() => setHovered(null)}
-          style={{ transition: "flex 0.8s cubic-bezier(0.16, 1, 0.3, 1)" }}
-          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${hovered === "women" ? "flex-[1.3]" : hovered === "men" ? "flex-[0.7]" : "flex-[1]"
-            }`}
-        >
-          {/* Cover image */}
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-transform duration-[1200ms] ease-out"
-            style={{
-              backgroundImage: "url('/women-perfume.jpg')",
-              transform: hovered === "women" ? "scale(1.05)" : "scale(1)"
-            }}
-          />
-          {/* Dimming overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-500" />
-
-          {/* Content */}
-          <div ref={rightTextRef} className="relative z-10 flex flex-col gap-1.5">
-            <span className="text-[9px] font-black tracking-[0.3em] text-amber-500 uppercase">
-              COLLECTION
-            </span>
-            <h3 className="text-2xl md:text-3xl font-extrabold tracking-[0.15em] text-[#EAE3DB]">
-              WOMEN
-            </h3>
-            <p className="text-[10px] leading-relaxed text-neutral-300 tracking-wider font-medium max-w-xs uppercase">
-              Sensual, floral, and sweet blends.
-            </p>
-            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 translate-x-[-8px] group-hover:translate-x-0 transition-all duration-500">
-              ✧ DISCOVER COLLECTION →
-            </span>
-          </div>
-
-          {/* Elegant gold hairline border on hover */}
-          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${hovered === "women" ? "opacity-100 scale-100" : "opacity-0 scale-95"
-            }`} />
-        </div>
-
-      </div>
+        </button>
+      ))}
     </div>
   );
 };
@@ -557,77 +358,154 @@ const ProductCard: React.FC<{
   onAddToCart: (id: number) => void;
   badgeText?: string;
   formatCurrency: (aedAmount: number) => string;
-}> = ({ prod, isFav, isBuyLater, isLoggedIn, activeSize, onToggleFavorite, onToggleBuyLater, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
+}> = ({ prod, isFav, activeSize, onToggleFavorite, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
 
   const [isHovered, setIsHovered] = useState(false);
 
   // Clean long perfume names (replace underscores with spaces for elegant wrapping)
   const displayName = prod.name ? prod.name.replace(/_/g, " ") : "";
+  const hoverImage = prod.images && prod.images.length > 1 ? prod.images[1] : null;
+  const sizes = prod.sizes && prod.sizes.length > 0 ? prod.sizes : [];
+  const currentSize = activeSize || sizes[0] || "";
+
+  /* Inline so the cross-fade and the 700ms hover scale share one transition
+     declaration (globals.css sets `transition: transform` on card images). */
+  const mediaTransition = { transition: "opacity 700ms ease-out, transform 700ms ease-out" };
 
   return (
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative bg-transparent flex flex-col justify-between h-full text-center transition-all duration-300 min-w-0"
+      className="group relative flex h-full min-w-0 flex-col bg-transparent font-body"
     >
-      {/* 1. Product Image Stage (No background box, no container border) */}
-      <Link href={`/product/${prod.id}`} className="relative w-full aspect-[4/5] overflow-hidden cursor-pointer block mb-3 bg-transparent border-none">
-        <div className="relative w-full h-full transition-transform duration-[900ms] ease-out group-hover:scale-[1.04] flex items-center justify-center">
-          {(() => {
-            let hoverImage = null;
-            if (prod.images && prod.images.length > 1) {
-              hoverImage = prod.images[1];
-            }
+      {/* Optional catalogue label — flat, top-left, no pill, no colour */}
+      {badgeText && (
+        <span className="maison-card-label pointer-events-none absolute left-0 top-0 z-10">
+          {badgeText}
+        </span>
+      )}
 
-            return (
-              <>
-                <Image
-                  src={prod.image}
-                  alt={displayName}
-                  fill
-                  className={`object-contain p-2 transition-opacity duration-700 ${isHovered && hoverImage ? "opacity-0" : "opacity-100"
-                    }`}
-                  priority
-                />
-                {hoverImage && (
-                  <Image
-                    src={hoverImage}
-                    alt={displayName}
-                    fill
-                    className={`object-contain p-2 transition-opacity duration-700 absolute inset-0 ${isHovered ? "opacity-100" : "opacity-0"
-                      }`}
-                  />
-                )}
-              </>
-            );
-          })()}
-        </div>
+      {/* Wishlist toggle — bare line icon, no background, no glow */}
+      <button
+        type="button"
+        onClick={() => onToggleFavorite(prod.id)}
+        aria-pressed={isFav}
+        aria-label={isFav ? `Remove ${displayName} from wishlist` : `Add ${displayName} to wishlist`}
+        className="absolute right-0 top-0 z-10 cursor-pointer p-1 text-black transition-opacity duration-300 hover:opacity-50"
+      >
+        <svg
+          width="13"
+          height="16"
+          viewBox="0 0 14 18"
+          fill={isFav ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M1.5 1h11v16l-5.5-4-5.5 4V1Z" />
+        </svg>
+      </button>
+
+      {/* 1. Product image — 1:1, object-contain, floating on white */}
+      <Link
+        href={`/product/${prod.id}`}
+        className={`maison-card-media block cursor-pointer ${prod.image ? "" : "bg-[#F5F5F5]"}`}
+      >
+        {prod.image && (
+          <Image
+            src={prod.image}
+            alt={displayName}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 320px"
+            style={mediaTransition}
+            className={`object-contain ${isHovered && hoverImage ? "opacity-0" : "opacity-100"}`}
+          />
+        )}
+        {hoverImage && (
+          <Image
+            src={hoverImage}
+            alt={displayName}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 320px"
+            style={mediaTransition}
+            className={`object-contain ${isHovered ? "opacity-100" : "opacity-0"}`}
+          />
+        )}
       </Link>
 
-      {/* 2. Details directly under the image (Name, Price, Add to Basket) */}
-      <div className="flex flex-col items-center flex-grow justify-between w-full px-1">
-        <Link href={`/product/${prod.id}`} className="cursor-pointer block group/title w-full">
-          <h3 className="font-serif-luxury text-[14px] md:text-[15px] font-medium text-[#171310] uppercase tracking-[0.04em] leading-[1.35] line-clamp-2 break-words text-center group-hover/title:text-[#8C6D46] transition-colors duration-300">
+      {/* 2. Maison / name / notes / price row / add to cart */}
+      <div className="flex flex-1 flex-col">
+        {prod.brand && <p className="maison-card-notes mt-6">{prod.brand}</p>}
+
+        <Link href={`/product/${prod.id}`} className="mt-2 block cursor-pointer">
+          <h3 className="maison-card-title transition-opacity duration-300 group-hover:opacity-70">
             {displayName}
           </h3>
         </Link>
 
-        <div className="flex flex-col items-center gap-2.5 w-full mt-2">
-          <span className="font-serif-luxury text-[14px] md:text-[15px] font-semibold text-[#2A1A0F] tracking-widest">
-            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-          </span>
+        {prod.olfactory && <p className="maison-card-notes mt-2">{prod.olfactory}</p>}
+
+        <div className="mt-auto w-full">
+          <div
+            className="flex items-center justify-between gap-3 border-b pb-3 pt-5"
+            style={{ borderColor: HAIRLINE }}
+          >
+            <span className="maison-price">
+              {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
+            </span>
+
+            {sizes.length > 1 ? (
+              <select
+                value={currentSize}
+                onChange={(e) => onSelectSize(prod.id, e.target.value)}
+                aria-label={`Size for ${displayName}`}
+                className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-right text-[14px] font-[350] tracking-[0.07em] text-black outline-none"
+              >
+                {sizes.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              currentSize && (
+                <span className="text-[14px] font-[350] tracking-[0.07em] text-black">{currentSize}</span>
+              )
+            )}
+          </div>
 
           <button
+            type="button"
             onClick={() => onAddToCart(prod.id)}
-            className="w-full text-center py-2.5 px-3 bg-[#171310] text-[#F4E7D4] hover:bg-[#8C6D46] hover:text-white text-[9px] font-medium tracking-[0.22em] uppercase transition-all duration-300 rounded-none cursor-pointer border border-[#171310] active:scale-95"
+            className="maison-btn-outline mt-4 h-12 w-full"
           >
-            Add to Basket
+            Add to cart
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+/* Stand-in shown while the catalogue is still being read from Supabase. Plain
+   #F5F5F5 blocks on the card's own 1:1 media ratio — no shimmer, no pulse, no
+   spinner (design-system.md: nothing animates for its own sake). */
+const ProductGridPlaceholder: React.FC<{ count?: number }> = ({ count = 8 }) => (
+  <div
+    aria-hidden="true"
+    className="mt-14 grid grid-cols-2 gap-x-8 gap-y-14 md:grid-cols-3 lg:grid-cols-4"
+  >
+    {Array.from({ length: count }).map((_, index) => (
+      <div key={index}>
+        <div className="w-full aspect-square bg-[#F5F5F5]" />
+        <div className="mt-6 h-[10px] w-1/2 bg-[#F5F5F5]" />
+        <div className="mt-4 h-[14px] w-4/5 bg-[#F5F5F5]" />
+        <div className="mt-4 h-[10px] w-1/4 bg-[#F5F5F5]" />
+      </div>
+    ))}
+  </div>
+);
 
 import { clientSafeSupabase } from "./lib/supabase";
 
@@ -637,49 +515,32 @@ interface CartItem {
   selectedSize: string;
 }
 
+// Reads the persisted bag out of localStorage. A shopper who has never added
+// anything starts with an empty bag — the drawer and /checkout both render an
+// empty state for it.
+const readStoredCart = (): CartItem[] => {
+  if (typeof window === "undefined") return [];
+  const stored = localStorage.getItem("gharib_cart_v2");
+  if (!stored) return [];
+  try {
+    return JSON.parse(stored) as CartItem[];
+  } catch (e) {
+    console.error("Failed to parse cart storage", e);
+    return [];
+  }
+};
+
 export default function Home() {
   const router = useRouter();
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
 
-  // Dynamic Homepage Hero Products state (with fallback to default static items)
-  const [heroProducts, setHeroProducts] = useState<Product[]>(PRODUCTS);
-
-  // Fetch dynamic Hero products from Supabase
-  useEffect(() => {
-    const fetchHeroProducts = async () => {
-      try {
-        const { data, error } = await clientSafeSupabase
-          .from("products")
-          .select("*")
-          .eq("is_hero", true)
-          .order("hero_order", { ascending: true })
-          .order("id", { ascending: true });
-
-        if (!error && data && data.length > 0) {
-          const mapped: Product[] = data.map((item: any) => ({
-            id: item.id,
-            title: item.name,
-            price: String(item.price),
-            image: item.image_url || "/gold-memoir.png",
-            description: item.description || "",
-            tagline: item.tagline || item.brand || "PRIVÉ COLLECTION",
-          }));
-          setHeroProducts(mapped);
-        }
-      } catch (err) {
-        console.error("Hero products fetch fallback to defaults:", err);
-      }
-    };
-    fetchHeroProducts();
-  }, []);
-
-  // Load products list and collections list from db/mock
-  const [productsList, setProductsList] = useState<CatalogProduct[]>(CATALOG_PRODUCTS);
-  const [collectionsList, setCollectionsList] = useState<any[]>(MEGA_MENU_COLLECTIONS);
-  const [productCollectionsList, setProductCollectionsList] = useState<any[]>([]);
+  // The catalogue is owned by Supabase. Nothing renders until the fetch settles,
+  // so the storefront never shows a product that is not in the database.
+  const [productsList, setProductsList] = useState<CatalogProduct[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [collectionsList, setCollectionsList] = useState<CollectionEntry[]>([]);
+  const [productCollectionsList, setProductCollectionsList] = useState<DbProductCollectionRow[]>([]);
   // Brand collections (kind = 'brand'), each of which owns a /collection/<id> page
-  const [brandCollections, setBrandCollections] = useState<any[]>([]);
+  const [brandCollections, setBrandCollections] = useState<DbCollectionRow[]>([]);
 
   // Preloader Visibility State (Only displayed once on first visit)
   const [showIntro, setShowIntro] = useState(false);
@@ -690,67 +551,54 @@ export default function Home() {
   // Scroll visibility state for sticky light navbar
   const [isScrolled, setIsScrolled] = useState(false);
 
-  const activeProduct = heroProducts[activeIndex] || heroProducts[0] || PRODUCTS[0];
+  // Rotating announcement bar (row 1 of the sticky maison header)
+  const [announcementIndex, setAnnouncementIndex] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setAnnouncementIndex((index) => (index + 1) % ANNOUNCEMENTS.length);
+    }, 5200);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const stepAnnouncement = (direction: 1 | -1) => {
+    setAnnouncementIndex(
+      (index) => (index + direction + ANNOUNCEMENTS.length) % ANNOUNCEMENTS.length
+    );
+  };
 
   // Catalog e-commerce states
   const [activeCatalogTab, setActiveCatalogTab] = useState<"all" | "new" | "bestsellers" | "favorites">("all");
   const [favorites, setFavorites] = useState<number[]>([]);
   const [buyLater, setBuyLater] = useState<number[]>([]);
-  const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({
-    1: "50ml",
-    2: "30ml",
-    3: "50ml",
-    4: "75ml",
-    5: "50ml",
-    6: "50ml",
-    7: "50ml",
-    8: "100ml",
-    9: "30ml"
-  });
+  // Only holds sizes the shopper has actively picked. A product with no entry
+  // falls back to its own first size (`selectedSizes[id] ?? prod.sizes[0]`).
+  const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({});
 
-  // Luxury Reactive Cart State
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    {
-      product: CATALOG_PRODUCTS[0], // Oud for greatness
-      quantity: 1,
-      selectedSize: "90ml"
-    },
-    {
-      product: CATALOG_PRODUCTS[1], // Juliette
-      quantity: 1,
-      selectedSize: "50ml"
-    }
-  ]);
+  // Luxury Reactive Cart State.
+  //
+  // These four values live in localStorage, which the server cannot see. Reading
+  // them in a useState initialiser makes the client's first render disagree with
+  // the server HTML, and React throws a hydration mismatch (the bag badge is the
+  // usual casualty). So they start at their server-safe defaults and are filled
+  // in once, on mount.
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [activeCurrency, setActiveCurrency] = useState("AED");
 
-  // Load initial cart from localStorage
+  // True once the browser-only values above have been read, so the persist
+  // effect below cannot write its empty placeholder over a real stored bag.
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Save cart to localStorage whenever it changes — but never before hydration.
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("gharib_cart");
-      if (stored) {
-        try {
-          setCartItems(JSON.parse(stored));
-        } catch (e) {
-          console.error("Failed to parse cart storage", e);
-        }
-      }
-    }
-  }, []);
-
-  // Save cart to localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("gharib_cart", JSON.stringify(cartItems));
-    }
-  }, [cartItems]);
+    if (!isHydrated) return;
+    localStorage.setItem("gharib_cart_v2", JSON.stringify(cartItems));
+  }, [cartItems, isHydrated]);
 
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isCartPageOpen, setIsCartPageOpen] = useState(false);
+  const [isFooterCurrencyOpen, setIsFooterCurrencyOpen] = useState(false);
 
-  // Luxury Auth & Member states
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  // Currency Engine States
-  const [activeCurrency, setActiveCurrency] = useState("AED");
   const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({
     AED: 1.0,
@@ -767,11 +615,9 @@ export default function Home() {
 
   // Currency Geolocation & Live API Sync
   useEffect(() => {
-    // 1. Sync active currency from localStorage if it exists
+    // 1. With no stored preference, infer one from the shopper's location.
     const storedCurrency = localStorage.getItem("gharib_active_currency");
-    if (storedCurrency) {
-      setActiveCurrency(storedCurrency);
-    } else {
+    if (!storedCurrency) {
       // Geolocate user based on IP
       const geolocateUser = async () => {
         try {
@@ -947,16 +793,28 @@ export default function Home() {
     };
   }, []);
 
-  const showNotificationState = useState<string | null>(null);
-  const showNotification = showNotificationState[0];
-  const setShowNotification = showNotificationState[1];
+  // One-shot cross-page message (e.g. "you are now signed in"), handed over via
+  // localStorage. Filled in by the hydration effect above, then consumed by the
+  // effect below so it does not replay.
+  const [showNotification, setShowNotification] = useState<string | null>(null);
+
+  // The single hydration point for every browser-only value. Runs once, after
+  // the first client render has already matched the server HTML.
+  useEffect(() => {
+    setCartItems(readStoredCart());
+    setUserEmail(localStorage.getItem("userEmail"));
+    setActiveCurrency(localStorage.getItem("gharib_active_currency") || "AED");
+    setShowNotification(localStorage.getItem("authNotification"));
+    setIsHydrated(true);
+  }, []);
 
   const [selectedOlfactory, setSelectedOlfactory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
-  const [selectedCollection, setSelectedCollection] = useState<"all" | "new" | "bestsellers" | "favorites" | "offers" | "trending" | null>(null);
+  // Holds either one of the built-in collection keys ("new", "bestsellers", …)
+  // or the id of a DB-backed collection, so it is a plain string.
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [selectedGender, setSelectedGender] = useState<string | null>(null);
   const [selectedMenuGender, setSelectedMenuGender] = useState<string | null>(null);
-  const [searchSuggestions, setSearchSuggestions] = useState<CatalogProduct[]>([]);
   const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
   const [isBrandsMenuOpen, setIsBrandsMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -980,30 +838,69 @@ export default function Home() {
     }, 250);
   };
 
-  useEffect(() => {
+  /* Mega-menu open/close with the same forgiving 250ms leave delay, so the
+     cursor can travel from the SHOP trigger down into the panel. */
+  const megaLeaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearMegaLeaveTimeout = () => {
+    if (megaLeaveTimeoutRef.current) {
+      clearTimeout(megaLeaveTimeoutRef.current);
+      megaLeaveTimeoutRef.current = null;
+    }
+  };
+
+  const openMegaMenu = () => {
+    clearMegaLeaveTimeout();
+    setIsBrandsMenuOpen(false);
+    setIsMegaMenuOpen(true);
+  };
+
+  const closeMegaMenuNow = () => {
+    clearMegaLeaveTimeout();
+    setIsMegaMenuOpen(false);
+  };
+
+  const closeMegaMenuSoon = () => {
+    clearMegaLeaveTimeout();
+    megaLeaveTimeoutRef.current = setTimeout(() => {
+      setIsMegaMenuOpen(false);
+    }, 250);
+  };
+
+  // The mega menu always reopens on its root panel, so drop the previously
+  // chosen gender as soon as it closes. Adjusted during render rather than in an
+  // effect so the menu never paints its closing frame with a stale selection.
+  const [megaMenuWasOpen, setMegaMenuWasOpen] = useState(isMegaMenuOpen);
+  if (megaMenuWasOpen !== isMegaMenuOpen) {
+    setMegaMenuWasOpen(isMegaMenuOpen);
     if (!isMegaMenuOpen) {
       setSelectedMenuGender(null);
     }
-  }, [isMegaMenuOpen]);
+  }
 
   const renderMegaMenuContent = () => {
     if (!selectedMenuGender) {
       return (
-        <div className="max-w-[1440px] mx-auto px-12 py-12 relative z-10 font-sans-luxury">
-          <div className="border-b border-amber-800/10 pb-5 mb-8 flex justify-between items-baseline">
-            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase pl-[0.1em]">
-              SELECT COLLECTION GENDER
-            </span>
+        <div className="maison-container py-12 lg:py-16 font-body text-black">
+          <div
+            className="flex items-end justify-between gap-6 border-b pb-5 mb-10"
+            style={{ borderColor: HAIRLINE }}
+          >
+            <p className="maison-eyebrow">Select a collection</p>
             <button
+              type="button"
               onClick={() => {
                 setSelectedGender(null);
                 setIsMegaMenuOpen(false);
-                const el = document.getElementById("new-in");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
+                // The full catalogue lives on /shop — the homepage grid only
+                // ever shows a curated slice.
+                router.push(
+                  selectedMenuGender ? `/shop?gender=${selectedMenuGender}` : "/shop"
+                );
               }}
-              className="text-[10px] tracking-widest text-neutral-500 hover:text-amber-800 uppercase font-black transition-colors cursor-pointer"
+              className="maison-link cursor-pointer"
             >
-              Skip to All Fragrances →
+              All fragrances
             </button>
           </div>
 
@@ -1012,30 +909,60 @@ export default function Home() {
       );
     }
 
+    const genderLabel =
+      selectedMenuGender === "unisex"
+        ? "Unisex fragrances"
+        : selectedMenuGender === "women"
+          ? "Women's fragrances"
+          : "Men's fragrances";
+
+    const genderImage =
+      selectedMenuGender === "unisex"
+        ? "/unisex-perfume.jpg"
+        : selectedMenuGender === "women"
+          ? "/women-perfume.jpg"
+          : "/men-perfume.jpg";
+
+    /* The second editorial tile spotlights a real catalogue row — the flagged
+       featured product, else a bestseller, else whatever the shop holds. It is
+       omitted entirely until the products have loaded. */
+    const withArt = productsList.filter((p) => p.image);
+    const menuHighlight =
+      withArt.find((p) => p.isFeaturedLarge) ??
+      withArt.find((p) => p.isBestSeller) ??
+      withArt[0];
+
     return (
-      <div className="max-w-[1440px] mx-auto px-12 py-10 relative z-10 flex flex-col font-sans-luxury">
-        <div className="flex items-center gap-4 border-b border-amber-800/10 pb-5 mb-8 w-full">
+      <div className="maison-container py-12 lg:py-16 font-body text-black">
+        <div
+          className="flex items-center gap-5 border-b pb-5 mb-10"
+          style={{ borderColor: HAIRLINE }}
+        >
           <button
+            type="button"
             onClick={() => setSelectedMenuGender(null)}
-            className="text-[10.5px] tracking-[0.25em] font-black text-neutral-500 hover:text-amber-800 uppercase transition-colors flex items-center gap-2 cursor-pointer"
+            className="maison-eyebrow cursor-pointer transition-colors duration-300 hover:text-black"
           >
-            ← BACK TO GENDER
+            Back
           </button>
-          <span className="text-neutral-300">|</span>
-          <span className="text-[10.5px] tracking-[0.25em] font-black text-amber-800 uppercase">
-            ACTIVE FILTER: {selectedMenuGender === "unisex" ? "UNISEX / SHARED" : selectedMenuGender}'S FRAGRANCES
-          </span>
+          <span aria-hidden="true" className="w-px h-3" style={{ backgroundColor: HAIRLINE }} />
+          <p className="maison-eyebrow" style={{ color: "var(--ink)" }}>
+            {genderLabel}
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 text-left">
-          <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block pl-[0.1em]">
-              COLLECTIONS
-            </span>
-            <ul className="flex flex-col gap-6">
+        <div className="grid grid-cols-12 gap-10 lg:gap-16">
+          {/* Collections */}
+          <motion.div
+            variants={megaMenuColumnVariants}
+            className="col-span-12 sm:col-span-6 lg:col-span-2 flex flex-col"
+          >
+            <p className="maison-eyebrow mb-6">Collections</p>
+            <ul>
               {collectionsList.map((col) => (
                 <li key={col.id}>
                   <button
+                    type="button"
                     onClick={() => {
                       setIsMegaMenuOpen(false);
                       const qParams = new URLSearchParams();
@@ -1043,216 +970,616 @@ export default function Home() {
                       qParams.set("collection", col.id);
                       router.push(`/shop?${qParams.toString()}`);
                     }}
-                    className="transition-all duration-300 uppercase cursor-pointer flex flex-col group text-left w-full relative pl-2 hover:pl-4"
+                    className={MEGA_LINK_CLASS}
                   >
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-0 bg-amber-600 transition-all duration-300 group-hover:h-[80%]"></span>
-                    <span className="text-[13px] font-extrabold tracking-[0.18em] text-neutral-800 group-hover:text-amber-800 transition-colors duration-300 flex items-center gap-2">
-                      <span className="text-amber-600 group-hover:scale-110 transition-all duration-300 text-[10px]">✧</span>
-                      {col.title}
-                    </span>
-                    <span className="text-[9.5px] leading-relaxed text-neutral-500 group-hover:text-neutral-800 tracking-[0.12em] pl-4 mt-1.5 font-medium transition-colors duration-300">
-                      {col.desc}
-                    </span>
+                    {col.title}
                   </button>
                 </li>
               ))}
-              <li className="border-t border-amber-800/10 pt-5 mt-1">
+              <li>
                 <button
+                  type="button"
                   onClick={() => {
                     setIsMegaMenuOpen(false);
                     const qParams = new URLSearchParams();
                     if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
                     router.push(qParams.toString() ? `/shop?${qParams.toString()}` : `/shop`);
                   }}
-                  className="hover:text-amber-800 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 group text-left w-full text-[13px] font-black tracking-[0.2em] text-neutral-800 pl-2 hover:pl-4"
+                  className={MEGA_LINK_CLASS}
                 >
-                  <span className="text-amber-600 group-hover:rotate-180 transition-transform duration-500">✧</span>
-                  ALL FRAGRANCES
+                  All fragrances
                 </button>
               </li>
             </ul>
           </motion.div>
 
-          <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block pl-[0.1em]">
-              OLFACTORY FAMILIES
-            </span>
-            <div className="grid grid-cols-1 gap-3.5">
-              {MEGA_MENU_OLFACTORY.map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => {
-                    setIsMegaMenuOpen(false);
-                    const qParams = new URLSearchParams();
-                    if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
-                    qParams.set("olfactory", item.label);
-                    router.push(`/shop?${qParams.toString()}`);
-                  }}
-                  className="relative overflow-hidden bg-white/75 hover:bg-gradient-to-b hover:from-white hover:to-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-5 transition-all duration-300 group/olf flex items-center gap-4 text-left w-full rounded-none cursor-pointer shadow-[0_2px_8px_rgba(27,15,10,0.01)] hover:shadow-[0_15px_30px_rgba(27,15,10,0.04),_0_0_15px_rgba(180,100,50,0.02)]"
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-r ${item.glow} opacity-0 group-hover/olf:opacity-100 transition-all duration-700 pointer-events-none`}></div>
-                  <div className="relative w-10 h-10 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0 text-base z-10 group-hover/olf:border-amber-500/40 group-hover/olf:bg-amber-500/20 group-hover/olf:scale-[1.15] transition-all duration-300">
-                    {item.symbol}
-                  </div>
-                  <div className="flex-grow flex flex-col min-w-0 z-10">
-                    <span className="text-[13px] font-extrabold tracking-[0.15em] text-neutral-800 group-hover/olf:text-amber-800 transition-colors duration-300 uppercase">
-                      {item.label}
-                    </span>
-                    <span className="text-[9px] text-neutral-500 group-hover/olf:text-neutral-700 tracking-[0.12em] font-medium mt-1 transition-colors duration-300 leading-relaxed">
-                      {item.desc}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-neutral-400 group-hover/olf:text-amber-600 group-hover/olf:translate-x-1.5 transition-all duration-300 flex-shrink-0">
-                    ✧
-                  </span>
-                </button>
-              ))}
-            </div>
-          </motion.div>
-
-          <motion.div variants={megaMenuColumnVariants} className="flex flex-col">
-            <span className="text-[12px] font-black tracking-[0.3em] text-amber-800 uppercase border-b border-amber-800/10 pb-5 mb-6 block pl-[0.1em]">
-              AUTEUR BRANDS
-            </span>
-            <ul className="flex flex-col text-xs font-bold tracking-widest text-neutral-800">
-              {(brandCollections.length > 0
-                ? brandCollections.map((c: any) => ({ id: c.id, label: c.title }))
-                : [
-                  "FILIPPO SORCINELLI",
-                  "INITIO PARFUMS PRIVES",
-                  "TOM FORD",
-                  "RABANNE",
-                  "JULIETTE HAS A GUN",
-                  "HFC",
-                ].map((bname) => ({ id: null, label: bname }))
-              ).map((brand: any) => (
-                <li key={brand.id || brand.label} className="border-b border-amber-800/10 last:border-0 py-3.5 first:pt-0">
-                  {brand.id ? (
-                    <Link
-                      href={`/collection/${brand.id}`}
-                      onClick={() => setIsMegaMenuOpen(false)}
-                      className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
-                        <span>{brand.label}</span>
-                      </div>
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-amber-600">✧</span>
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setIsMegaMenuOpen(false);
-                        const qParams = new URLSearchParams();
-                        if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
-                        qParams.set("brand", brand.label);
-                        router.push(`/shop?${qParams.toString()}`);
-                      }}
-                      className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
-                        <span>{brand.label.replace(" PARFUMS PRIVES", "")}</span>
-                      </div>
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-amber-600">✧</span>
-                    </button>
-                  )}
-                </li>
-              ))}
-              <li className="border-t border-amber-800/10 pt-3.5 mt-2">
-                <Link
-                  href="/collections"
-                  onClick={() => setIsMegaMenuOpen(false)}
-                  className="text-amber-800 hover:text-amber-900 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 text-[12px] font-black tracking-[0.22em]"
-                >
-                  <span>✧</span> ALL BRANDS
-                </Link>
-              </li>
-            </ul>
-          </motion.div>
-
+          {/* Olfactive families */}
           <motion.div
             variants={megaMenuColumnVariants}
-            className="flex flex-col bg-white hover:bg-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-6 relative overflow-hidden group/spot shadow-[0_4px_20px_rgba(27,15,10,0.02)] hover:shadow-[0_25px_60px_rgba(180,100,50,0.06)] transition-all duration-500 rounded-none"
+            className="col-span-12 sm:col-span-6 lg:col-span-3 flex flex-col"
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-amber-500/[0.01] to-transparent pointer-events-none z-0"></div>
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 w-48 h-48 bg-radial from-amber-500/[0.05] to-transparent rounded-full blur-[35px] pointer-events-none z-0"></div>
+            <p className="maison-eyebrow mb-6">Olfactive families</p>
+            <ul>
+              {MEGA_MENU_OLFACTORY.map((item) => (
+                <li key={item.label}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMegaMenuOpen(false);
+                      const qParams = new URLSearchParams();
+                      if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
+                      qParams.set("olfactory", item.label);
+                      router.push(`/shop?${qParams.toString()}`);
+                    }}
+                    className={MEGA_LINK_CLASS}
+                  >
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
 
-            <div className="absolute top-3 right-3 text-[7.5px] tracking-[0.3em] font-extrabold text-amber-800 uppercase bg-[#FAF6F0] border border-amber-800/20 px-2 py-1 z-10 shadow-[0_2px_8px_rgba(27,15,10,0.03)]">
-              FEATURED ✧
-            </div>
+          {/* Maisons */}
+          <motion.div
+            variants={megaMenuColumnVariants}
+            className="col-span-12 sm:col-span-6 lg:col-span-3 flex flex-col"
+          >
+            <p className="maison-eyebrow mb-6">Maisons</p>
+            {/* Maisons come only from the `collections` rows with kind = 'brand'.
+                No fallback list — an unfetched menu simply shows no maisons. */}
+            <ul>
+              {brandCollections.map((brand) => (
+                <li key={brand.id}>
+                  <Link
+                    href={`/collection/${brand.id}`}
+                    onClick={() => setIsMegaMenuOpen(false)}
+                    className={MEGA_LINK_CLASS}
+                  >
+                    {toTitleCase(brand.title)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
 
-            <motion.div
-              inherit={false}
-              variants={{}}
-              whileHover={{ y: -6, rotate: 1 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="relative w-full h-[140px] flex items-center justify-center mb-5 cursor-pointer z-10"
-              onClick={() => {
-                setSelectedGender(selectedMenuGender);
-                setSelectedBrand("FILIPPO SORCINELLI");
-                setSelectedOlfactory(null);
-                setSelectedCollection(null);
-                setIsMegaMenuOpen(false);
-                const el = document.getElementById("new-in");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
+            <Link
+              href="/collections"
+              onClick={() => setIsMegaMenuOpen(false)}
+              className="maison-link mt-7 self-start"
             >
-              <Image
-                src="/catalog_sorcinelli_epicentro.png"
-                alt="Epicentro Filippo Sorcinelli"
-                width={95}
-                height={115}
-                className="object-contain z-10 filter drop-shadow-[0_12px_22px_rgba(27,15,10,0.05)] group-hover/spot:scale-105 transition-transform duration-700"
-              />
-            </motion.div>
+              All brands
+            </Link>
+          </motion.div>
 
-            <div className="flex flex-col text-left z-10 mt-auto font-sans-luxury">
-              <span className="text-[9.5px] font-black tracking-[0.3em] text-amber-700 uppercase">
-                FILIPPO SORCINELLI
-              </span>
-              <h4 className="text-[16px] font-serif-luxury font-semibold text-neutral-800 tracking-wider uppercase mt-1.5 line-clamp-1 group-hover/spot:text-amber-800 transition-colors">
-                EPICENTRO
-              </h4>
-              <p className="text-[9.5px] leading-relaxed text-neutral-500 group-hover/spot:text-neutral-700 mt-2.5 tracking-[0.12em] uppercase line-clamp-2">
-                Artistic volcanic incense formulation with raw metallic cap.
-              </p>
+          {/* Editorial tiles */}
+          <motion.div
+            variants={megaMenuColumnVariants}
+            className="col-span-12 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 gap-8 lg:gap-10"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setIsMegaMenuOpen(false);
+                const qParams = new URLSearchParams();
+                qParams.set("gender", selectedMenuGender);
+                router.push(`/shop?${qParams.toString()}`);
+              }}
+              className="group block text-center cursor-pointer"
+            >
+              <div className="relative w-full aspect-[4/5] overflow-hidden bg-[#F5F5F5]">
+                <Image
+                  src={genderImage}
+                  alt={genderLabel}
+                  fill
+                  sizes="(max-width: 640px) 100vw, 220px"
+                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                />
+              </div>
+              <h4 className="maison-card-title mt-5">{genderLabel}</h4>
+              <span className="maison-link mt-4">Discover</span>
+            </button>
 
+            {menuHighlight && (
               <button
+                type="button"
                 onClick={() => {
-                  setSelectedGender(selectedMenuGender);
-                  setSelectedBrand("FILIPPO SORCINELLI");
-                  setSelectedOlfactory(null);
-                  setSelectedCollection(null);
                   setIsMegaMenuOpen(false);
-                  const el = document.getElementById("new-in");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                  router.push(`/product/${menuHighlight.id}`);
                 }}
-                className="mt-5 w-full bg-neutral-900 text-white hover:bg-amber-950 hover:text-white font-extrabold tracking-[0.25em] text-[9.5px] py-4 transition-all duration-300 text-center cursor-pointer shadow-[0_10px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_15px_30px_rgba(180,100,50,0.12)] border border-neutral-900 hover:border-amber-950 uppercase relative overflow-hidden group-hover/spot:bg-neutral-800"
+                className="group block text-center cursor-pointer"
               >
-                <span className="relative z-10">ACQUIRE SCENT — $326.00</span>
+                <div className="relative w-full aspect-[4/5] overflow-hidden bg-[#F5F5F5]">
+                  <Image
+                    src={menuHighlight.image}
+                    alt={`${menuHighlight.name} — ${menuHighlight.brand}`}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 220px"
+                    className="object-contain p-6 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                  />
+                </div>
+                <h4 className="maison-card-title mt-5">{menuHighlight.name}</h4>
+                <p className="maison-card-notes mt-2">{toTitleCase(menuHighlight.brand)}</p>
+                <span className="maison-link mt-4">Discover</span>
               </button>
-            </div>
+            )}
           </motion.div>
         </div>
       </div>
     );
   };
 
-  // Sync auth state on mount
-  useEffect(() => {
-    const storedEmail = localStorage.getItem("userEmail");
-    if (storedEmail) {
-      setUserEmail(storedEmail);
-    } else {
-      setUserEmail(null);
-    }
+  /* ── Shared maison header rows ──────────────────────────────────────────
+     One renderer drives BOTH headers: the sticky light bar and the hero bar
+     that floats over the background video. Only colour tokens differ — every
+     behaviour (search, currency, cart, wishlist, mega menu timers, mobile
+     drawer) is literally the same markup.
 
-    const pendingNotify = localStorage.getItem("authNotification");
-    if (pendingNotify) {
-      setShowNotification(pendingNotify);
-      localStorage.removeItem("authNotification");
-    }
+     Row 1 (announcement) is identical in both themes.
+     Drop panels — mega menu, BrandsDropdown, currency list, live suggestions —
+     stay WHITE with black text in both themes: they are opaque panels, not
+     part of the bar. */
+  const renderHeaderRows = (theme: "light" | "dark") => {
+    const isDark = theme === "dark";
+
+    const line = isDark ? "rgba(255,255,255,0.18)" : HAIRLINE;
+    const lineStyle = { borderColor: line };
+
+    /* Bar-level interactive element: icon buttons, currency trigger, sign in */
+    const control = isDark
+      ? "text-white/75 transition-colors duration-300 hover:text-white cursor-pointer"
+      : "text-black transition-opacity duration-300 hover:opacity-60 cursor-pointer";
+
+    const inputText = isDark
+      ? "text-white placeholder:text-white/50"
+      : "text-black placeholder:text-[#757575]";
+
+    const searchIconTone = isDark ? "text-white/75" : "text-black";
+    const clearTone = isDark
+      ? "text-white/50 transition-colors duration-300 hover:text-white cursor-pointer"
+      : "text-[#757575] transition-colors duration-300 hover:text-black cursor-pointer";
+
+    const focusLine = isDark ? "focus-within:border-white" : "focus-within:border-black";
+    const focusLineSelf = isDark ? "focus:border-white" : "focus:border-black";
+
+    const navLink = `font-body text-[15px] font-[350] uppercase tracking-[0.06em] leading-none decoration-1 underline-offset-[6px] transition-colors duration-300 hover:underline cursor-pointer ${
+      isDark ? "text-white/80 hover:text-white" : "text-black"
+    }`;
+
+    const badge = `absolute -top-2 -right-2 min-w-[15px] h-[15px] px-[3px] text-[10px] font-normal leading-[15px] text-center ${
+      isDark ? "bg-white text-black" : "bg-black text-white"
+    }`;
+
+    return (
+      <>
+        {/* ── Row 1 — announcement bar (identical in both themes) ───── */}
+        <div className="bg-black text-white">
+          <div className="maison-container h-[39px] flex items-center justify-center gap-4 sm:gap-8">
+            <button
+              type="button"
+              aria-label="Previous message"
+              onClick={() => stepAnnouncement(-1)}
+              className="text-white/70 hover:text-white transition-colors duration-300 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" strokeWidth={1.25} />
+            </button>
+
+            <p
+              aria-live="polite"
+              className="text-[12px] font-normal uppercase tracking-[0.1em] text-white text-center leading-none truncate"
+            >
+              {ANNOUNCEMENTS[announcementIndex]}
+            </p>
+
+            <button
+              type="button"
+              aria-label="Next message"
+              onClick={() => stepAnnouncement(1)}
+              className="text-white/70 hover:text-white transition-colors duration-300 cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" strokeWidth={1.25} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Row 2 — locale + search / wordmark / account ───── */}
+        <div className="maison-container h-[62px] grid grid-cols-[1fr_auto_1fr] items-center">
+          {/* Left: hamburger (mobile) + currency + bare search */}
+          <div className="flex items-center justify-start gap-3 md:gap-5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open menu"
+              className={`md:hidden ${control}`}
+            >
+              <Menu className="w-[20px] h-[20px]" strokeWidth={1.25} />
+            </button>
+
+            {/* Currency / locale selector */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
+                aria-expanded={isCurrencyDropdownOpen}
+                aria-label="Select currency"
+                className={`flex items-center gap-1.5 text-[12px] font-normal uppercase tracking-[0.1em] leading-none ${control}`}
+              >
+                <span>{activeCurrency}</span>
+                <ChevronDown
+                  className={`w-3 h-3 transition-transform duration-300 ${isCurrencyDropdownOpen ? "rotate-180" : ""}`}
+                  strokeWidth={1.25}
+                />
+              </button>
+
+              <AnimatePresence>
+                {isCurrencyDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute left-0 top-full mt-3 w-[240px] bg-white text-black border z-50 flex flex-col"
+                    style={{ borderColor: HAIRLINE }}
+                  >
+                    {[
+                      { code: "AED", label: "AED — UAE Dirham" },
+                      { code: "SAR", label: "SAR — Saudi Riyal" },
+                      { code: "QAR", label: "QAR — Qatari Riyal" },
+                      { code: "KWD", label: "KWD — Kuwaiti Dinar" },
+                      { code: "BHD", label: "BHD — Bahraini Dinar" },
+                      { code: "OMR", label: "OMR — Omani Rial" },
+                      { code: "USD", label: "USD — US Dollar" },
+                      { code: "EUR", label: "EUR — Euro" },
+                      { code: "GBP", label: "GBP — British Pound" },
+                      { code: "INR", label: "INR — Indian Rupee" }
+                    ].map((curr) => (
+                      <button
+                        key={curr.code}
+                        type="button"
+                        onClick={() => {
+                          setActiveCurrency(curr.code);
+                          localStorage.setItem("gharib_active_currency", curr.code);
+                          setIsCurrencyDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-[13px] font-light text-black flex items-center justify-between transition-colors duration-300 hover:bg-[#F5F5F5] cursor-pointer"
+                      >
+                        <span>{curr.label}</span>
+                        {activeCurrency === curr.code && (
+                          <span className="text-[12px] leading-none">✓</span>
+                        )}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Mobile search trigger — opens the panel row below */}
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              aria-expanded={isSearchOpen}
+              aria-label="Search"
+              className={`md:hidden ${control}`}
+            >
+              <Search className="w-[18px] h-[18px]" strokeWidth={1.25} />
+            </button>
+
+            {/* Desktop bare search + live suggestions */}
+            <div className="relative hidden md:flex items-center min-w-0">
+              <div
+                className={`flex items-center gap-2 w-[190px] lg:w-[230px] h-9 border-b transition-colors duration-300 ${focusLine}`}
+                style={lineStyle}
+              >
+                <Search
+                  className={`w-[16px] h-[16px] flex-shrink-0 ${searchIconTone}`}
+                  strokeWidth={1.25}
+                />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  aria-label="Search fragrances"
+                  className={`flex-1 min-w-0 bg-transparent border-0 outline-none text-[12px] font-normal uppercase tracking-[0.1em] ${inputText}`}
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    aria-label="Clear search"
+                    className={`flex-shrink-0 ${clearTone}`}
+                  >
+                    <X className="w-[14px] h-[14px]" strokeWidth={1.25} />
+                  </button>
+                )}
+              </div>
+
+              {/* Live suggestions */}
+              <AnimatePresence>
+                {searchTerm.trim() !== "" && searchSuggestions.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute top-full left-0 mt-3 w-[300px] md:w-[380px] bg-white border z-50 flex flex-col text-black"
+                    style={{ borderColor: HAIRLINE }}
+                  >
+                    <div className="px-4 pt-4 pb-3">
+                      <p className="maison-eyebrow">Suggestions</p>
+                    </div>
+
+                    <div className="flex flex-col max-h-[340px] overflow-y-auto">
+                      {searchSuggestions.map((prod) => (
+                        <button
+                          key={prod.id}
+                          type="button"
+                          onClick={() => {
+                            setSearchTerm("");
+                            router.push(`/product/${prod.id}`);
+                          }}
+                          className="group px-4 py-3 flex items-center gap-4 text-left transition-colors duration-300 hover:bg-[#F8F8F8] cursor-pointer border-t"
+                          style={{ borderColor: HAIRLINE }}
+                        >
+                          <div className="relative w-12 h-14 flex-shrink-0 bg-[#F5F5F5] overflow-hidden">
+                            {prod.image && (
+                              <Image
+                                src={prod.image}
+                                alt={prod.name}
+                                fill
+                                sizes="48px"
+                                className="object-contain p-1.5 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                              />
+                            )}
+                          </div>
+                          <div className="flex-grow flex flex-col min-w-0">
+                            <span className="maison-eyebrow truncate">{prod.brand}</span>
+                            <span className="font-display text-[13px] uppercase tracking-[0.06em] text-black truncate mt-1">
+                              {prod.name.replace(/_/g, " ")}
+                            </span>
+                            <span className="maison-card-notes text-left mt-1 truncate">
+                              {prod.olfactory}
+                            </span>
+                          </div>
+                          <span className="maison-price flex-shrink-0">
+                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div
+                      className="px-4 py-4 border-t flex items-center justify-end"
+                      style={{ borderColor: HAIRLINE }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const term = searchTerm.trim();
+                          setSearchTerm("");
+                          router.push(term ? `/shop?search=${encodeURIComponent(term)}` : "/shop");
+                        }}
+                        className="maison-link cursor-pointer"
+                      >
+                        View all
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* Center: wordmark */}
+          <div className="flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={isDark ? "/white-logo.png" : "/logo.png"}
+              alt="Gharib"
+              className="h-9 md:h-11 w-auto object-contain cursor-pointer"
+              style={isDark ? undefined : ({ mixBlendMode: "multiply" } as React.CSSProperties)}
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedOlfactory(null);
+                setSelectedBrand(null);
+                setSelectedCollection(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+            />
+          </div>
+
+          {/* Right: sign in + line icons */}
+          <div className="flex items-center justify-end gap-4 md:gap-5">
+            <button
+              type="button"
+              onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
+              className={`hidden md:inline-block text-[13px] font-[350] uppercase tracking-[0.06em] leading-none ${control}`}
+            >
+              {userEmail ? "My account" : "Sign in"}
+            </button>
+
+            <span
+              aria-hidden="true"
+              className="hidden md:block w-px h-4"
+              style={{ backgroundColor: line }}
+            />
+
+            <button
+              type="button"
+              onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
+              aria-label="Account"
+              className={control}
+            >
+              <User className="w-[18px] h-[18px]" strokeWidth={1.25} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/wishlist")}
+              aria-label="Wishlist"
+              className={`relative ${control}`}
+            >
+              <Bookmark className="w-[18px] h-[18px]" strokeWidth={1.25} />
+              {favorites.length > 0 && (
+                <span className={badge}>
+                  {favorites.length > 9 ? "9+" : favorites.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              aria-label="Shopping bag"
+              className={`relative ${control}`}
+            >
+              <ShoppingBag className="w-[18px] h-[18px]" strokeWidth={1.25} />
+              {cartCount > 0 && (
+                <span className={badge}>{cartCount > 9 ? "9+" : cartCount}</span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Mobile search panel ────────────────────────────── */}
+        {isSearchOpen && (
+          <div
+            className={`md:hidden border-t ${isDark ? "bg-transparent" : "bg-white"}`}
+            style={lineStyle}
+          >
+            <div className="maison-container h-[56px] flex items-center gap-3">
+              <Search
+                className={`w-[18px] h-[18px] flex-shrink-0 ${searchIconTone}`}
+                strokeWidth={1.25}
+              />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={searchPlaceholder}
+                aria-label="Search fragrances"
+                className={`flex-1 min-w-0 h-9 bg-transparent border-0 border-b outline-none text-[12px] font-normal uppercase tracking-[0.1em] transition-colors duration-300 ${inputText} ${focusLineSelf}`}
+                style={lineStyle}
+              />
+              <button
+                type="button"
+                aria-label="Close search"
+                onClick={() => {
+                  setSearchTerm("");
+                  setIsSearchOpen(false);
+                }}
+                className={`flex-shrink-0 ${control}`}
+              >
+                <X className="w-[18px] h-[18px]" strokeWidth={1.25} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Row 3 — main navigation + drop panels ──────────── */}
+        <div
+          className="hidden md:block relative"
+          onMouseLeave={() => {
+            handleBrandsMouseLeave();
+            closeMegaMenuSoon();
+          }}
+        >
+          <nav className="maison-container h-[48px] flex items-center justify-center gap-10 lg:gap-14">
+            <button
+              type="button"
+              onMouseEnter={() => {
+                setIsBrandsMenuOpen(false);
+                closeMegaMenuNow();
+              }}
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedOlfactory(null);
+                setSelectedBrand(null);
+                setSelectedCollection(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className={navLink}
+            >
+              Home
+            </button>
+
+            <Link
+              href="/collections"
+              onMouseEnter={handleBrandsMouseEnter}
+              onClick={() => setIsBrandsMenuOpen(false)}
+              className={navLink}
+            >
+              Brands
+            </Link>
+
+            <button
+              type="button"
+              onMouseEnter={openMegaMenu}
+              onClick={() => (isMegaMenuOpen ? closeMegaMenuNow() : openMegaMenu())}
+              aria-expanded={isMegaMenuOpen}
+              className={navLink}
+            >
+              Shop
+            </button>
+
+            <Link
+              href="/blogs"
+              onMouseEnter={() => {
+                setIsBrandsMenuOpen(false);
+                closeMegaMenuNow();
+              }}
+              className={navLink}
+            >
+              Blogs
+            </Link>
+
+            <Link
+              href="/contact"
+              onMouseEnter={() => {
+                setIsBrandsMenuOpen(false);
+                closeMegaMenuNow();
+              }}
+              className={navLink}
+            >
+              Contact
+            </Link>
+          </nav>
+
+          {/* Shop mega menu — always the white maison panel */}
+          <AnimatePresence>
+            {isMegaMenuOpen && (
+              <motion.div
+                variants={megaMenuContainerVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                onMouseEnter={openMegaMenu}
+                onMouseLeave={closeMegaMenuSoon}
+                className="absolute top-full left-0 w-full z-50 bg-white text-black font-body border-t border-b"
+                style={{ borderColor: HAIRLINE }}
+              >
+                {renderMegaMenuContent()}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Brands dropdown — always the white maison panel */}
+          <BrandsDropdown
+            isOpen={isBrandsMenuOpen}
+            onClose={() => setIsBrandsMenuOpen(false)}
+            onMouseEnter={handleBrandsMouseEnter}
+            onMouseLeave={handleBrandsMouseLeave}
+            brands={brandCollections}
+          />
+        </div>
+      </>
+    );
+  };
+
+  // The pending notification was read during state init above; clear it here so
+  // it is shown exactly once.
+  useEffect(() => {
+    localStorage.removeItem("authNotification");
   }, []);
 
   // Fetch wishlist when user email is loaded / changed
@@ -1270,10 +1597,10 @@ export default function Home() {
 
         if (data && !error) {
           const userId = localStorage.getItem("userId") || "";
-          const userWishlist = data.filter((item: any) => item.customer_id === userId);
+          const userWishlist = (data as DbWishlistRow[]).filter((item) => item.customer_id === userId);
 
-          const favs = userWishlist.filter((item: any) => item.wishlist_type === "favorite").map((item: any) => item.product_id);
-          const laters = userWishlist.filter((item: any) => item.wishlist_type === "buy_later").map((item: any) => item.product_id);
+          const favs = userWishlist.filter((item) => item.wishlist_type === "favorite").map((item) => item.product_id);
+          const laters = userWishlist.filter((item) => item.wishlist_type === "buy_later").map((item) => item.product_id);
           setFavorites(favs);
           setBuyLater(laters);
         }
@@ -1300,8 +1627,8 @@ export default function Home() {
           .from("product_collections")
           .select("*");
 
-        if (dbProducts && !pErr && dbProducts.length > 0) {
-          const mapped = dbProducts.map((dbProd: any) => {
+        if (dbProducts && !pErr) {
+          const mapped = (dbProducts as DbProductRow[]).map((dbProd) => {
             let gender = "unisex";
             if (dbProd.tags) {
               if (dbProd.tags.includes("men") || dbProd.tags.includes("man") || dbProd.tags.includes("for men")) {
@@ -1316,12 +1643,13 @@ export default function Home() {
               name: dbProd.name,
               price: String(dbProd.price),
               sizes: dbProd.sizes || ["50ml", "100ml"],
-              image: dbProd.image_url || "/catalog_initio_oud.png",
+              // No stand-in bottle — a row without art renders a plain grey block.
+              image: dbProd.image_url || "",
               images: dbProd.image_urls || (dbProd.image_url ? [dbProd.image_url] : []),
               isNew: dbProd.is_new,
               isBestSeller: dbProd.is_bestseller,
               isFeaturedLarge: dbProd.is_featured_large,
-              description: dbProd.description,
+              description: dbProd.description ?? undefined,
               olfactory: dbProd.olfactory_group || "Woody & Oud",
               gender: gender
             };
@@ -1329,25 +1657,35 @@ export default function Home() {
           setProductsList(mapped);
         }
 
-        if (dbCollections && !cErr && dbCollections.length > 0) {
-          const standardIds = ["new", "bestsellers", "favorites", "trending"];
+        if (dbCollections && !cErr) {
+          const collectionRows = dbCollections as DbCollectionRow[];
           // Brand and line collections live on their own pages, so they stay out of the
-          // in-page collection filter list.
-          const userCollections = dbCollections.filter(
-            (c: any) =>
-              !standardIds.includes(c.id) && c.kind !== "brand" && c.kind !== "line"
-          );
-          const mappedUserCollections = userCollections.map((c: any) => ({
-            id: c.id,
-            title: c.title,
-            desc: c.description || "Exclusive Scent Curation"
-          }));
-          setCollectionsList([...MEGA_MENU_COLLECTIONS, ...mappedUserCollections]);
+          // in-page collection filter list. Everything else comes through exactly as
+          // the database has it — the standard ids only borrow house copy for their label.
+          const rank = (id: string) => {
+            const index = STANDARD_COLLECTION_ORDER.indexOf(id);
+            return index === -1 ? STANDARD_COLLECTION_ORDER.length : index;
+          };
+          const mappedCollections: CollectionEntry[] = collectionRows
+            .filter((c) => c.kind !== "brand" && c.kind !== "line")
+            .slice()
+            .sort(
+              (a, b) => rank(a.id) - rank(b.id) || (a.sort_order || 0) - (b.sort_order || 0)
+            )
+            .map((c) => {
+              const label = STANDARD_COLLECTION_LABELS[c.id];
+              return {
+                id: c.id,
+                title: label?.title || c.title,
+                desc: label?.desc || c.description || "Exclusive Scent Curation"
+              };
+            });
+          setCollectionsList(mappedCollections);
 
           setBrandCollections(
-            dbCollections
-              .filter((c: any) => c.kind === "brand")
-              .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+            collectionRows
+              .filter((c) => c.kind === "brand")
+              .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
           );
         }
 
@@ -1356,6 +1694,9 @@ export default function Home() {
         }
       } catch (err) {
         console.error("Error loading products/collections from Supabase:", err);
+      } finally {
+        // Settled either way — a failed fetch shows the empty state, never mock data.
+        setIsLoadingProducts(false);
       }
     };
     fetchDbData();
@@ -1363,17 +1704,17 @@ export default function Home() {
 
   const isFiltered = searchTerm.trim() !== "" || selectedOlfactory !== null || selectedBrand !== null || selectedCollection !== null || selectedGender !== null;
 
-  useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setSearchSuggestions([]);
-      return;
-    }
+  // Search suggestions are derived straight from the query and the catalogue —
+  // no state to keep in sync.
+  const searchSuggestions = useMemo(() => {
+    if (searchTerm.trim() === "") return [];
     const searchLower = searchTerm.toLowerCase();
-    const matches = productsList.filter(prod =>
-      prod.brand.toLowerCase().includes(searchLower) ||
-      prod.name.toLowerCase().includes(searchLower)
-    ).slice(0, 4);
-    setSearchSuggestions(matches);
+    return productsList
+      .filter(prod =>
+        prod.brand.toLowerCase().includes(searchLower) ||
+        prod.name.toLowerCase().includes(searchLower)
+      )
+      .slice(0, 4);
   }, [searchTerm, productsList]);
 
   // Newsletter subscription states
@@ -1478,7 +1819,7 @@ export default function Home() {
   const handleAddToCart = (productId: number) => {
     const prod = productsList.find(p => p.id === productId);
     if (!prod) return;
-    const size = selectedSizes[productId] || "50ml";
+    const size = selectedSizes[productId] ?? prod.sizes[0];
 
     setCartItems(prev => {
       const existingIndex = prev.findIndex(
@@ -1567,42 +1908,14 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const handlePrev = () => {
-    if (isAnimating) return;
-    setIsAnimating(true);
-    setTimeout(() => {
-      setActiveIndex((prev) => (prev === 0 ? heroProducts.length - 1 : prev - 1));
-      setIsAnimating(false);
-    }, 400);
-  };
-
-  const handleNext = () => {
-    if (isAnimating) return;
-    setIsAnimating(true);
-    setTimeout(() => {
-      setActiveIndex((prev) => (prev === heroProducts.length - 1 ? 0 : prev + 1));
-      setIsAnimating(false);
-    }, 400);
-  };
-
-  const handleSelectProduct = (index: number) => {
-    if (isAnimating || index === activeIndex) return;
-    setIsAnimating(true);
-    setTimeout(() => {
-      setActiveIndex(index);
-      setIsAnimating(false);
-    }, 400);
-  };
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") handlePrev();
-      if (e.key === "ArrowRight") handleNext();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeIndex, isAnimating]);
+  /* Fragrances shown in the BEST SELLER marquee that closes the hero fold.
+     Bestsellers first, topped up with the rest of the catalogue, capped at 8. */
+  const marqueeProducts = useMemo(() => {
+    const best = productsList.filter((p) => p.isBestSeller);
+    return (
+      best.length >= 4 ? best : [...best, ...productsList.filter((p) => !p.isBestSeller)]
+    ).slice(0, 8);
+  }, [productsList]);
 
   return (
     <div className="relative min-h-screen w-full bg-[#070200] text-white flex flex-col overflow-x-hidden overflow-y-auto font-sans-luxury scroll-smooth">
@@ -1611,156 +1924,197 @@ export default function Home() {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
-            initial={{ x: "100%" }}
+            initial={{ x: "-100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 bg-[#FAF6F0]/98 border-l border-amber-800/10 backdrop-blur-xl z-50 flex flex-col justify-between p-8 font-sans-luxury text-neutral-800"
+            exit={{ x: "-100%" }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed inset-0 z-50 bg-white text-black font-body flex flex-col"
           >
             {/* Header / Close Row */}
-            <div className="flex items-center justify-between border-b border-amber-800/10 pb-5">
+            <div
+              className="flex items-center justify-between h-[62px] px-5 border-b flex-shrink-0"
+              style={{ borderColor: HAIRLINE }}
+            >
               <Image
                 src="/logo.png"
                 alt="Gharib"
                 width={150}
                 height={38}
-                className="h-8 w-auto object-contain rounded-lg overflow-hidden brightness-0"
+                className="h-8 w-auto object-contain"
+                style={{ mixBlendMode: "multiply" }}
               />
               <button
+                type="button"
+                aria-label="Close menu"
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="w-10 h-10 flex items-center justify-center border border-amber-800/20 rounded-full text-neutral-600 hover:text-neutral-900 hover:border-amber-800/40 cursor-pointer"
+                className="text-black transition-opacity duration-300 hover:opacity-60 cursor-pointer"
               >
-                ✕
+                <X className="w-[20px] h-[20px]" strokeWidth={1.25} />
               </button>
             </div>
 
             {/* Menu Links scroll area */}
-            <div className="flex-grow overflow-y-auto py-8 flex flex-col gap-8 text-left">
+            <div className="flex-grow overflow-y-auto px-5 pb-16">
               {/* Main Links */}
-              <div className="flex flex-col gap-5">
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedOlfactory(null);
-                    setSelectedBrand(null);
-                    setSelectedCollection(null);
-                    setIsMobileMenuOpen(false);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase text-left transition-colors cursor-pointer"
-                >
-                  HOME
-                </button>
-                <Link
-                  href="/collections"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors"
-                >
-                  BRANDS
-                </Link>
-                <Link
-                  href="/blogs"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors"
-                >
-                  BLOGS
-                </Link>
-              </div>
+              <ul>
+                <li className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedOlfactory(null);
+                      setSelectedBrand(null);
+                      setSelectedCollection(null);
+                      setIsMobileMenuOpen(false);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="block w-full text-left py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black cursor-pointer"
+                  >
+                    Home
+                  </button>
+                </li>
+                <li className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <Link
+                    href="/collections"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
+                  >
+                    Brands
+                  </Link>
+                </li>
+                <li className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <Link
+                    href="/shop"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
+                  >
+                    Shop
+                  </Link>
+                </li>
+                <li className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <Link
+                    href="/blogs"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
+                  >
+                    Blogs
+                  </Link>
+                </li>
+                <li className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <Link
+                    href="/contact"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
+                  >
+                    Contact
+                  </Link>
+                </li>
+                <li className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <Link
+                    href="/wishlist"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
+                  >
+                    Wishlist
+                  </Link>
+                </li>
+              </ul>
 
               {/* Brand Collections — each opens its own house page */}
               {brandCollections.length > 0 && (
-                <div className="flex flex-col border-t border-amber-800/10 pt-6">
-                  <span className="text-[10px] font-black tracking-[0.25em] text-amber-800 uppercase mb-4 pl-[0.1em]">
-                    Shop by Brand
-                  </span>
-                  <div className="grid grid-cols-2 gap-3.5 text-xs font-bold tracking-widest text-neutral-500">
-                    {brandCollections.map((brand: any) => (
-                      <Link
-                        key={brand.id}
-                        href={`/collection/${brand.id}`}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className="hover:text-amber-800 text-left uppercase"
-                      >
-                        ✧ {brand.title}
-                      </Link>
+                <>
+                  <p className="maison-eyebrow mt-10 mb-3">Maisons</p>
+                  <ul>
+                    {brandCollections.map((brand) => (
+                      <li key={brand.id}>
+                        <Link
+                          href={`/collection/${brand.id}`}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={MEGA_LINK_CLASS}
+                        >
+                          {toTitleCase(brand.title)}
+                        </Link>
+                      </li>
                     ))}
-                  </div>
-                </div>
+                  </ul>
+                </>
               )}
 
-              {/* Collections Grid */}
-              <div className="flex flex-col border-t border-amber-800/10 pt-6">
-                <span className="text-[10px] font-black tracking-[0.25em] text-amber-800 uppercase mb-4 pl-[0.1em]">
-                  Shop Collections
-                </span>
-                <div className="grid grid-cols-2 gap-3.5 text-xs font-bold tracking-widest text-neutral-500">
-                  {collectionsList.map((col) => (
+              {/* Collections */}
+              <p className="maison-eyebrow mt-10 mb-3">Collections</p>
+              <ul>
+                {collectionsList.map((col) => (
+                  <li key={col.id}>
                     <button
-                      key={col.id}
+                      type="button"
                       onClick={() => {
-                        setSelectedCollection(col.id as any);
-                        setSelectedBrand(null);
-                        setSelectedOlfactory(null);
                         setIsMobileMenuOpen(false);
-                        const el = document.getElementById("new-in");
-                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                        router.push(`/shop?collection=${encodeURIComponent(col.id)}`);
                       }}
-                      className="hover:text-amber-800 text-left uppercase cursor-pointer"
+                      className={MEGA_LINK_CLASS}
                     >
-                      ✧ {col.title}
+                      {col.title}
                     </button>
-                  ))}
+                  </li>
+                ))}
+                <li>
                   <button
+                    type="button"
                     onClick={() => {
                       setSearchTerm("");
-                      setSelectedCollection(null);
-                      setSelectedBrand(null);
-                      setSelectedOlfactory(null);
                       setIsMobileMenuOpen(false);
-                      const el = document.getElementById("new-in");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                      router.push("/shop");
                     }}
-                    className="hover:text-amber-800 text-left uppercase cursor-pointer col-span-2 border-t border-amber-800/10 pt-2 mt-1 text-[#8C6239]"
+                    className={MEGA_LINK_CLASS}
                   >
-                    ✧ All Fragrances
+                    All fragrances
                   </button>
-                </div>
-              </div>
+                </li>
+              </ul>
 
-              {/* Olfactory Families */}
-              <div className="flex flex-col border-t border-amber-800/10 pt-6">
-                <span className="text-[10px] font-black tracking-[0.25em] text-amber-800 uppercase mb-4 pl-[0.1em]">
-                  Scent notes
-                </span>
-                <div className="grid grid-cols-2 gap-4 text-xs font-bold tracking-widest text-neutral-500">
-                  {["Woody & Oud", "Amber & Oriental", "Floral & Sweet", "Fresh & Aquatic"].map((note) => (
+              {/* Olfactive families */}
+              <p className="maison-eyebrow mt-10 mb-3">Olfactive families</p>
+              <ul>
+                {["Woody & Oud", "Amber & Oriental", "Floral & Sweet", "Fresh & Aquatic"].map((note) => (
+                  <li key={note}>
                     <button
-                      key={note}
+                      type="button"
                       onClick={() => {
-                        setSelectedOlfactory(note);
-                        setSelectedBrand(null);
-                        setSelectedCollection(null);
                         setIsMobileMenuOpen(false);
-                        const el = document.getElementById("new-in");
-                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                        router.push(`/shop?olfactory=${encodeURIComponent(note)}`);
                       }}
-                      className="hover:text-amber-800 text-left uppercase cursor-pointer"
+                      className={MEGA_LINK_CLASS}
                     >
-                      ✦ {note.split(" & ")[0]}
+                      {note}
                     </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+                  </li>
+                ))}
+              </ul>
 
-            {/* Footer / Spotlight Shortcut */}
-            <div className="border-t border-amber-800/10 pt-5 flex flex-col gap-2">
-              <span className="text-[8px] tracking-[0.3em] font-extrabold text-amber-800 uppercase pl-[0.1em]">
-                GHARIB ATELIER
-              </span>
-              <span className="text-[10px] text-neutral-400 tracking-widest uppercase">
-                Artisanal Olfactory Creations • Dubai, UAE
-              </span>
+              {/* Account */}
+              <p className="maison-eyebrow mt-10 mb-3">Account</p>
+              <ul>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      router.push(userEmail ? "/customer/dashboard" : "/signin");
+                    }}
+                    className={MEGA_LINK_CLASS}
+                  >
+                    {userEmail ? "My account" : "Sign in"}
+                  </button>
+                </li>
+              </ul>
+
+              {/* Footer / Maison signature */}
+              <div className="border-t mt-10 pt-6" style={{ borderColor: HAIRLINE }}>
+                <p className="maison-eyebrow">Gharib Atelier</p>
+                <p className="mt-2 text-[13px] font-light text-[#646464]">
+                  Artisanal olfactory creations — Dubai, UAE
+                </p>
+              </div>
             </div>
           </motion.div>
         )}
@@ -1774,664 +2128,10 @@ export default function Home() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -100, opacity: 0 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed top-0 left-0 right-0 z-40 bg-[#FAF6F0]/95 backdrop-blur-md text-neutral-800 shadow-[0_2px_15px_rgba(27,15,10,0.06)] border-b border-amber-800/10 font-sans-luxury"
+            className="fixed top-0 left-0 right-0 z-40 bg-white text-black font-body border-b"
+            style={{ borderColor: HAIRLINE }}
           >
-            <div className="w-full">
-              <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-4 flex items-center justify-between relative">
-                {/* Left Menu Items (Home, About, Shop with Dropdown) */}
-                <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-neutral-800/70">
-                  <button
-                    onClick={() => {
-                      setSearchTerm("");
-                      setSelectedOlfactory(null);
-                      setSelectedBrand(null);
-                      setSelectedCollection(null);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    className="transition-colors duration-300 cursor-pointer uppercase font-medium hover:text-amber-800"
-                  >
-                    HOME
-                  </button>
-                  {/* Brands trigger wrapper for Dropdown */}
-                  <div
-                    className="relative py-2 cursor-pointer"
-                    onMouseEnter={handleBrandsMouseEnter}
-                    onMouseLeave={handleBrandsMouseLeave}
-                  >
-                    <Link
-                      href="/collections"
-                      className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-amber-800"
-                    >
-                      BRANDS
-                      <svg
-                        className={`w-2.5 h-2.5 transition-transform duration-300 ${isBrandsMenuOpen ? "rotate-180 text-amber-800" : "text-neutral-800/40"}`}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </Link>
-                  </div>
-                  {/* Shop trigger wrapper for Mega Menu */}
-                  <div
-                    className="relative py-2 cursor-pointer"
-                    onMouseEnter={() => setIsMegaMenuOpen(true)}
-                    onMouseLeave={() => setIsMegaMenuOpen(false)}
-                  >
-                    <button
-                      onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
-                      className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-amber-800"
-                    >
-                      SHOP
-                      <svg
-                        className={`w-2.5 h-2.5 transition-transform duration-300 ${isMegaMenuOpen ? "rotate-180 text-amber-800" : "text-neutral-800/40"}`}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  </div>
-                  <Link
-                    href="/blogs"
-                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
-                  >
-                    BLOGS
-                  </Link>
-                </div>
-
-                {/* Logo Center */}
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <img
-                    src="/logo.png"
-                    alt="Gharib"
-                    className="h-14 md:h-[62px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300 mix-blend-multiply"
-                    style={{ mixBlendMode: 'multiply' }}
-                    onClick={() => {
-                      setSearchTerm("");
-                      setSelectedOlfactory(null);
-                      setSelectedBrand(null);
-                      setSelectedCollection(null);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                  />
-                </div>
-
-                {/* Right Menu Items (Search bar, Contact, Bag) */}
-                <div className="hidden md:flex items-center gap-8 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 justify-end text-neutral-800/70">
-                  {/* Better Search Bar Container */}
-                  <div className="relative flex items-center">
-                    <div className="relative flex items-center rounded-none px-4 py-1.5 w-[200px] lg:w-[240px] transition-all duration-300 bg-neutral-900/5 border border-neutral-900/10 hover:border-neutral-900/20 focus-within:border-amber-800/50">
-                      <svg className="w-3.5 h-3.5 mr-2 flex-shrink-0 transition-colors duration-300 text-neutral-800/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder={searchPlaceholder}
-                        className="bg-transparent text-[10px] tracking-widest uppercase outline-none w-full font-bold transition-colors duration-300 text-neutral-800 placeholder-neutral-800/40"
-                      />
-                      {searchTerm && (
-                        <button
-                          onClick={() => setSearchTerm("")}
-                          className="text-[9px] font-bold ml-1 cursor-pointer transition-colors duration-300 text-neutral-800/40 hover:text-neutral-900"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Intelligent Search Suggestions Dropdown */}
-                    <AnimatePresence>
-                      {searchTerm.trim() !== "" && searchSuggestions.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 15 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 15 }}
-                          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                          className="absolute top-full mt-2.5 right-0 w-[300px] md:w-[360px] bg-[#FAF6F0] border border-amber-800/15 shadow-[0_20px_50px_rgba(27,15,10,0.08)] z-50 overflow-hidden flex flex-col text-neutral-800"
-                        >
-                          {/* Section Header */}
-                          <div className="px-4 py-2 bg-neutral-900/5 border-b border-amber-800/10 text-[9px] tracking-widest text-amber-800 font-extrabold uppercase">
-                            Real-time Suggestions
-                          </div>
-
-                          {/* Suggestion List */}
-                          <div className="flex flex-col max-h-[320px] overflow-y-auto divide-y divide-amber-800/10 custom-scrollbar">
-                            {searchSuggestions.map((prod) => (
-                              <div
-                                key={prod.id}
-                                onClick={() => {
-                                  setSearchTerm(prod.name);
-                                  const el = document.getElementById("new-in");
-                                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                                }}
-                                className="p-3 flex items-center gap-3.5 hover:bg-neutral-900/5 transition-colors duration-200 cursor-pointer text-left group"
-                              >
-                                <div className="relative w-10 h-12 bg-neutral-900/5 flex-shrink-0 flex items-center justify-center p-1 border border-neutral-800/5 overflow-hidden">
-                                  <Image
-                                    src={prod.image}
-                                    alt={prod.name}
-                                    width={40}
-                                    height={48}
-                                    className="object-contain filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300"
-                                  />
-                                </div>
-                                <div className="flex-grow flex flex-col justify-center min-w-0">
-                                  <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
-                                    {prod.brand}
-                                  </span>
-                                  <span className="text-[11px] font-medium tracking-wide text-neutral-800 uppercase truncate mt-0.5 group-hover:text-amber-800 transition-colors duration-200">
-                                    {prod.name}
-                                  </span>
-                                  <span className="text-[9px] text-neutral-500 tracking-wider font-semibold uppercase mt-0.5">
-                                    {prod.olfactory} • Extrait de Parfum
-                                  </span>
-                                </div>
-                                <div className="text-[12px] font-bold text-neutral-800 tracking-wider flex-shrink-0 pl-1">
-                                  {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Footer Actions */}
-                          <div className="p-3.5 bg-neutral-900/5 border-t border-amber-800/10 flex items-center justify-between">
-                            <span className="text-[9px] tracking-widest text-neutral-500 font-semibold uppercase">
-                              Click to filter catalog view
-                            </span>
-                            <button
-                              onClick={() => {
-                                const el = document.getElementById("new-in");
-                                if (el) el.scrollIntoView({ behavior: "smooth" });
-                              }}
-                              className="text-[9px] tracking-widest text-amber-800 hover:text-amber-900 font-extrabold uppercase transition-colors"
-                            >
-                              View All ✧
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* User Profile / Sign In */}
-                  <button
-                    onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
-                    className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform"
-                  >
-                    {userEmail ? (
-                      <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full bg-amber-600/10 border border-amber-500/30 shadow-[0_0_12px_rgba(217,119,6,0.15)] text-amber-800">
-                        <span className="text-[13px] font-serif font-black tracking-wide relative z-10">
-                          {userEmail.split('@')[0][0].toUpperCase()}
-                        </span>
-                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
-                      </div>
-                    ) : (
-                      <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full border border-neutral-300/60 hover:border-neutral-500 text-neutral-600 hover:text-neutral-800">
-                        <svg className="w-[20px] h-[20px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
-                          <circle cx="12" cy="8" r="4" strokeLinecap="round" />
-                          <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
-                        </svg>
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#FAF6F0] border border-neutral-800/25 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
-                          🔒
-                        </span>
-                      </div>
-                    )}
-                  </button>
-
-                  {/* Wishlist */}
-                  <motion.button
-                    onClick={() => {
-                      router.push("/wishlist");
-                    }}
-                    className="relative flex items-center justify-center cursor-pointer py-1.5 text-neutral-800"
-                    whileTap={{ scale: 0.92 }}
-                  >
-                    <motion.div
-                      className="relative flex items-center justify-center w-[38px] h-[38px]"
-                      animate={{ y: [0, -2, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                    >
-                      <motion.div
-                        className="absolute inset-0 rounded-full pointer-events-none"
-                        style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
-                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                      />
-
-                      <svg
-                        className="w-[28px] h-[28px] relative z-10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        strokeWidth="1.5"
-                      >
-                        <motion.path
-                          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                          animate={{
-                            scale: [1, 1.12, 1, 1.08, 1],
-                            stroke: ["rgba(27,15,10,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(27,15,10,0.55)"],
-                          }}
-                          transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                          style={{ transformOrigin: "center center" }}
-                        />
-                        <motion.path
-                          d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
-                          fill="#f59e0b"
-                          stroke="none"
-                          animate={{
-                            scale: [0, 1.2, 0],
-                            opacity: [0, 0.9, 0],
-                            rotate: [0, 180],
-                          }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                        />
-                        <motion.path
-                          d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
-                          fill="#f59e0b"
-                          stroke="none"
-                          animate={{
-                            scale: [0, 1, 0],
-                            opacity: [0, 0.6, 0],
-                            rotate: [0, -180],
-                          }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
-                        />
-                      </svg>
-
-                      {favorites.length > 0 && (
-                        <motion.span
-                          className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                          animate={{ scale: [1, 1.15, 1] }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                        >
-                          {favorites.length}
-                        </motion.span>
-                      )}
-                    </motion.div>
-                  </motion.button>
-
-                  {/* Cart/Bag */}
-                  <motion.button
-                    onClick={() => setIsCartOpen(true)}
-                    className="relative flex items-center justify-center cursor-pointer py-1.5 text-neutral-800"
-                    whileTap={{ scale: 0.92 }}
-                  >
-                    <motion.div
-                      className="relative flex items-center justify-center w-[38px] h-[38px]"
-                      animate={{ y: [0, -2, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                    >
-                      <motion.div
-                        className="absolute inset-0 rounded-full pointer-events-none"
-                        style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
-                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                      />
-
-                      <svg
-                        className="w-[28px] h-[28px] relative z-10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        strokeWidth="1.5"
-                      >
-                        <motion.path
-                          d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                          style={{ transformOrigin: "center bottom" }}
-                          animate={{
-                            scaleY: [1, 1.03, 1, 0.97, 1],
-                            stroke: ["rgba(27,15,10,0.55)", "rgba(27,15,10,0.75)", "rgba(27,15,10,0.55)"],
-                          }}
-                          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                        />
-                        <motion.path
-                          d="M8 8V7a4 4 0 018 0v1"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                          animate={{
-                            y: [0, -2, 0.5, 0],
-                            stroke: ["rgba(27,15,10,0.55)", "#d4a053", "#f59e0b", "rgba(27,15,10,0.55)"],
-                          }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                        />
-                        <motion.circle
-                          cx="12" cy="14.5" r="2"
-                          fill="#f59e0b"
-                          stroke="none"
-                          animate={{
-                            scale: [0, 1, 1, 0],
-                            opacity: [0, 0.8, 0.8, 0],
-                          }}
-                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                        />
-                        <motion.circle
-                          cx="12" cy="14.5" r="4"
-                          fill="none"
-                          stroke="#f59e0b"
-                          strokeWidth="0.5"
-                          animate={{
-                            scale: [0, 1.5, 0],
-                            opacity: [0, 0.35, 0],
-                          }}
-                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-                        />
-                      </svg>
-
-                      <motion.span
-                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                        animate={{ scale: [1, 1.15, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                      >
-                        {cartCount}
-                      </motion.span>
-                    </motion.div>
-                  </motion.button>
-
-                  {/* Premium Currency Selector */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
-                      className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest hover:text-black transition-colors duration-300 uppercase cursor-pointer text-neutral-800/70 py-1.5"
-                    >
-                      <span>
-                        {activeCurrency === "AED" && "🇦🇪 AED"}
-                        {activeCurrency === "SAR" && "🇸🇦 SAR"}
-                        {activeCurrency === "QAR" && "🇶🇦 QAR"}
-                        {activeCurrency === "KWD" && "🇰🇼 KWD"}
-                        {activeCurrency === "BHD" && "🇧🇭 BHD"}
-                        {activeCurrency === "OMR" && "🇴🇲 OMR"}
-                        {activeCurrency === "USD" && "🇺🇸 USD"}
-                        {activeCurrency === "EUR" && "🇪🇺 EUR"}
-                        {activeCurrency === "GBP" && "🇬🇧 GBP"}
-                        {activeCurrency === "INR" && "🇮🇳 INR"}
-                      </span>
-                      <span className="text-[7px] opacity-60">▼</span>
-                    </button>
-
-                    <AnimatePresence>
-                      {isCurrencyDropdownOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 10 }}
-                          className="absolute right-0 top-full mt-2.5 bg-[#FAF6F0] border border-amber-800/15 p-2 shadow-xl z-50 flex flex-col gap-1 w-64 font-sans-luxury"
-                        >
-                          {[
-                            { code: "AED", label: "🇦🇪 AED - UAE Dirham" },
-                            { code: "SAR", label: "🇸🇦 SAR - Saudi Riyal" },
-                            { code: "QAR", label: "🇶🇦 QAR - Qatari Riyal" },
-                            { code: "KWD", label: "🇰🇼 KWD - Kuwaiti Dinar" },
-                            { code: "BHD", label: "🇧🇭 BHD - Bahraini Dinar" },
-                            { code: "OMR", label: "🇴🇲 OMR - Omani Rial" },
-                            { code: "USD", label: "🇺🇸 USD - US Dollar" },
-                            { code: "EUR", label: "🇪🇺 EUR - Euro" },
-                            { code: "GBP", label: "🇬🇧 GBP - British Pound" },
-                            { code: "INR", label: "🇮🇳 INR - Indian Rupee" }
-                          ].map((curr) => (
-                            <button
-                              key={curr.code}
-                              onClick={() => {
-                                setActiveCurrency(curr.code);
-                                localStorage.setItem("gharib_active_currency", curr.code);
-                                setIsCurrencyDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
-                                ? "bg-amber-800/10 text-amber-800"
-                                : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
-                                }`}
-                            >
-                              <span>{curr.label}</span>
-                              {activeCurrency === curr.code && (
-                                <span className="text-amber-800 text-[8px]">✓</span>
-                              )}
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-                {/* MOBILE: Action Bar & Toggler */}
-                <div className="flex md:hidden items-center gap-4 text-neutral-800">
-                  {/* Mobile Search */}
-                  <div className="relative flex items-center">
-                    <button
-                      onClick={() => setIsSearchOpen(!isSearchOpen)}
-                      className="p-1 transition-colors text-neutral-800/70 hover:text-neutral-900 cursor-pointer"
-                      aria-label="Toggle Search"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    </button>
-                    <AnimatePresence>
-                      {isSearchOpen && (
-                        <motion.input
-                          initial={{ width: 0, opacity: 0 }}
-                          animate={{ width: 100, opacity: 1 }}
-                          exit={{ width: 0, opacity: 0 }}
-                          type="text"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          placeholder={searchPlaceholder}
-                          className="ml-1 border-b text-[10px] tracking-widest uppercase py-0.5 outline-none font-bold bg-transparent w-[90px] transition-colors duration-300 border-neutral-800/30 focus:border-neutral-800 text-neutral-800 placeholder-neutral-800/40"
-                        />
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Mobile User Profile */}
-                  <button
-                    onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
-                    className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-neutral-800"
-                    aria-label="Sign In"
-                  >
-                    {userEmail ? (
-                      <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full bg-amber-600/10 border border-amber-500/30 shadow-[0_0_12px_rgba(217,119,6,0.15)] text-amber-800">
-                        <span className="text-[12px] font-serif font-black tracking-wide relative z-10">
-                          {userEmail.split('@')[0][0].toUpperCase()}
-                        </span>
-                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
-                      </div>
-                    ) : (
-                      <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full border border-neutral-300/60 hover:border-neutral-500 text-neutral-600 hover:text-neutral-800">
-                        <svg className="w-[18px] h-[18px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
-                          <circle cx="12" cy="8" r="4" strokeLinecap="round" />
-                          <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
-                        </svg>
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#FAF6F0] border border-neutral-800/25 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
-                          🔒
-                        </span>
-                      </div>
-                    )}
-                  </button>
-
-                  {/* Mobile Wishlist */}
-                  <motion.button
-                    onClick={() => {
-                      router.push("/wishlist");
-                    }}
-                    className="relative flex items-center justify-center cursor-pointer py-1 text-neutral-800"
-                    whileTap={{ scale: 0.92 }}
-                    aria-label="Wishlist"
-                  >
-                    <motion.div
-                      className="relative flex items-center justify-center w-[36px] h-[36px]"
-                      animate={{ y: [0, -2, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                    >
-                      <motion.div
-                        className="absolute inset-0 rounded-full pointer-events-none"
-                        style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
-                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                      />
-                      <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                        <motion.path
-                          d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                          animate={{
-                            scale: [1, 1.12, 1, 1.08, 1],
-                            stroke: ["rgba(27,15,10,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(27,15,10,0.55)"],
-                          }}
-                          transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                          style={{ transformOrigin: "center center" }}
-                        />
-                        <motion.path
-                          d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
-                          fill="#f59e0b"
-                          stroke="none"
-                          animate={{ scale: [0, 1.2, 0], opacity: [0, 0.9, 0], rotate: [0, 180] }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                        />
-                        <motion.path
-                          d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
-                          fill="#f59e0b"
-                          stroke="none"
-                          animate={{ scale: [0, 1, 0], opacity: [0, 0.6, 0], rotate: [0, -180] }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
-                        />
-                      </svg>
-                      {favorites.length > 0 && (
-                        <motion.span
-                          className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                          animate={{ scale: [1, 1.15, 1] }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                        >
-                          {favorites.length}
-                        </motion.span>
-                      )}
-                    </motion.div>
-                  </motion.button>
-
-                  {/* Mobile Cart */}
-                  <motion.button
-                    onClick={() => setIsCartOpen(true)}
-                    className="relative flex items-center justify-center cursor-pointer py-1 text-neutral-800"
-                    whileTap={{ scale: 0.92 }}
-                    aria-label="Cart"
-                  >
-                    <motion.div
-                      className="relative flex items-center justify-center w-[36px] h-[36px]"
-                      animate={{ y: [0, -2, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                    >
-                      <motion.div
-                        className="absolute inset-0 rounded-full pointer-events-none"
-                        style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
-                        animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                      />
-                      <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                        <motion.path
-                          d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                          style={{ transformOrigin: "center bottom" }}
-                          animate={{
-                            scaleY: [1, 1.03, 1, 0.97, 1],
-                            stroke: ["rgba(27,15,10,0.55)", "rgba(27,15,10,0.75)", "rgba(27,15,10,0.55)"],
-                          }}
-                          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                        />
-                        <motion.path
-                          d="M8 8V7a4 4 0 018 0v1"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                          animate={{
-                            y: [0, -2, 0.5, 0],
-                            stroke: ["rgba(27,15,10,0.55)", "#d4a053", "#f59e0b", "rgba(27,15,10,0.55)"],
-                          }}
-                          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                        />
-                        <motion.circle
-                          cx="12" cy="14.5" r="2"
-                          fill="#f59e0b"
-                          stroke="none"
-                          animate={{ scale: [0, 1, 1, 0], opacity: [0, 0.8, 0.8, 0] }}
-                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                        />
-                        <motion.circle
-                          cx="12" cy="14.5" r="4"
-                          fill="none"
-                          stroke="#f59e0b"
-                          strokeWidth="0.5"
-                          animate={{ scale: [0, 1.5, 0], opacity: [0, 0.35, 0] }}
-                          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-                        />
-                      </svg>
-                      {cartCount > 0 && (
-                        <motion.span
-                          className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                          animate={{ scale: [1, 1.15, 1] }}
-                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                        >
-                          {cartCount}
-                        </motion.span>
-                      )}
-                    </motion.div>
-                  </motion.button>
-
-                  {/* Mobile Toggle Button */}
-                  <button
-                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    className="flex flex-col gap-1.5 p-2 cursor-pointer hover:opacity-80 transition-opacity text-neutral-800"
-                    aria-label="Toggle Menu"
-                  >
-                    <span className="w-6 h-0.5 bg-neutral-800"></span>
-                    <span className="w-4 h-0.5 self-end bg-neutral-800"></span>
-                  </button>
-                </div>
-              </nav>
-            </div>
-
-            {/* Shop Mega Menu Dropdown inside sticky header */}
-            <AnimatePresence>
-              {isMegaMenuOpen && (
-                <motion.div
-                  variants={megaMenuContainerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  onMouseEnter={() => setIsMegaMenuOpen(true)}
-                  onMouseLeave={() => setIsMegaMenuOpen(false)}
-                  className="absolute top-full left-0 w-full bg-[#FAF6F0] border-b border-amber-800/15 z-40 overflow-hidden shadow-[0_35px_80px_rgba(46,34,25,0.08)] text-neutral-800"
-                >
-                  <div className="absolute top-0 left-0 w-full h-[1.5px] bg-gradient-to-r from-transparent via-amber-700/20 to-transparent z-20 pointer-events-none"></div>
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-radial from-amber-600/[0.04] via-transparent to-transparent blur-[90px] pointer-events-none z-0"></div>
-                  <div className="absolute inset-0 bg-radial from-amber-700/[0.01] via-transparent to-transparent pointer-events-none z-0"></div>
-
-                  {renderMegaMenuContent()}
-
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Brands Dropdown inside sticky header */}
-            <BrandsDropdown
-              isOpen={isBrandsMenuOpen}
-              onClose={() => setIsBrandsMenuOpen(false)}
-              onMouseEnter={handleBrandsMouseEnter}
-              onMouseLeave={handleBrandsMouseLeave}
-              isDarkTheme={false}
-            />
+            {renderHeaderRows("light")}
           </motion.header>
         )}
       </AnimatePresence>
@@ -2455,7 +2155,7 @@ export default function Home() {
       </AnimatePresence>
 
       {/* 1. Hero Full Screen Fold */}
-      <div className="relative h-screen min-h-screen w-full flex flex-col justify-between flex-shrink-0 overflow-hidden">
+      <div className="relative h-screen min-h-screen w-full flex flex-col justify-between flex-shrink-0 overflow-hidden font-sans-luxury hero-fold-backdrop">
         {/* Background Video Wrapper */}
         <div className="absolute inset-0 w-full h-full z-0 overflow-hidden pointer-events-none">
           {/* Luxury dark veil layer */}
@@ -2501,686 +2201,10 @@ export default function Home() {
           initial={{ y: -30, opacity: 0 }}
           animate={revealInterface ? { y: 0, opacity: 1 } : { y: -30, opacity: 0 }}
           transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full z-30 relative text-white"
+          className="w-full z-30 relative bg-transparent text-white font-body border-b"
+          style={{ borderColor: "rgba(255,255,255,0.18)" }}
         >
-          {/* Glassmorphic navbar wrapper to isolate backdrop-blur and prevent transparency leaking into absolute dropdowns */}
-          <div className="w-full border-b border-white/10 bg-black/10">
-            <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-5 flex items-center justify-between relative">
-              {/* Left Menu Items (Home, About, Shop with Dropdown) */}
-              <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-white/70">
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedOlfactory(null);
-                    setSelectedBrand(null);
-                    setSelectedCollection(null);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="transition-colors duration-300 cursor-pointer uppercase font-medium hover:text-white"
-                >
-                  HOME
-                </button>
-                {/* Brands trigger wrapper for Dropdown in Hero Header */}
-                <div
-                  className="relative py-2 cursor-pointer"
-                  onMouseEnter={handleBrandsMouseEnter}
-                  onMouseLeave={handleBrandsMouseLeave}
-                >
-                  <Link
-                    href="/collections"
-                    className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-white"
-                  >
-                    BRANDS
-                    <svg
-                      className={`w-2.5 h-2.5 transition-transform duration-300 ${isBrandsMenuOpen ? "rotate-180 text-white" : "text-white/50"}`}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </Link>
-                </div>
-                {/* Shop trigger wrapper for Mega Menu */}
-                <div
-                  className="relative py-2 cursor-pointer"
-                  onMouseEnter={() => setIsMegaMenuOpen(true)}
-                  onMouseLeave={() => setIsMegaMenuOpen(false)}
-                >
-                  <button
-                    onClick={() => setIsMegaMenuOpen(!isMegaMenuOpen)}
-                    className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-white"
-                  >
-                    SHOP
-                    <svg
-                      className={`w-2.5 h-2.5 transition-transform duration-300 ${isMegaMenuOpen ? "rotate-180 text-white" : "text-white/50"}`}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                </div>
-                <Link
-                  href="/blogs"
-                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
-                >
-                  BLOGS
-                </Link>
-              </div>
-
-              {/* Logo Center */}
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                <Image
-                  src="/white-logo.png"
-                  alt="Gharib"
-                  width={220}
-                  height={55}
-                  className="h-11 md:h-[48px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300"
-                  priority
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedOlfactory(null);
-                    setSelectedBrand(null);
-                    setSelectedCollection(null);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                />
-              </div>
-
-              {/* Right Menu Items (Search bar, Contact, Bag) */}
-              <div className="hidden md:flex items-center gap-8 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 justify-end text-white/70">
-                {/* Better Search Bar Container */}
-                <div className="relative flex items-center">
-                  <div className="relative flex items-center rounded-none px-4 py-1.5 w-[200px] lg:w-[240px] transition-all duration-300 bg-white/5 border border-white/10 hover:border-white/20 focus-within:border-amber-500/50">
-                    <svg className="w-3.5 h-3.5 mr-2 flex-shrink-0 transition-colors duration-300 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder={searchPlaceholder}
-                      className="bg-transparent text-[10px] tracking-widest uppercase outline-none w-full font-bold transition-colors duration-300 text-white placeholder-white/40"
-                    />
-                    {searchTerm && (
-                      <button
-                        onClick={() => setSearchTerm("")}
-                        className="text-[9px] font-bold ml-1 cursor-pointer transition-colors duration-300 text-white/40 hover:text-white"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Intelligent Search Suggestions Dropdown */}
-                  <AnimatePresence>
-                    {searchTerm.trim() !== "" && searchSuggestions.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 15 }}
-                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                        className="absolute top-full mt-2.5 right-0 w-[300px] md:w-[360px] bg-[#FAF6F0] border border-amber-800/15 shadow-[0_20px_50px_rgba(27,15,10,0.08)] z-50 overflow-hidden flex flex-col"
-                      >
-                        {/* Section Header */}
-                        <div className="px-4 py-2 bg-neutral-900/5 border-b border-amber-800/10 text-[9px] tracking-widest text-amber-800 font-extrabold uppercase">
-                          Real-time Suggestions
-                        </div>
-
-                        {/* Suggestion List */}
-                        <div className="flex flex-col max-h-[320px] overflow-y-auto divide-y divide-amber-800/10 custom-scrollbar">
-                          {searchSuggestions.map((prod) => (
-                            <div
-                              key={prod.id}
-                              onClick={() => {
-                                // Clear search suggestions overlay and filter to this product
-                                setSearchTerm(prod.name);
-                                // Trigger smooth scroll to catalog container `#new-in`
-                                const el = document.getElementById("new-in");
-                                if (el) el.scrollIntoView({ behavior: "smooth" });
-                              }}
-                              className="p-3 flex items-center gap-3.5 hover:bg-neutral-900/5 transition-colors duration-200 cursor-pointer text-left group"
-                            >
-                              <div className="relative w-10 h-12 bg-neutral-900/5 flex-shrink-0 flex items-center justify-center p-1 border border-neutral-800/5 overflow-hidden">
-                                <Image
-                                  src={prod.image}
-                                  alt={prod.name}
-                                  width={40}
-                                  height={48}
-                                  className="object-contain filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300"
-                                />
-                              </div>
-                              <div className="flex-grow flex flex-col justify-center min-w-0">
-                                <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
-                                  {prod.brand}
-                                </span>
-                                <span className="text-[11px] font-medium tracking-wide text-neutral-800 uppercase truncate mt-0.5 group-hover:text-amber-800 transition-colors duration-200">
-                                  {prod.name}
-                                </span>
-                                <span className="text-[9px] text-neutral-500 tracking-wider font-semibold uppercase mt-0.5">
-                                  {prod.olfactory} • Extrait de Parfum
-                                </span>
-                              </div>
-                              <div className="text-[12px] font-bold text-neutral-800 tracking-wider flex-shrink-0 pl-1">
-                                {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Footer Actions */}
-                        <div className="p-3.5 bg-neutral-900/5 border-t border-amber-800/10 flex items-center justify-between">
-                          <span className="text-[9px] tracking-widest text-neutral-500 font-semibold uppercase">
-                            Click to filter catalog view
-                          </span>
-                          <button
-                            onClick={() => {
-                              const el = document.getElementById("new-in");
-                              if (el) el.scrollIntoView({ behavior: "smooth" });
-                            }}
-                            className="text-[9px] tracking-widest text-amber-800 hover:text-amber-900 font-extrabold uppercase transition-colors"
-                          >
-                            View All ✧
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* ═══════════════════════════════════════════════════
-                  DESKTOP: Perpetual Luxury Motion Icons
-                  Always-playing continuous looping animations
-                  using animate + repeat: Infinity
-              ═══════════════════════════════════════════════════ */}
-
-                {/* User Profile / Sign In — Static icon, no animation */}
-                <button
-                  onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
-                  className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform"
-                >
-                  {userEmail ? (
-                    <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full bg-amber-600/15 border border-amber-500/40 shadow-[0_0_15px_rgba(217,119,6,0.25)] text-amber-400">
-                      <span className="text-[13px] font-serif font-black tracking-wide relative z-10">
-                        {userEmail.split('@')[0][0].toUpperCase()}
-                      </span>
-                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
-                    </div>
-                  ) : (
-                    <div className="relative flex items-center justify-center w-[38px] h-[38px] rounded-full border border-white/35 hover:border-white/70 text-white/75 hover:text-white">
-                      <svg className="w-[20px] h-[20px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
-                        <circle cx="12" cy="8" r="4" strokeLinecap="round" />
-                        <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
-                      </svg>
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-black border border-white/10 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
-                        🔒
-                      </span>
-                    </div>
-                  )}
-                </button>
-
-                {/* Wishlist — Living heartbeat + twinkling sparkles */}
-                <motion.button
-                  onClick={() => {
-                    router.push("/wishlist");
-                  }}
-                  className="relative flex items-center justify-center cursor-pointer py-1.5"
-                  whileTap={{ scale: 0.92 }}
-                >
-                  <motion.div
-                    className="relative flex items-center justify-center w-[38px] h-[38px]"
-                    animate={{ y: [0, -2, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                  >
-                    {/* Rose-gold breathing glow */}
-                    <motion.div
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
-                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                    />
-
-                    <svg
-                      className="w-[28px] h-[28px] relative z-10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      strokeWidth="1.5"
-                    >
-                      {/* Heart — continuous heartbeat rhythm */}
-                      <motion.path
-                        d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        animate={{
-                          scale: [1, 1.12, 1, 1.08, 1],
-                          stroke: ["rgba(255,255,255,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(255,255,255,0.55)"],
-                        }}
-                        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                        style={{ transformOrigin: "center center" }}
-                      />
-                      {/* Sparkle #1 — top-right twinkle */}
-                      <motion.path
-                        d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
-                        fill="#f59e0b"
-                        stroke="none"
-                        animate={{
-                          scale: [0, 1.2, 0],
-                          opacity: [0, 0.9, 0],
-                          rotate: [0, 180],
-                        }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                      />
-                      {/* Sparkle #2 — bottom-left echo twinkle */}
-                      <motion.path
-                        d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
-                        fill="#f59e0b"
-                        stroke="none"
-                        animate={{
-                          scale: [0, 1, 0],
-                          opacity: [0, 0.6, 0],
-                          rotate: [0, -180],
-                        }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
-                      />
-                    </svg>
-
-                    {favorites.length > 0 && (
-                      <motion.span
-                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                        animate={{ scale: [1, 1.15, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        {favorites.length}
-                      </motion.span>
-                    )}
-                  </motion.div>
-                </motion.button>
-
-                {/* Cart/Bag — Bouncing handle + breathing body + pulsing dot */}
-                <motion.button
-                  onClick={() => setIsCartOpen(true)}
-                  className="relative flex items-center justify-center cursor-pointer py-1.5"
-                  whileTap={{ scale: 0.92 }}
-                >
-                  <motion.div
-                    className="relative flex items-center justify-center w-[38px] h-[38px]"
-                    animate={{ y: [0, -2, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  >
-                    {/* Amber breathing glow */}
-                    <motion.div
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
-                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                    />
-
-                    <svg
-                      className="w-[28px] h-[28px] relative z-10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      strokeWidth="1.5"
-                    >
-                      {/* Bag body — subtle breathing scale */}
-                      <motion.path
-                        d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        style={{ transformOrigin: "center bottom" }}
-                        animate={{
-                          scaleY: [1, 1.03, 1, 0.97, 1],
-                          stroke: ["rgba(255,255,255,0.55)", "rgba(255,255,255,0.75)", "rgba(255,255,255,0.55)"],
-                        }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                      />
-                      {/* Handle — elastic bounce */}
-                      <motion.path
-                        d="M8 8V7a4 4 0 018 0v1"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        animate={{
-                          y: [0, -2, 0.5, 0],
-                          stroke: ["rgba(255,255,255,0.55)", "#d4a053", "#f59e0b", "rgba(255,255,255,0.55)"],
-                        }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                      />
-                      {/* Gold center dot — pulsing in/out */}
-                      <motion.circle
-                        cx="12" cy="14.5" r="2"
-                        fill="#f59e0b"
-                        stroke="none"
-                        animate={{
-                          scale: [0, 1, 1, 0],
-                          opacity: [0, 0.8, 0.8, 0],
-                        }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                      />
-                      {/* Expanding ring echo */}
-                      <motion.circle
-                        cx="12" cy="14.5" r="4"
-                        fill="none"
-                        stroke="#f59e0b"
-                        strokeWidth="0.5"
-                        animate={{
-                          scale: [0, 1.5, 0],
-                          opacity: [0, 0.35, 0],
-                        }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-                      />
-                    </svg>
-
-                    <motion.span
-                      className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                      animate={{ scale: [1, 1.15, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                    >
-                      {cartCount}
-                    </motion.span>
-                  </motion.div>
-                </motion.button>
-
-                {/* Premium Currency Selector */}
-                <div className="relative">
-                  <button
-                    onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
-                    className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest hover:text-white transition-colors duration-300 uppercase cursor-pointer text-white/70 py-1.5"
-                  >
-                    <span>
-                      {activeCurrency === "AED" && "🇦🇪 AED"}
-                      {activeCurrency === "SAR" && "🇸🇦 SAR"}
-                      {activeCurrency === "QAR" && "🇶🇦 QAR"}
-                      {activeCurrency === "KWD" && "🇰🇼 KWD"}
-                      {activeCurrency === "BHD" && "🇧🇭 BHD"}
-                      {activeCurrency === "OMR" && "🇴🇲 OMR"}
-                      {activeCurrency === "USD" && "🇺🇸 USD"}
-                      {activeCurrency === "EUR" && "🇪🇺 EUR"}
-                      {activeCurrency === "GBP" && "🇬🇧 GBP"}
-                      {activeCurrency === "INR" && "🇮🇳 INR"}
-                    </span>
-                    <span className="text-[7px] opacity-60">▼</span>
-                  </button>
-
-                  <AnimatePresence>
-                    {isCurrencyDropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        className="absolute right-0 top-full mt-2.5 bg-[#FAF6F0] border border-amber-800/15 p-2 shadow-xl z-50 flex flex-col gap-1 w-64 font-sans-luxury"
-                      >
-                        {[
-                          { code: "AED", label: "🇦🇪 AED - UAE Dirham" },
-                          { code: "SAR", label: "🇸🇦 SAR - Saudi Riyal" },
-                          { code: "QAR", label: "🇶🇦 QAR - Qatari Riyal" },
-                          { code: "KWD", label: "🇰🇼 KWD - Kuwaiti Dinar" },
-                          { code: "BHD", label: "🇧🇭 BHD - Bahraini Dinar" },
-                          { code: "OMR", label: "🇴🇲 OMR - Omani Rial" },
-                          { code: "USD", label: "🇺🇸 USD - US Dollar" },
-                          { code: "EUR", label: "🇪🇺 EUR - Euro" },
-                          { code: "GBP", label: "🇬🇧 GBP - British Pound" },
-                          { code: "INR", label: "🇮🇳 INR - Indian Rupee" }
-                        ].map((curr) => (
-                          <button
-                            key={curr.code}
-                            onClick={() => {
-                              setActiveCurrency(curr.code);
-                              localStorage.setItem("gharib_active_currency", curr.code);
-                              setIsCurrencyDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
-                              ? "bg-amber-800/10 text-amber-800"
-                              : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
-                              }`}
-                          >
-                            <span>{curr.label}</span>
-                            {activeCurrency === curr.code && (
-                              <span className="text-amber-800 text-[8px]">✓</span>
-                            )}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              {/* MOBILE: Action Bar & Toggler */}
-              <div className="flex md:hidden items-center gap-4 text-white">
-                {/* Mobile Search */}
-                <div className="relative flex items-center">
-                  <button
-                    onClick={() => setIsSearchOpen(!isSearchOpen)}
-                    className="p-1 transition-colors text-white/70 hover:text-white cursor-pointer"
-                    aria-label="Toggle Search"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </button>
-                  <AnimatePresence>
-                    {isSearchOpen && (
-                      <motion.input
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: 100, opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder={searchPlaceholder}
-                        className="ml-1 border-b text-[10px] tracking-widest uppercase py-0.5 outline-none font-bold bg-transparent w-[90px] transition-colors duration-300 border-white/30 focus:border-white text-white placeholder-white/40"
-                      />
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Mobile User Profile */}
-                <button
-                  onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")}
-                  className="relative flex items-center justify-center cursor-pointer py-1 active:scale-[0.92] transition-transform text-white"
-                  aria-label="Sign In"
-                >
-                  {userEmail ? (
-                    <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full bg-amber-600/15 border border-amber-500/40 shadow-[0_0_15px_rgba(217,119,6,0.25)] text-amber-400">
-                      <span className="text-[12px] font-serif font-black tracking-wide relative z-10">
-                        {userEmail.split('@')[0][0].toUpperCase()}
-                      </span>
-                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.9)] animate-pulse z-20 border border-emerald-400/50" />
-                    </div>
-                  ) : (
-                    <div className="relative flex items-center justify-center w-[36px] h-[36px] rounded-full border border-white/35 hover:border-white/70 text-white/75 hover:text-white">
-                      <svg className="w-[18px] h-[18px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor">
-                        <circle cx="12" cy="8" r="4" strokeLinecap="round" />
-                        <path d="M6 20v-2a6 6 0 0 1 12 0v2" strokeLinecap="round" />
-                      </svg>
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-black border border-white/10 flex items-center justify-center rounded-full text-[7.5px] z-20 shadow-sm">
-                        🔒
-                      </span>
-                    </div>
-                  )}
-                </button>
-
-                {/* Mobile Wishlist */}
-                <motion.button
-                  onClick={() => {
-                    router.push("/wishlist");
-                  }}
-                  className="relative flex items-center justify-center cursor-pointer py-1 text-white"
-                  whileTap={{ scale: 0.92 }}
-                  aria-label="Wishlist"
-                >
-                  <motion.div
-                    className="relative flex items-center justify-center w-[36px] h-[36px]"
-                    animate={{ y: [0, -2, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                  >
-                    <motion.div
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: "radial-gradient(circle, rgba(244,63,94,0.12) 0%, rgba(245,158,11,0.06) 50%, transparent 70%)" }}
-                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                    />
-                    <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                      <motion.path
-                        d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        animate={{
-                          scale: [1, 1.12, 1, 1.08, 1],
-                          stroke: ["rgba(255,255,255,0.55)", "#e88a9a", "#f43f5e", "#e88a9a", "rgba(255,255,255,0.55)"],
-                        }}
-                        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-                        style={{ transformOrigin: "center center" }}
-                      />
-                      <motion.path
-                        d="M19.5 2l.3 1.2 1.2.3-1.2.3-.3 1.2-.3-1.2-1.2-.3 1.2-.3z"
-                        fill="#f59e0b"
-                        stroke="none"
-                        animate={{ scale: [0, 1.2, 0], opacity: [0, 0.9, 0], rotate: [0, 180] }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                      />
-                      <motion.path
-                        d="M5 18l.2.8.8.2-.8.2-.2.8-.2-.8-.8-.2.8-.2z"
-                        fill="#f59e0b"
-                        stroke="none"
-                        animate={{ scale: [0, 1, 0], opacity: [0, 0.6, 0], rotate: [0, -180] }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
-                      />
-                    </svg>
-                    {favorites.length > 0 && (
-                      <motion.span
-                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                        animate={{ scale: [1, 1.15, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        {favorites.length}
-                      </motion.span>
-                    )}
-                  </motion.div>
-                </motion.button>
-
-                {/* Mobile Cart */}
-                <motion.button
-                  onClick={() => setIsCartOpen(true)}
-                  className="relative flex items-center justify-center cursor-pointer py-1 text-white"
-                  whileTap={{ scale: 0.92 }}
-                  aria-label="Cart"
-                >
-                  <motion.div
-                    className="relative flex items-center justify-center w-[36px] h-[36px]"
-                    animate={{ y: [0, -2, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                  >
-                    <motion.div
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: "radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)" }}
-                      animate={{ scale: [0.8, 1.3, 0.8], opacity: [0.3, 0.7, 0.3] }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                    />
-                    <svg className="w-[28px] h-[28px] relative z-10" viewBox="0 0 24 24" fill="none" strokeWidth="1.5">
-                      <motion.path
-                        d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        style={{ transformOrigin: "center bottom" }}
-                        animate={{
-                          scaleY: [1, 1.03, 1, 0.97, 1],
-                          stroke: ["rgba(255,255,255,0.55)", "rgba(255,255,255,0.75)", "rgba(255,255,255,0.55)"],
-                        }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                      />
-                      <motion.path
-                        d="M8 8V7a4 4 0 018 0v1"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        animate={{
-                          y: [0, -2, 0.5, 0],
-                          stroke: ["rgba(255,255,255,0.55)", "#d4a053", "#f59e0b", "rgba(255,255,255,0.55)"],
-                        }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-                      />
-                      <motion.circle
-                        cx="12" cy="14.5" r="2"
-                        fill="#f59e0b"
-                        stroke="none"
-                        animate={{ scale: [0, 1, 1, 0], opacity: [0, 0.8, 0.8, 0] }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                      />
-                      <motion.circle
-                        cx="12" cy="14.5" r="4"
-                        fill="none"
-                        stroke="#f59e0b"
-                        strokeWidth="0.5"
-                        animate={{ scale: [0, 1.5, 0], opacity: [0, 0.35, 0] }}
-                        transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
-                      />
-                    </svg>
-                    {cartCount > 0 && (
-                      <motion.span
-                        className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20"
-                        animate={{ scale: [1, 1.15, 1] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                      >
-                        {cartCount}
-                      </motion.span>
-                    )}
-                  </motion.div>
-                </motion.button>
-
-                {/* Mobile Toggle Button */}
-                <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="flex flex-col gap-1.5 p-2 cursor-pointer hover:opacity-80 transition-opacity text-white"
-                  aria-label="Toggle Menu"
-                >
-                  <span className="w-6 h-0.5 bg-white"></span>
-                  <span className="w-4 h-0.5 self-end bg-white"></span>
-                </button>
-              </div>
-            </nav>
-          </div>
-
-          {/* Shop Mega Menu Dropdown */}
-          <AnimatePresence>
-            {isMegaMenuOpen && (
-              <motion.div
-                variants={megaMenuContainerVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                onMouseEnter={() => setIsMegaMenuOpen(true)}
-                onMouseLeave={() => setIsMegaMenuOpen(false)}
-                className="absolute top-full left-0 w-full bg-[#FAF6F0] border-b border-amber-800/15 z-40 overflow-hidden shadow-[0_35px_80px_rgba(46,34,25,0.08)] text-neutral-800"
-              >
-                {/* Glowing top gold hairline strip */}
-                <div className="absolute top-0 left-0 w-full h-[1.5px] bg-gradient-to-r from-transparent via-amber-700/20 to-transparent z-20 pointer-events-none"></div>
-
-                {/* Layered warm-gold luxury ambient backlighting */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-radial from-amber-600/[0.04] via-transparent to-transparent blur-[90px] pointer-events-none z-0"></div>
-                <div className="absolute inset-0 bg-radial from-amber-700/[0.01] via-transparent to-transparent pointer-events-none z-0"></div>
-
-                {renderMegaMenuContent()}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Brands Dropdown in Hero Header */}
-          <BrandsDropdown
-            isOpen={isBrandsMenuOpen}
-            onClose={() => setIsBrandsMenuOpen(false)}
-            onMouseEnter={handleBrandsMouseEnter}
-            onMouseLeave={handleBrandsMouseLeave}
-            isDarkTheme={true}
-          />
+          {renderHeaderRows("dark")}
         </motion.header>
 
         {/* 2. Main Hero Section */}
@@ -3190,7 +2214,7 @@ export default function Home() {
             initial={{ y: 40, opacity: 0 }}
             animate={revealInterface ? { y: 0, opacity: 1 } : { y: 40, opacity: 0 }}
             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-            className="lg:col-span-4 flex flex-col justify-end h-full py-4 lg:py-12"
+            className="lg:col-span-5 flex flex-col justify-end h-full py-4 lg:py-12"
           >
             <div className="mb-6 lg:mb-16 w-full">
               <h1 className="text-4xl md:text-5xl lg:text-[56px] font-medium leading-[1.1] tracking-tight font-serif-luxury max-w-md">
@@ -3199,103 +2223,13 @@ export default function Home() {
                 Gharib
               </h1>
               <p className="mt-3 text-xs tracking-[0.15em] text-white/50 font-sans-luxury">
-                {activeProduct.tagline.toUpperCase()}
+                {HERO_TAGLINE.toUpperCase()}
               </p>
             </div>
           </motion.div>
 
-          {/* Center Panel: Empty spacer to let the background video play freely */}
-          <div className="lg:col-span-4 pointer-events-none hidden lg:block"></div>
-
-          {/* Right Panel: Active Product Details & Inline Miniature Image */}
-          <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={revealInterface ? { y: 0, opacity: 1 } : { y: 40, opacity: 0 }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-            className="lg:col-span-4 flex flex-col justify-between h-full py-4 lg:py-10 lg:pl-12"
-          >
-            {/* Header Block: Price, Miniature Bottle, and Navigation Arrows */}
-            <div className="mt-2 lg:mt-6">
-              <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-4 w-full">
-                {/* Product Price & Name */}
-                <div className={`transition-all duration-500 ${isAnimating ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"} min-w-[130px]`}>
-                  <div className="text-[26px] font-serif-luxury font-medium tracking-wide">
-                    {formatCurrency(parseFloat(activeProduct.price.replace("$", "")) || 0)}
-                  </div>
-                  <div className="text-xs tracking-[0.2em] font-medium text-white/50 uppercase mt-0.5">
-                    {activeProduct.title}
-                  </div>
-                </div>
-
-                {/* Inline Miniature Floating Perfume Image */}
-                <div className="flex-grow flex justify-center items-center relative min-h-[90px] max-w-[140px] px-2">
-                  <div
-                    className={`relative w-[65px] h-[85px] md:w-[75px] md:h-[95px] transition-all-custom ${isAnimating ? "opacity-0 scale-90 rotate-6 blur-sm" : "opacity-100 scale-100 rotate-0"
-                      }`}
-                  >
-                    <div className="w-full h-full relative flex items-center justify-center animate-float-main">
-                      <div className="w-[85%] h-[85%] relative">
-                        <Image
-                          src={activeProduct.image}
-                          alt={activeProduct.title}
-                          fill
-                          priority
-                          className="object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Navigation Arrows pushed all the way to the right */}
-                <div className="flex items-center gap-4 text-lg text-white/60 ml-auto">
-                  <button
-                    onClick={handlePrev}
-                    className="hover:text-white p-2 transition-all duration-300 hover:translate-x-[-3px] cursor-pointer"
-                    aria-label="Previous Fragrance"
-                  >
-                    ←
-                  </button>
-                  <span className="text-white/20">|</span>
-                  <button
-                    onClick={handleNext}
-                    className="hover:text-white p-2 transition-all duration-300 hover:translate-x-[3px] cursor-pointer"
-                    aria-label="Next Fragrance"
-                  >
-                    →
-                  </button>
-                </div>
-              </div>
-
-              {/* Description Paragraph */}
-              <div className="mt-6 max-w-md">
-                <p className={`text-xs md:text-[13px] leading-relaxed tracking-wider text-white/70 font-light font-sans-luxury transition-all duration-500 ${isAnimating ? "opacity-0" : "opacity-100"
-                  }`}>
-                  {activeProduct.description}
-                </p>
-              </div>
-            </div>
-
-            {/* CTA Action Buttons */}
-            <div className="flex items-center gap-8 mt-6 lg:mt-10">
-              <Link
-                href="/shop"
-                className="bg-white text-black px-8 py-3.5 text-xs font-semibold tracking-[0.2em] uppercase rounded-none hover:bg-white/90 hover:scale-102 hover:shadow-[0_10px_20px_rgba(255,255,255,0.1)] transition-all duration-300 inline-block text-center cursor-pointer"
-              >
-                Shop Now
-              </Link>
-              <button
-                onClick={() => {
-                  const el = document.getElementById("about");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                }}
-                className="text-xs font-semibold tracking-[0.2em] uppercase text-white/80 hover:text-white flex items-center gap-2 group transition-colors duration-300 cursor-pointer"
-              >
-                <span>About Us</span>
-                <span className="group-hover:translate-y-0.5 group-hover:scale-105 transition-transform duration-300">▼</span>
-              </button>
-            </div>
-          </motion.div>
+          {/* Remaining columns intentionally left empty so the background video breathes */}
+          <div className="lg:col-span-7 pointer-events-none hidden lg:block"></div>
         </main>
 
 
@@ -3322,165 +2256,388 @@ export default function Home() {
               transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
               className="w-full md:flex-grow overflow-hidden flex items-center relative min-h-[110px] bg-transparent"
             >
-              <div className="animate-marquee-track flex divide-x divide-white/10">
-                {/* Loop 1 */}
-                {heroProducts.map((prod, index) => {
-                  const isSelfActive = activeIndex === index;
-                  return (
-                    <div
-                      key={`loop1-${prod.id}`}
-                      onClick={() => handleSelectProduct(index)}
-                      className={`p-4 md:p-5 lg:p-6 flex items-center justify-between gap-6 cursor-pointer transition-all-custom group min-h-[110px] w-[260px] md:w-[320px] flex-shrink-0 ${isSelfActive
-                        ? "bg-white/5 shadow-inner"
-                        : "hover:bg-white/[0.02]"
-                        }`}
-                    >
-                      {/* Left product detail */}
-                      <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
-                        <div>
-                          <span className="text-[14px] font-serif-luxury font-medium block">
-                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-                          </span>
-                          <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
-                            {prod.title}
-                          </span>
-                        </div>
-                        <p className="text-[10px] leading-relaxed text-white/45 tracking-wider line-clamp-1 mt-1 group-hover:text-white/60 transition-colors duration-300">
-                          {prod.description}
-                        </p>
-                      </div>
+              {marqueeProducts.length > 0 && (
+                <div className="animate-marquee-track flex divide-x divide-white/10">
+                  {/* Loop 1 / 2 / 3 — duplicated so the marquee seams continuously */}
+                  {["loop1", "loop2", "loop3"].map((loop) => (
+                    <React.Fragment key={loop}>
+                      {marqueeProducts.map((prod) => {
+                        const marqueeName = prod.name.replace(/_/g, " ");
+                        return (
+                          <Link
+                            key={`${loop}-${prod.id}`}
+                            href={`/product/${prod.id}`}
+                            className="p-4 md:p-5 lg:p-6 flex items-center justify-between gap-6 cursor-pointer transition-all-custom group min-h-[110px] w-[260px] md:w-[320px] flex-shrink-0 hover:bg-white/[0.02]"
+                          >
+                            {/* Left product detail */}
+                            <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
+                              <div>
+                                <span className="text-[14px] font-serif-luxury font-medium block">
+                                  {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
+                                </span>
+                                <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
+                                  {marqueeName}
+                                </span>
+                              </div>
+                              <p className="text-[10px] leading-relaxed text-white/45 tracking-wider line-clamp-1 mt-1 group-hover:text-white/60 transition-colors duration-300">
+                                {prod.description || prod.olfactory || prod.brand}
+                              </p>
+                            </div>
 
-                      {/* Right product bottle thumbnail */}
-                      <div className="w-12 h-16 md:w-14 md:h-18 lg:w-16 lg:h-20 relative flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 bg-white/2 blur-lg rounded-full group-hover:scale-110 transition-transform duration-500"></div>
-                        <Image
-                          src={prod.image}
-                          alt={prod.title}
-                          fill
-                          className={`object-contain transition-all duration-500 ${isSelfActive
-                            ? "scale-105 filter drop-shadow-[0_4px_8px_rgba(255,255,255,0.15)]"
-                            : "scale-90 group-hover:scale-100 group-hover:rotate-3 drop-shadow-[0_6px_12px_rgba(0,0,0,0.4)]"
-                            }`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Loop 2 */}
-                {heroProducts.map((prod, index) => {
-                  const isSelfActive = activeIndex === index;
-                  return (
-                    <div
-                      key={`loop2-${prod.id}`}
-                      onClick={() => handleSelectProduct(index)}
-                      className={`p-4 md:p-5 lg:p-6 flex items-center justify-between gap-6 cursor-pointer transition-all-custom group min-h-[110px] w-[260px] md:w-[320px] flex-shrink-0 ${isSelfActive
-                        ? "bg-white/5 shadow-inner"
-                        : "hover:bg-white/[0.02]"
-                        }`}
-                    >
-                      {/* Left product detail */}
-                      <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
-                        <div>
-                          <span className="text-[14px] font-serif-luxury font-medium block">
-                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-                          </span>
-                          <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
-                            {prod.title}
-                          </span>
-                        </div>
-                        <p className="text-[10px] leading-relaxed text-white/45 tracking-wider line-clamp-1 mt-1 group-hover:text-white/60 transition-colors duration-300">
-                          {prod.description}
-                        </p>
-                      </div>
-
-                      {/* Right product bottle thumbnail */}
-                      <div className="w-12 h-16 md:w-14 md:h-18 lg:w-16 lg:h-20 relative flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 bg-white/2 blur-lg rounded-full group-hover:scale-110 transition-transform duration-500"></div>
-                        <Image
-                          src={prod.image}
-                          alt={prod.title}
-                          fill
-                          className={`object-contain transition-all duration-500 ${isSelfActive
-                            ? "scale-105 filter drop-shadow-[0_4px_8px_rgba(255,255,255,0.15)]"
-                            : "scale-90 group-hover:scale-100 group-hover:rotate-3 drop-shadow-[0_6px_12px_rgba(0,0,0,0.4)]"
-                            }`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Loop 3 */}
-                {heroProducts.map((prod, index) => {
-                  const isSelfActive = activeIndex === index;
-                  return (
-                    <div
-                      key={`loop3-${prod.id}`}
-                      onClick={() => handleSelectProduct(index)}
-                      className={`p-4 md:p-5 lg:p-6 flex items-center justify-between gap-6 cursor-pointer transition-all-custom group min-h-[110px] w-[260px] md:w-[320px] flex-shrink-0 ${isSelfActive
-                        ? "bg-white/5 shadow-inner"
-                        : "hover:bg-white/[0.02]"
-                        }`}
-                    >
-                      {/* Left product detail */}
-                      <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
-                        <div>
-                          <span className="text-[14px] font-serif-luxury font-medium block">
-                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-                          </span>
-                          <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
-                            {prod.title}
-                          </span>
-                        </div>
-                        <p className="text-[10px] leading-relaxed text-white/45 tracking-wider line-clamp-1 mt-1 group-hover:text-white/60 transition-colors duration-300">
-                          {prod.description}
-                        </p>
-                      </div>
-
-                      {/* Right product bottle thumbnail */}
-                      <div className="w-12 h-16 md:w-14 md:h-18 lg:w-16 lg:h-20 relative flex-shrink-0 flex items-center justify-center">
-                        <div className="absolute inset-0 bg-white/2 blur-lg rounded-full group-hover:scale-110 transition-transform duration-500"></div>
-                        <Image
-                          src={prod.image}
-                          alt={prod.title}
-                          fill
-                          className={`object-contain transition-all duration-500 ${isSelfActive
-                            ? "scale-105 filter drop-shadow-[0_4px_8px_rgba(255,255,255,0.15)]"
-                            : "scale-90 group-hover:scale-100 group-hover:rotate-3 drop-shadow-[0_6px_12px_rgba(0,0,0,0.4)]"
-                            }`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                            {/* Right product bottle thumbnail */}
+                            <div className="w-12 h-16 md:w-14 md:h-18 lg:w-16 lg:h-20 relative flex-shrink-0 flex items-center justify-center">
+                              <div className="absolute inset-0 bg-white/2 blur-lg rounded-full group-hover:scale-110 transition-transform duration-500"></div>
+                              {prod.image && (
+                                <Image
+                                  src={prod.image}
+                                  alt={marqueeName}
+                                  fill
+                                  className="object-contain transition-all duration-500 scale-90 group-hover:scale-100 group-hover:rotate-3 drop-shadow-[0_6px_12px_rgba(0,0,0,0.4)]"
+                                />
+                              )}
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
             </motion.div>
           </div>
         </footer>
       </div>
 
-      {/* 2. Bento Grid Section - Rich Dark Brown & Gold Aesthetic */}
-      <section
-        id="about"
-        className="w-full bg-gradient-to-b from-[#070200] via-[#1b0f0a] to-[#070200] px-0 py-0 border-t border-white/5 relative z-10 flex flex-col items-center"
-      >
-        {/* Subtle background luxury glow spots */}
-        <div className="absolute top-1/4 left-1/4 w-[350px] h-[350px] bg-amber-500/5 rounded-full blur-[100px] pointer-events-none"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#522a16]/10 rounded-full blur-[120px] pointer-events-none"></div>
+      {/* ══════════════════════════════════════════════════════════════
+          1. FEATURED PRODUCTS  (#new-in)
+          Centered serif title → text tabs → 4-across catalogue grid.
+          Also hosts the live search / filter result set.
+          ══════════════════════════════════════════════════════════════ */}
+      <section id="new-in" className="maison maison-section w-full border-t" style={{ borderColor: HAIRLINE }}>
+        <div className="maison-container">
+          {isFiltered ? (
+            <div className="min-h-[400px]">
+              <div className="text-center">
+                <p className="maison-eyebrow">Selection</p>
+                <h2 className="maison-page-title mt-4">
+                  {selectedCollection ? `${selectedCollection} collection` : "Filtered fragrances"}
+                </h2>
+              </div>
 
+              <div
+                className="mt-10 flex flex-col gap-5 border-b border-t py-4 md:flex-row md:items-center md:justify-between"
+                style={{ borderColor: HAIRLINE }}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  {searchTerm.trim() !== "" && (
+                    <span
+                      className="inline-flex items-center gap-2 border px-3 py-1.5 text-[12px] uppercase tracking-[0.1em] text-black"
+                      style={{ borderColor: HAIRLINE }}
+                    >
+                      Search: &ldquo;{searchTerm}&rdquo;
+                      <button
+                        type="button"
+                        onClick={() => setSearchTerm("")}
+                        aria-label="Clear search filter"
+                        className="cursor-pointer text-[#646464] transition-colors duration-300 hover:text-black"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                  {selectedOlfactory && (
+                    <span
+                      className="inline-flex items-center gap-2 border px-3 py-1.5 text-[12px] uppercase tracking-[0.1em] text-black"
+                      style={{ borderColor: HAIRLINE }}
+                    >
+                      Family: {selectedOlfactory}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOlfactory(null)}
+                        aria-label="Clear olfactive family filter"
+                        className="cursor-pointer text-[#646464] transition-colors duration-300 hover:text-black"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                  {selectedBrand && (
+                    <span
+                      className="inline-flex items-center gap-2 border px-3 py-1.5 text-[12px] uppercase tracking-[0.1em] text-black"
+                      style={{ borderColor: HAIRLINE }}
+                    >
+                      Maison: {selectedBrand}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedBrand(null)}
+                        aria-label="Clear maison filter"
+                        className="cursor-pointer text-[#646464] transition-colors duration-300 hover:text-black"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                  {selectedCollection && (
+                    <span
+                      className="inline-flex items-center gap-2 border px-3 py-1.5 text-[12px] uppercase tracking-[0.1em] text-black"
+                      style={{ borderColor: HAIRLINE }}
+                    >
+                      Collection: {selectedCollection}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCollection(null)}
+                        aria-label="Clear collection filter"
+                        className="cursor-pointer text-[#646464] transition-colors duration-300 hover:text-black"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                  {selectedGender && (
+                    <span
+                      className="inline-flex items-center gap-2 border px-3 py-1.5 text-[12px] uppercase tracking-[0.1em] text-black"
+                      style={{ borderColor: HAIRLINE }}
+                    >
+                      For: {selectedGender === "unisex" ? "unisex" : selectedGender}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGender(null)}
+                        aria-label="Clear gender filter"
+                        className="cursor-pointer text-[#646464] transition-colors duration-300 hover:text-black"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )}
+                </div>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedOlfactory(null);
+                    setSelectedBrand(null);
+                    setSelectedCollection(null);
+                    setSelectedGender(null);
+                  }}
+                  className="maison-link cursor-pointer self-start md:self-auto"
+                >
+                  Reset all filters
+                </button>
+              </div>
 
-        {/* Bento Grid Container - Full screen edge-to-edge */}
-        <div className="w-full max-w-none grid grid-cols-1 md:grid-cols-3 gap-0 relative z-10">
+              {(() => {
+                let matched = productsList;
 
-          {/* CARD 1: The Long Card (Ice Video background) - 2 Columns wide */}
-          <div
-            className="md:col-span-2 aspect-video rounded-none overflow-hidden relative border-b md:border-r border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_40px_rgba(212,175,55,0.06)] group transition-all duration-700 flex flex-col justify-end p-8 md:p-10"
-          >
-            {/* Background Ice Video */}
-            <div className="absolute inset-0 z-0 w-full h-full overflow-hidden pointer-events-none scale-100 group-hover:scale-102 transition-transform duration-[1.2s] ease-out">
-              <div className="absolute inset-0 bg-gradient-to-t from-[#130702] via-[#24150e]/65 to-black/20 z-10"></div>
+                // Apply Search Term Filter
+                if (searchTerm.trim() !== "") {
+                  const searchLower = searchTerm.toLowerCase();
+                  matched = matched.filter(prod =>
+                    prod.brand.toLowerCase().includes(searchLower) ||
+                    prod.name.toLowerCase().includes(searchLower)
+                  );
+                }
+
+                // Apply Olfactory Family Filter
+                if (selectedOlfactory) {
+                  matched = matched.filter(prod => prod.olfactory === selectedOlfactory);
+                }
+
+                // Apply Brand Filter
+                if (selectedBrand) {
+                  matched = matched.filter(prod => prod.brand.toUpperCase() === selectedBrand.toUpperCase());
+                }
+
+                // Apply Gender Filter
+                if (selectedGender) {
+                  matched = matched.filter(prod => prod.gender === selectedGender || prod.gender === "unisex");
+                }
+
+                // Apply Collection Filter
+                if (selectedCollection) {
+                  if (selectedCollection === "new") {
+                    matched = matched.filter(prod => prod.isNew);
+                  } else if (selectedCollection === "bestsellers") {
+                    matched = matched.filter(prod => prod.isBestSeller);
+                  } else if (selectedCollection === "favorites") {
+                    matched = matched.filter(prod => favorites.includes(prod.id));
+                  } else if (selectedCollection === "offers" || selectedCollection === "trending") {
+                    matched = matched.filter(prod => prod.isBestSeller || prod.isNew);
+                  } else {
+                    // Custom manual database collection
+                    const allowedIds = productCollectionsList
+                      .filter((pc) => pc.collection_id === selectedCollection)
+                      .map((pc) => pc.product_id);
+                    matched = matched.filter(prod => allowedIds.includes(prod.id));
+                  }
+                }
+
+                if (isLoadingProducts) {
+                  return <ProductGridPlaceholder />;
+                }
+
+                if (matched.length === 0) {
+                  return (
+                    <div className="py-24 text-center">
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.1em] text-black">
+                        No fragrances found
+                      </h3>
+                      <p className="mx-auto mt-4 max-w-[46ch] text-[15px] font-light leading-[1.7] text-black/70">
+                        Nothing in the catalogue matches the filters you have applied. Reset them to
+                        browse the full house.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="mt-14 grid grid-cols-2 gap-x-8 gap-y-14 md:grid-cols-3 lg:grid-cols-4">
+                    {matched.map(prod => {
+                      const isFav = favorites.includes(prod.id);
+                      const isBuyLater = buyLater.includes(prod.id);
+                      const activeSize = selectedSizes[prod.id] ?? prod.sizes[0];
+                      return (
+                        <ProductCard
+                          key={prod.id}
+                          prod={prod}
+                          isFav={isFav}
+                          isBuyLater={isBuyLater}
+                          isLoggedIn={!!userEmail}
+                          activeSize={activeSize}
+                          onToggleFavorite={toggleFavorite}
+                          onToggleBuyLater={toggleBuyLater}
+                          onSelectSize={selectSize}
+                          onAddToCart={handleAddToCart}
+                          badgeText={prod.isFeaturedLarge ? "Featured" : prod.isNew ? "New" : undefined}
+                          formatCurrency={formatCurrency}
+                        />
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            (() => {
+              const activeTab = activeCatalogTab === "all" ? "new" : activeCatalogTab;
+              const tabs: { id: "new" | "bestsellers" | "favorites"; label: string }[] = [
+                { id: "new", label: "New in" },
+                { id: "bestsellers", label: "Best sellers" },
+                { id: "favorites", label: "Exclusive offers" },
+              ];
+
+              const tabProducts =
+                activeTab === "new"
+                  ? productsList.filter(p => p.isNew)
+                  : activeTab === "bestsellers"
+                    ? productsList.filter(p => p.isBestSeller)
+                    : productsList.filter(p => favorites.includes(p.id));
+
+              const badgeFor = (prod: CatalogProduct) =>
+                activeTab === "new" ? "New in" : activeTab === "bestsellers" ? "Best seller" : prod.isNew ? "New" : undefined;
+
+              return (
+                <>
+                  <h2 className="maison-section-title text-center">Featured fragrances</h2>
+
+                  <div className="mt-8 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+                    {tabs.map(tab => {
+                      const isActiveTab = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setActiveCatalogTab(tab.id)}
+                          aria-pressed={isActiveTab}
+                          className={`cursor-pointer border-b pb-1.5 font-body text-[12px] font-semibold uppercase leading-none tracking-[0.21em] transition-colors duration-300 ${isActiveTab ? "border-black text-black" : "border-transparent text-[#646464] hover:text-black"
+                            }`}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {isLoadingProducts ? (
+                    <ProductGridPlaceholder />
+                  ) : activeTab === "favorites" && !userEmail ? (
+                    <div className="mt-14 border-b border-t py-20 text-center" style={{ borderColor: HAIRLINE }}>
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.1em] text-black">
+                        Scent vault access required
+                      </h3>
+                      <p className="mx-auto mt-4 max-w-[46ch] text-[15px] font-light leading-[1.7] text-black/70">
+                        Sign in to open your scent vault and see the offers reserved for you.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => router.push("/signin?redirect=/")}
+                        className="maison-btn mt-8 h-12"
+                      >
+                        Sign in
+                      </button>
+                    </div>
+                  ) : tabProducts.length === 0 ? (
+                    <div className="mt-14 border-b border-t py-20 text-center" style={{ borderColor: HAIRLINE }}>
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.1em] text-black">
+                        {activeTab === "favorites" ? "Your vault is empty" : "Nothing here yet"}
+                      </h3>
+                      <p className="mx-auto mt-4 max-w-[46ch] text-[15px] font-light leading-[1.7] text-black/70">
+                        {activeTab === "favorites"
+                          ? "Mark any fragrance with the bookmark on its card and it will be kept here."
+                          : "This edit is being restocked. Browse the full house in the meantime."}
+                      </p>
+                      <Link href="/shop" className="maison-link mt-8">
+                        Browse the house
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="mt-14 grid grid-cols-2 gap-x-8 gap-y-14 md:grid-cols-3 lg:grid-cols-4">
+                      {tabProducts.map(prod => {
+                        const isFav = favorites.includes(prod.id);
+                        const isBuyLater = buyLater.includes(prod.id);
+                        const activeSize = selectedSizes[prod.id] ?? prod.sizes[0];
+                        return (
+                          <ProductCard
+                            key={prod.id}
+                            prod={prod}
+                            isFav={isFav}
+                            isBuyLater={isBuyLater}
+                            isLoggedIn={!!userEmail}
+                            activeSize={activeSize}
+                            onToggleFavorite={toggleFavorite}
+                            onToggleBuyLater={toggleBuyLater}
+                            onSelectSize={selectSize}
+                            onAddToCart={handleAddToCart}
+                            badgeText={badgeFor(prod)}
+                            formatCurrency={formatCurrency}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="mt-16 text-center">
+                    <Link href="/shop" className="maison-link">
+                      View all
+                    </Link>
+                  </div>
+                </>
+              );
+            })()
+          )}
+        </div>
+      </section>
+
+      {!isFiltered && (
+        <>
+          {/* ══════════════════════════════════════════════════════════════
+              2. FULL-BLEED CAMPAIGN FILM  (#promotions)
+              Sits directly under the featured fragrances. A silent, looping
+              band with no overlay copy and no scrim — the film carries the
+              moment on its own.
+              ══════════════════════════════════════════════════════════════ */}
+          <section id="promotions" className="maison w-full border-t" style={{ borderColor: HAIRLINE }}>
+            <div className="relative h-[520px] w-full overflow-hidden bg-[#F5F5F5] md:h-[720px]">
               <video
                 autoPlay
                 muted
@@ -3488,1390 +2645,815 @@ export default function Home() {
                 loop
                 preload="metadata"
                 poster="/Perfume_bottle_on_ice_poster.jpg"
-                className="w-full h-full object-cover"
+                aria-label="Hawas Ice"
+                className="absolute inset-0 h-full w-full object-cover"
               >
                 <source src="/Perfume_bottle_on_ice_optimized.mp4" type="video/mp4" />
               </video>
             </div>
+          </section>
 
-            {/* Top Left Badge inside Card */}
-            <div className="absolute top-6 left-6 z-20">
-              <span className="inline-flex items-center justify-center whitespace-nowrap border border-amber-500/35 bg-[#23150e]/85 backdrop-blur-md text-amber-400 text-[10px] tracking-[0.15em] uppercase px-4 py-1.5 font-extrabold rounded-none">
-                TRENDING
-              </span>
-            </div>
-
-            {/* Card Content Overlay */}
-            <div className="relative z-20 max-w-lg">
-              <h3 className="text-3xl md:text-5xl font-serif-luxury font-medium tracking-wide text-white leading-tight">
-                Rasasi Hawas Ice
-              </h3>
-            </div>
-          </div>
-
-          {/* CARD 2: Box Card 1 (Amber Duo Offer) - 1 Column wide */}
-          <div
-            className="aspect-[4/3] md:aspect-auto rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border-b border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-8"
+          {/* ══════════════════════════════════════════════════════════════
+              3. CATEGORY TILES  (#atelier-curations)
+              ══════════════════════════════════════════════════════════════ */}
+          <section
+            id="atelier-curations"
+            className="maison maison-section w-full border-t"
+            style={{ borderColor: HAIRLINE }}
           >
-            {/* Absolute Background Image with Zoom hover effect */}
-            <div className="absolute inset-0 z-0 w-full h-full overflow-hidden pointer-events-none">
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10 z-10"></div>
-              <Image
-                src="/bento-amber-duo-dark.png"
-                alt="Exclusive Duo Campaign"
-                fill
-                className="object-cover scale-100 group-hover:scale-105 transition-transform duration-[1.2s] ease-out opacity-75 group-hover:opacity-90"
-              />
-            </div>
+            <div className="maison-container">
+              <h2 className="maison-section-title text-center">The curations</h2>
 
-            {/* Creative Luxury Glass Plaque */}
-            <div className="relative z-20 self-start translate-y-0 group-hover:-translate-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
-              <div className="bg-black/65 backdrop-blur-md border border-amber-500/20 p-5 md:p-6 text-left relative overflow-hidden transition-colors duration-500 group-hover:border-amber-500/45">
-                {/* Thin gold decorative frame */}
-                <div className="absolute inset-1 border border-amber-500/10 pointer-events-none"></div>
-                {/* Small luxury sub-label */}
-                <span className="block text-[8px] tracking-[0.25em] uppercase text-amber-500/80 mb-1.5 font-bold pl-[0.25em]">
-                  CAMPAIGN PRIVATE DUO
-                </span>
-                {/* Main Offer text */}
-                <h3 className="text-xl md:text-2xl lg:text-3xl font-serif-luxury text-white font-medium tracking-[0.05em] select-none">
-                  20% OFF
-                </h3>
+              <div className="mt-14 grid grid-cols-2 gap-x-8 gap-y-14 lg:grid-cols-4">
+                {[
+                  { label: "For her", image: "/women-perfume-v2.jpg", href: "/shop?gender=women", contain: false },
+                  { label: "For him", image: "/men-perfume-v2.jpg", href: "/shop?gender=men", contain: false },
+                  { label: "Gift sets", image: "/bento-vanilla-box.png", href: "/shop?collection=bestsellers", contain: false },
+                  { label: "Discovery sets", image: "/unisex-perfume.jpg", href: "/shop?gender=unisex", contain: false },
+                ].map(tile => (
+                  <Link key={tile.label} href={tile.href} className="group block cursor-pointer text-center">
+                    <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#F5F5F5]">
+                      <Image
+                        src={tile.image}
+                        alt={tile.label}
+                        fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 320px"
+                        className={`${tile.contain ? "object-contain p-6" : "object-cover"
+                          } transition-transform duration-700 ease-out group-hover:scale-[1.04]`}
+                      />
+                    </div>
+                    <h3 className="maison-card-title mt-6">{tile.label}</h3>
+                    <span className="maison-link mt-4">Discover</span>
+                  </Link>
+                ))}
               </div>
             </div>
-          </div>
+          </section>
 
-        </div>
-      </section>
-
-      {/* 3. High-Fashion Minimalist E-Commerce Catalog Suite */}
-
-      {/* ==========================================
-          SECTION 1: THE NEW RELEASES (#new-in)
-          ========================================== */}
-      <section id="new-in" className="w-full bg-[#FAF5EF] text-black relative z-10 border-t border-[#EAE3DB] px-4 md:px-8 lg:px-12 py-20 flex flex-col items-center">
-
-
-
-        {/* Dedicated Search & Filter Results Block */}
-        {isFiltered ? (
-          <div className="w-full max-w-[1360px] min-h-[400px]">
-            <div className="w-full flex flex-col md:flex-row md:items-baseline justify-between border-b border-black/10 pb-6 mb-10 gap-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl md:text-3xl font-black tracking-tighter text-black font-sans-luxury uppercase">
-                  {selectedCollection ? `${selectedCollection} collection` : "FILTERED CURATION"}
-                </h2>
-                <div className="flex flex-wrap gap-2 items-center">
-                  {searchTerm.trim() !== "" && (
-                    <span className="bg-amber-100/80 text-amber-900 border border-amber-200/50 text-[10px] tracking-widest font-extrabold uppercase px-2.5 py-1.5 flex items-center gap-1.5">
-                      Search: &ldquo;{searchTerm}&rdquo;
-                      <button onClick={() => setSearchTerm("")} className="hover:text-red-700 font-bold ml-0.5 cursor-pointer">✕</button>
-                    </span>
-                  )}
-                  {selectedOlfactory && (
-                    <span className="bg-amber-100/80 text-amber-900 border border-amber-200/50 text-[10px] tracking-widest font-extrabold uppercase px-2.5 py-1.5 flex items-center gap-1.5">
-                      Olfactory: {selectedOlfactory}
-                      <button onClick={() => setSelectedOlfactory(null)} className="hover:text-red-700 font-bold ml-0.5 cursor-pointer">✕</button>
-                    </span>
-                  )}
-                  {selectedBrand && (
-                    <span className="bg-amber-100/80 text-amber-900 border border-amber-200/50 text-[10px] tracking-widest font-extrabold uppercase px-2.5 py-1.5 flex items-center gap-1.5">
-                      Brand: {selectedBrand}
-                      <button onClick={() => setSelectedBrand(null)} className="hover:text-red-700 font-bold ml-0.5 cursor-pointer">✕</button>
-                    </span>
-                  )}
-                  {selectedCollection && (
-                    <span className="bg-amber-100/80 text-amber-900 border border-amber-200/50 text-[10px] tracking-widest font-extrabold uppercase px-2.5 py-1.5 flex items-center gap-1.5">
-                      Collection: {selectedCollection}
-                      <button onClick={() => setSelectedCollection(null)} className="hover:text-red-700 font-bold ml-0.5 cursor-pointer">✕</button>
-                    </span>
-                  )}
-                  {selectedGender && (
-                    <span className="bg-amber-100/80 text-amber-900 border border-amber-200/50 text-[10px] tracking-widest font-extrabold uppercase px-2.5 py-1.5 flex items-center gap-1.5">
-                      Gender: {selectedGender === "unisex" ? "UNISEX" : selectedGender}
-                      <button onClick={() => setSelectedGender(null)} className="hover:text-red-700 font-bold ml-0.5 cursor-pointer">✕</button>
-                    </span>
-                  )}
-                </div>
+          {/* ══════════════════════════════════════════════════════════════
+              4. SPLIT 50/50 EDITORIAL — image left, text right  (#offers)
+              ══════════════════════════════════════════════════════════════ */}
+          <section id="offers" className="maison w-full border-t" style={{ borderColor: HAIRLINE }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2">
+              <div className="relative aspect-[4/3] w-full bg-[#F5F5F5] lg:aspect-auto lg:min-h-[560px]">
+                <Image
+                  src="/campaign-red-black.png"
+                  alt="The season privileges"
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover"
+                />
               </div>
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedOlfactory(null);
-                  setSelectedBrand(null);
-                  setSelectedCollection(null);
-                  setSelectedGender(null);
-                }}
-                className="text-xs font-bold tracking-widest text-[#8C8276] hover:text-black uppercase border-b border-black/20 self-start md:self-auto cursor-pointer"
+
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="flex items-center px-5 py-16 md:px-16 md:py-20"
               >
-                Reset All Filters
-              </button>
+                <div className="max-w-[46ch]">
+                  <p className="maison-eyebrow">Exclusive offers</p>
+                  <h2 className="mt-5 font-display text-[22px] uppercase leading-[1.25] tracking-[0.1em] text-black md:text-[28px]">
+                    The privileges of the season
+                  </h2>
+                  <p className="mt-6 text-[15px] font-light leading-[1.75] text-black/75">
+                    Twenty per cent on the private duo, a complimentary second bottle across the
+                    gifting sets, and the archive vault opened at up to half its original price while
+                    stock remains. Every order leaves the Dubai atelier with two discovery samples,
+                    chosen to sit alongside the fragrance you have picked.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveCatalogTab("favorites");
+                      const el = document.getElementById("new-in");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="maison-link mt-8 cursor-pointer"
+                  >
+                    View the offers
+                  </button>
+                </div>
+              </motion.div>
             </div>
+          </section>
 
-            {(() => {
-              let matched = productsList;
+          {/* ══════════════════════════════════════════════════════════════
+              5. BEST SELLERS  (#best-sellers)
+              ══════════════════════════════════════════════════════════════ */}
+          <section
+            id="best-sellers"
+            className="maison maison-section w-full border-t"
+            style={{ borderColor: HAIRLINE }}
+          >
+            <div className="maison-container">
+              <h2 className="maison-section-title text-center">Best sellers</h2>
+              <p className="maison-eyebrow mt-5 text-center">The most desired signatures</p>
 
-              // Apply Search Term Filter
-              if (searchTerm.trim() !== "") {
-                const searchLower = searchTerm.toLowerCase();
-                matched = matched.filter(prod =>
-                  prod.brand.toLowerCase().includes(searchLower) ||
-                  prod.name.toLowerCase().includes(searchLower)
-                );
-              }
-
-              // Apply Olfactory Family Filter
-              if (selectedOlfactory) {
-                matched = matched.filter(prod => prod.olfactory === selectedOlfactory);
-              }
-
-              // Apply Brand Filter
-              if (selectedBrand) {
-                matched = matched.filter(prod => prod.brand.toUpperCase() === selectedBrand.toUpperCase());
-              }
-
-              // Apply Gender Filter
-              if (selectedGender) {
-                matched = matched.filter(prod => prod.gender === selectedGender || prod.gender === "unisex");
-              }
-
-              // Apply Collection Filter
-              if (selectedCollection) {
-                if (selectedCollection === "new") {
-                  matched = matched.filter(prod => prod.isNew);
-                } else if (selectedCollection === "bestsellers") {
-                  matched = matched.filter(prod => prod.isBestSeller);
-                } else if (selectedCollection === "favorites") {
-                  matched = matched.filter(prod => favorites.includes(prod.id));
-                } else if (selectedCollection === "offers" || selectedCollection === "trending") {
-                  matched = matched.filter(prod => prod.isBestSeller || prod.isNew);
-                } else {
-                  // Custom manual database collection
-                  const allowedIds = productCollectionsList
-                    .filter((pc: any) => pc.collection_id === selectedCollection)
-                    .map((pc: any) => pc.product_id);
-                  matched = matched.filter(prod => allowedIds.includes(prod.id));
+              {(() => {
+                if (isLoadingProducts) {
+                  return <ProductGridPlaceholder count={4} />;
                 }
-              }
 
-              if (matched.length === 0) {
+                const bestSellers = productsList.filter(p => p.isBestSeller);
+
+                if (bestSellers.length === 0) {
+                  return (
+                    <div className="mt-14 border-b border-t py-20 text-center" style={{ borderColor: HAIRLINE }}>
+                      <h3 className="font-display text-[18px] uppercase tracking-[0.1em] text-black">
+                        Nothing here yet
+                      </h3>
+                      <p className="mx-auto mt-4 max-w-[46ch] text-[15px] font-light leading-[1.7] text-black/70">
+                        This edit is being restocked. Browse the full house in the meantime.
+                      </p>
+                    </div>
+                  );
+                }
+
                 return (
-                  <div className="w-full text-center py-20 bg-white border border-black/10 flex flex-col items-center justify-center p-8 rounded-none">
-                    <span className="text-4xl text-[#8C8276]/30 mb-4 block">✧</span>
-                    <h3 className="text-lg font-serif-luxury font-medium tracking-widest uppercase text-black mb-2">No Fragrances Found</h3>
-                    <p className="text-xs text-[#8C8276] tracking-widest max-w-sm uppercase">We could not find any scents matching your active filters. Try resetting filters.</p>
+                  <div className="mt-14 grid grid-cols-2 gap-x-8 gap-y-14 md:grid-cols-3 lg:grid-cols-4">
+                    {bestSellers.map(prod => {
+                      const isFav = favorites.includes(prod.id);
+                      const isBuyLater = buyLater.includes(prod.id);
+                      const activeSize = selectedSizes[prod.id] ?? prod.sizes[0];
+                      return (
+                        <ProductCard
+                          key={prod.id}
+                          prod={prod}
+                          isFav={isFav}
+                          isBuyLater={isBuyLater}
+                          isLoggedIn={!!userEmail}
+                          activeSize={activeSize}
+                          onToggleFavorite={toggleFavorite}
+                          onToggleBuyLater={toggleBuyLater}
+                          onSelectSize={selectSize}
+                          onAddToCart={handleAddToCart}
+                          badgeText="Best seller"
+                          formatCurrency={formatCurrency}
+                        />
+                      );
+                    })}
                   </div>
                 );
-              }
+              })()}
 
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {matched.map(prod => {
-                    const isFav = favorites.includes(prod.id);
-                    const isBuyLater = buyLater.includes(prod.id);
-                    const activeSize = selectedSizes[prod.id] || prod.sizes[0];
-                    return (
-                      <ProductCard
-                        key={prod.id}
-                        prod={prod}
-                        isFav={isFav}
-                        isBuyLater={isBuyLater}
-                        isLoggedIn={!!userEmail}
-                        activeSize={activeSize}
-                        onToggleFavorite={toggleFavorite}
-                        onToggleBuyLater={toggleBuyLater}
-                        onSelectSize={selectSize}
-                        onAddToCart={handleAddToCart}
-                        badgeText={prod.isFeaturedLarge ? "FEATURED ART" : selectedOlfactory ? selectedOlfactory.toUpperCase() : selectedBrand ? selectedBrand.replace(" PARFUMS PRIVES", "") : "CURATED"}
-                        formatCurrency={formatCurrency}
-                      />
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        ) : (
-          /* Main multi-section view when search is empty */
-          <div className="w-full max-w-[1360px]">
-
-            {/* Section Header */}
-            <div className="w-full flex flex-wrap items-baseline justify-between border-b border-black/10 pb-6 mb-10">
-              <div className="flex items-baseline gap-6">
-                <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-black font-sans-luxury select-none">
-                  NEW IN
-                </h2>
-                <span className="text-xs tracking-[0.15em] text-[#8C8276] uppercase font-bold pl-[0.15em]">
-                  / Premium Summer Releases
-                </span>
-              </div>
-              <div className="text-xs font-bold tracking-[0.15em] text-[#8C8276] uppercase hidden sm:block">
-                Scroll for Bestsellers ▼
+              <div className="mt-16 text-center">
+                <Link href="/shop?collection=bestsellers" className="maison-link">
+                  View all
+                </Link>
               </div>
             </div>
+          </section>
 
-            {/* Grid of New In items */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-12">
-              {productsList.filter(p => p.isNew).map(prod => {
-                const isFav = favorites.includes(prod.id);
-                const isBuyLater = buyLater.includes(prod.id);
-                const activeSize = selectedSizes[prod.id] || prod.sizes[0];
-                return (
-                  <ProductCard
-                    key={prod.id}
-                    prod={prod}
-                    isFav={isFav}
-                    isBuyLater={isBuyLater}
-                    isLoggedIn={!!userEmail}
-                    activeSize={activeSize}
-                    onToggleFavorite={toggleFavorite}
-                    onToggleBuyLater={toggleBuyLater}
-                    onSelectSize={selectSize}
-                    onAddToCart={handleAddToCart}
-                    badgeText={prod.isFeaturedLarge ? "FEATURED ART" : "NEW IN"}
-                    formatCurrency={formatCurrency}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Bento Grid Row 2 - Offers & Archives */}
-      {!isFiltered && (
-        <section
-          id="promotions"
-          className="w-full bg-gradient-to-b from-[#070200] via-[#1b0f0a] to-[#070200] px-0 py-0 border-t border-[#FAF5EF]/10 relative z-10 flex flex-col items-center"
-        >
-          {/* Bento Grid Container - Full screen edge-to-edge */}
-          <div className="w-full max-w-none grid grid-cols-1 md:grid-cols-3 gap-0 relative z-10">
-
-            {/* CARD 3: Box Card 2 (Vault Clearance) - 1 Column wide */}
-            <div
-              className="aspect-[4/3] md:aspect-[8/9] rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border-b md:border-b-0 md:border-r border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-6"
-            >
-              {/* Background Image */}
-              <div className="absolute inset-0 z-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10 z-10"></div>
-                <Image
-                  src="/bento-oud-bundle-dark.png"
-                  alt="Premium Trilogy Collection"
-                  fill
-                  className="object-cover scale-100 group-hover:scale-105 transition-transform duration-[1.2s] ease-out opacity-75 group-hover:opacity-90"
-                />
-              </div>
-
-              {/* Creative Luxury Glass Plaque */}
-              <div className="relative z-20 self-start translate-y-0 group-hover:-translate-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
-                <div className="bg-black/65 backdrop-blur-md border border-amber-500/20 p-5 text-left relative overflow-hidden transition-colors duration-500 group-hover:border-amber-500/45">
-                  {/* Thin gold decorative frame */}
-                  <div className="absolute inset-1 border border-amber-500/10 pointer-events-none"></div>
-                  {/* Small luxury sub-label */}
-                  <span className="block text-[8px] tracking-[0.25em] uppercase text-amber-500/80 mb-1.5 font-bold pl-[0.25em]">
-                    ARCHIVE VAULT
-                  </span>
-                  {/* Main Offer text */}
-                  <h3 className="text-xl md:text-2xl font-serif-luxury text-white font-medium tracking-[0.05em] select-none">
-                    CLEARANCE
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            {/* CARD 4: Box Card 3 (BOGO Gifting) - 1 Column wide */}
-            <div
-              className="aspect-[4/3] md:aspect-[8/9] rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border-b md:border-b-0 md:border-r border-white/10 hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-6"
-            >
-              {/* Background Image */}
-              <div className="absolute inset-0 z-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10 z-10"></div>
-                <Image
-                  src="/bento-vanilla-box-dark.png"
-                  alt="Luxury Gift Box"
-                  fill
-                  className="object-cover scale-100 group-hover:scale-105 transition-transform duration-[1.2s] ease-out opacity-75 group-hover:opacity-90"
-                />
-              </div>
-
-              {/* Creative Luxury Glass Plaque */}
-              <div className="relative z-20 self-start translate-y-0 group-hover:-translate-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
-                <div className="bg-black/65 backdrop-blur-md border border-amber-500/20 p-5 text-left relative overflow-hidden transition-colors duration-500 group-hover:border-amber-500/45">
-                  {/* Thin gold decorative frame */}
-                  <div className="absolute inset-1 border border-amber-500/10 pointer-events-none"></div>
-                  {/* Small luxury sub-label */}
-                  <span className="block text-[8px] tracking-[0.25em] uppercase text-amber-500/80 mb-1.5 font-bold pl-[0.25em]">
-                    GIFT COMPLIMENTARY
-                  </span>
-                  {/* Main Offer text */}
-                  <h3 className="text-xl md:text-2xl font-serif-luxury text-white font-medium tracking-[0.05em] select-none">
-                    BOGO
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            {/* CARD 5: Box Card 4 (50% Off Last Chance) - 1 Column wide */}
-            <div
-              className="aspect-[4/3] md:aspect-[8/9] rounded-none overflow-hidden relative bg-[#23150e]/30 backdrop-blur-md border border-transparent hover:border-amber-500/35 hover:shadow-[0_0_45px_rgba(212,175,55,0.08)] group transition-all duration-700 flex flex-col justify-end p-6"
-            >
-              {/* Background Image */}
-              <div className="absolute inset-0 z-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10 z-10"></div>
-                <Image
-                  src="/bento-sandalwood-trio-dark.png"
-                  alt="Signature Trio Selection"
-                  fill
-                  className="object-cover scale-100 group-hover:scale-105 transition-transform duration-[1.2s] ease-out opacity-75 group-hover:opacity-90"
-                />
-              </div>
-
-              {/* Creative Luxury Glass Plaque */}
-              <div className="relative z-20 self-start translate-y-0 group-hover:-translate-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
-                <div className="bg-black/65 backdrop-blur-md border border-amber-500/20 p-5 text-left relative overflow-hidden transition-colors duration-500 group-hover:border-amber-500/45">
-                  {/* Thin gold decorative frame */}
-                  <div className="absolute inset-1 border border-amber-500/10 pointer-events-none"></div>
-                  {/* Small luxury sub-label */}
-                  <span className="block text-[8px] tracking-[0.25em] uppercase text-amber-500/80 mb-1.5 font-bold pl-[0.25em]">
-                    LAST CHANCE ARCHIVE
-                  </span>
-                  {/* Main Offer text */}
-                  <h3 className="text-xl md:text-2xl font-serif-luxury text-white font-medium tracking-[0.05em] select-none">
-                    50% OFF
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </section>
-      )}
-
-      {/* ==========================================
-          SECTION 2: THE BEST SELLERS (#best-sellers)
-          ========================================== */}
-      {!isFiltered && (
-        <section id="best-sellers" className="w-full bg-white text-black relative z-10 border-t border-[#EAE3DB] px-4 md:px-8 lg:px-12 py-24 flex flex-col items-center">
-          <div className="w-full max-w-[1360px]">
-
-            {/* Section Header matching "Zen" layout */}
-            <div className="w-full flex flex-wrap items-baseline justify-between border-b border-black/10 pb-6 mb-12">
-              <div className="flex items-baseline gap-6">
-                <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-black font-sans-luxury select-none">
-                  BEST SELLERS
-                </h2>
-                <span className="text-xs tracking-[0.15em] text-[#8C8276] uppercase font-bold pl-[0.15em]">
-                  / Most Desired Signatures
-                </span>
-              </div>
-              <div className="text-xs font-bold tracking-[0.15em] text-[#8C8276] uppercase">
-                Aesthetic Curation
-              </div>
-            </div>
-
-            {/* Asymmetrical Grid matching "Zen" reference layout perfectly! */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {productsList.filter(p => p.isBestSeller).map(prod => {
-                const isFav = favorites.includes(prod.id);
-                const isBuyLater = buyLater.includes(prod.id);
-                const activeSize = selectedSizes[prod.id] || prod.sizes[0];
-                return (
-                  <ProductCard
-                    key={prod.id}
-                    prod={prod}
-                    isFav={isFav}
-                    isBuyLater={isBuyLater}
-                    isLoggedIn={!!userEmail}
-                    activeSize={activeSize}
-                    onToggleFavorite={toggleFavorite}
-                    onToggleBuyLater={toggleBuyLater}
-                    onSelectSize={selectSize}
-                    onAddToCart={handleAddToCart}
-                    badgeText={prod.isFeaturedLarge ? "BESTSELLER FEATURE" : "BESTSELLER"}
-                    formatCurrency={formatCurrency}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ==========================================
-          EDITORIAL BANNER 1: GOLD MEMOIR CAMPAIGN
-          ========================================== */}
-      {!isFiltered && (
-        <section className="w-full bg-[#0a0503] border-t border-b border-white/5 relative overflow-hidden py-24 md:py-32">
-          {/* Ambient gold blur highlights */}
-          <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] rounded-full bg-yellow-600/5 blur-[100px] pointer-events-none"></div>
-
-          <div className="w-full max-w-[1360px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center px-6 md:px-12 relative z-10 text-left">
-            {/* Left Column: Narrative Copy */}
-            <div className="lg:col-span-7 flex flex-col justify-center">
-              <span className="tracking-[0.3em] text-[10px] font-extrabold text-amber-500 uppercase mb-4 pl-1 block">
-                CAMPAIGN VOL. I — GOLD MEMOIR
-              </span>
-              <h2 className="text-4xl md:text-5xl lg:text-7xl font-serif-luxury font-light tracking-wide text-white leading-tight uppercase mb-6">
-                A Symphony <br />
-                <span className="font-serif-luxury italic text-amber-400 font-normal">of Golden</span> Senses
-              </h2>
-              <p className="text-[11px] leading-relaxed text-[#c3b19c] tracking-widest max-w-xl uppercase mb-8 font-light">
-                A majestic fusion of hand-pressed Tunisian orange blossom, rich organic amber resins, and pure Cambodian oud oil. Encased in high-contrast gilded glass, curated to evoke the radiant warmth of Arabian summer suns.
-              </p>
-              <div className="flex">
-                <a
-                  href="#new-in"
-                  className="inline-block bg-white text-black hover:bg-amber-400 hover:text-white px-8 py-4 text-[9px] font-bold tracking-[0.25em] uppercase transition-all duration-300 rounded-none cursor-pointer border border-white hover:border-amber-400 active:scale-95"
-                >
-                  Discover Gold Memoir
-                </a>
-              </div>
-            </div>
-
-            {/* Right Column: Immersive Image Frame */}
-            <div className="lg:col-span-5">
-              <div className="relative aspect-[4/5] lg:aspect-[4/5] w-full min-h-[400px] overflow-hidden border border-white/10 group bg-neutral-900/50 shadow-2xl">
-                {/* Subtle golden corner framing lines */}
-                <div className="absolute top-3 left-3 w-6 h-6 border-t border-l border-amber-500/30 z-20 pointer-events-none group-hover:scale-105 transition-transform duration-700"></div>
-                <div className="absolute bottom-3 right-3 w-6 h-6 border-b border-r border-amber-500/30 z-20 pointer-events-none group-hover:scale-105 transition-transform duration-700"></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10 pointer-events-none"></div>
-                <Image
-                  src="/campaign-gold.png"
-                  alt="Gold Memoir Campaign Visual"
-                  fill
-                  className="object-cover scale-100 group-hover:scale-105 transition-transform duration-[1.5s] ease-[cubic-bezier(0.16,1,0.3,1)]"
-                  priority
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-
-      {/* ==========================================
-          SECTION 3: EXCLUSIVE OFFERS (#offers)
-          ========================================== */}
-      {!isFiltered && (
-        <section id="offers" className="w-full bg-[#FAF5EF] text-black relative z-10 border-t border-[#EAE3DB] px-4 md:px-8 lg:px-12 py-24 flex flex-col items-center">
-          <div className="w-full max-w-[1360px]">
-
-            {/* Section Header */}
-            <div className="w-full flex flex-wrap items-baseline justify-between border-b border-black/10 pb-6 mb-12">
-              <div className="flex items-baseline gap-6">
-                <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-black font-sans-luxury select-none">
-                  EXCLUSIVE OFFERS
-                </h2>
-                <span className="text-xs tracking-[0.15em] text-[#8C8276] uppercase font-bold pl-[0.15em]">
-                  / Custom Selections (Favorites: {favorites.length})
-                </span>
-              </div>
-              <div className="text-xs font-bold tracking-[0.15em] text-[#8C8276] uppercase">
-                Curated Archives
-              </div>
-            </div>
-
-            {/* Dynamic Vault Display */}
-            {(() => {
-              if (!userEmail) {
-                return (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    className="w-full text-center py-24 bg-white border border-black/10 flex flex-col items-center justify-center p-8 rounded-none relative overflow-hidden"
-                  >
-                    <div className="absolute inset-1 border border-black/[0.03] pointer-events-none"></div>
-                    <span className="text-4xl text-amber-800 mb-4 block">✧</span>
-                    <h3 className="text-lg font-serif-luxury font-medium tracking-widest uppercase text-black mb-2">
-                      Scent Vault Access Required
-                    </h3>
-                    <p className="text-xs text-[#8C8276] tracking-widest max-w-md mx-auto leading-relaxed uppercase mb-6">
-                      Please sign in to access your curated Scent Vault and Exclusive Offers.
-                    </p>
-                    <button
-                      onClick={() => router.push("/signin?redirect=/")}
-                      className="bg-black text-white text-[10px] font-extrabold tracking-[0.2em] uppercase px-8 py-3.5 hover:bg-black/90 transition-all duration-300 rounded-none cursor-pointer border border-black"
-                    >
-                      Sign In to Maison
-                    </button>
-                  </motion.div>
-                );
-              }
-
-              const likedProducts = productsList.filter(p => favorites.includes(p.id));
-
-              if (likedProducts.length === 0) {
-                return (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    className="w-full text-center py-24 bg-white border border-black/10 flex flex-col items-center justify-center p-8 rounded-none relative overflow-hidden"
-                  >
-                    <div className="absolute inset-1 border border-black/[0.03] pointer-events-none"></div>
-                    <span className="text-4xl text-[#8C8276]/30 mb-4 block">✧</span>
-                    <h3 className="text-lg font-serif-luxury font-medium tracking-widest uppercase text-black mb-2">
-                      Your Exclusive Offers are Empty
-                    </h3>
-                    <p className="text-xs text-[#8C8276] tracking-widest max-w-md mx-auto leading-relaxed uppercase mb-6">
-                      Explore our collections above and touch the heart icon on any perfume card to curate your own personal exclusive offers.
-                    </p>
-                    <a
-                      href="#new-in"
-                      className="bg-black text-white text-[10px] font-extrabold tracking-[0.2em] uppercase px-8 py-3.5 hover:bg-black/90 transition-all duration-300 rounded-none cursor-pointer"
-                    >
-                      Explore Catalog
-                    </a>
-                  </motion.div>
-                );
-              }
-
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {likedProducts.map(prod => {
-                    const isFav = true;
-                    const isBuyLater = buyLater.includes(prod.id);
-                    const activeSize = selectedSizes[prod.id] || prod.sizes[0];
-                    return (
-                      <ProductCard
-                        key={prod.id}
-                        prod={prod}
-                        isFav={isFav}
-                        isBuyLater={isBuyLater}
-                        isLoggedIn={!!userEmail}
-                        activeSize={activeSize}
-                        onToggleFavorite={toggleFavorite}
-                        onToggleBuyLater={toggleBuyLater}
-                        onSelectSize={selectSize}
-                        onAddToCart={handleAddToCart}
-                        badgeText="EXCLUSIVE OFFER"
-                        formatCurrency={formatCurrency}
-                      />
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        </section>
-      )}
-
-      {/* ==========================================
-          SECTION 4: THE ATELIER CURATIONS (#atelier-curations)
-          ========================================== */}
-      {!isFiltered && (
-        <section id="atelier-curations" className="w-full bg-white text-black relative z-10 border-t border-[#EAE3DB] px-4 md:px-8 lg:px-12 py-24 flex flex-col items-center">
-          <div className="w-full max-w-[1360px]">
-
-            {/* Section Header */}
-            <div className="w-full flex flex-wrap items-baseline justify-between border-b border-black/10 pb-6 mb-12">
-              <div className="flex items-baseline gap-6">
-                <h2 className="text-4xl md:text-5xl font-black tracking-tighter text-black font-sans-luxury select-none">
-                  ATELIER CURATIONS
-                </h2>
-                <span className="text-xs tracking-[0.15em] text-[#8C8276] uppercase font-bold pl-[0.15em]">
-                  / Elite Fragrance Masterpieces
-                </span>
-              </div>
-              <div className="text-xs font-bold tracking-[0.15em] text-[#8C8276] uppercase">
-                Dubai Atelier Edit
-              </div>
-            </div>
-
-            {/* Grid showing both Filippo Sorcinelli artistic bottles + Marc-Antoine Barrois + Initio Oud */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {productsList.filter(p => p.id === 8 || p.id === 9 || p.id === 1 || p.id === 3).map(prod => {
-                const isFav = favorites.includes(prod.id);
-                const isBuyLater = buyLater.includes(prod.id);
-                const activeSize = selectedSizes[prod.id] || prod.sizes[0];
-                return (
-                  <ProductCard
-                    key={prod.id}
-                    prod={prod}
-                    isFav={isFav}
-                    isBuyLater={isBuyLater}
-                    isLoggedIn={!!userEmail}
-                    activeSize={activeSize}
-                    onToggleFavorite={toggleFavorite}
-                    onToggleBuyLater={toggleBuyLater}
-                    onSelectSize={selectSize}
-                    onAddToCart={handleAddToCart}
-                    badgeText={prod.isFeaturedLarge ? "ATELIER FEATURE" : "ATELIER ARCHIVE"}
-                    formatCurrency={formatCurrency}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ==========================================
-          EDITORIAL BANNER 3: ATELIER DUBAI EDIT
-          ========================================== */}
-      {!isFiltered && (
-        <section className="w-full bg-[#08090a] border-t border-b border-white/5 relative overflow-hidden py-24 md:py-32">
-          {/* Ambient silver blur highlights */}
-          <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-slate-800/15 blur-[125px] pointer-events-none"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] rounded-full bg-[#A0A0A0]/5 blur-[100px] pointer-events-none"></div>
-
-          <div className="w-full max-w-[1360px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center px-6 md:px-12 relative z-10 text-left">
-            {/* Left Column: Narrative Copy */}
-            <div className="lg:col-span-7 flex flex-col justify-center">
-              <span className="tracking-[0.3em] text-[10px] font-extrabold text-[#A0A0A0] uppercase mb-4 pl-1 block">
-                CAMPAIGN VOL. III — DUBAI ATELIER EDIT
-              </span>
-              <h2 className="text-4xl md:text-5xl lg:text-7xl font-serif-luxury font-light tracking-wide text-white leading-tight uppercase mb-6">
-                Olfactory <br />
-                <span className="font-serif-luxury italic text-slate-300 font-normal">Sculptures in</span> Metal
-              </h2>
-              <p className="text-[11px] leading-relaxed text-[#bbc0c5] tracking-widest max-w-xl uppercase mb-8 font-light">
-                Hand-pressed organic glass decanters wrapped meticulously in matte natural leather folds, topped with massive rustic hand-hammered raw metal sculptures that double as visual tactile art. An absolute peak of gothic design and liquid sensory mastery.
-              </p>
-              <div className="flex">
-                <a
-                  href="#atelier-curations"
-                  className="inline-block bg-white text-black hover:bg-[#202225] hover:text-white px-8 py-4 text-[9px] font-bold tracking-[0.25em] uppercase transition-all duration-300 rounded-none cursor-pointer border border-white hover:border-[#202225] active:scale-95"
-                >
-                  Enter Scent Atelier
-                </a>
-              </div>
-            </div>
-
-            {/* Right Column: Immersive Image Frame */}
-            <div className="lg:col-span-5">
-              <div className="relative aspect-[4/5] lg:aspect-[4/5] w-full min-h-[400px] overflow-hidden border border-white/10 group bg-neutral-900/50 shadow-2xl">
-                {/* Subtle slate corner framing lines */}
-                <div className="absolute top-3 left-3 w-6 h-6 border-t border-l border-slate-500/25 z-20 pointer-events-none group-hover:scale-105 transition-transform duration-700"></div>
-                <div className="absolute bottom-3 right-3 w-6 h-6 border-b border-r border-slate-500/25 z-20 pointer-events-none group-hover:scale-105 transition-transform duration-700"></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10 pointer-events-none"></div>
+          {/* ══════════════════════════════════════════════════════════════
+              6. SPLIT 50/50 EDITORIAL — text left, image right  (#about)
+              ══════════════════════════════════════════════════════════════ */}
+          <section id="about" className="maison w-full border-t" style={{ borderColor: HAIRLINE }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2">
+              <div className="relative aspect-[4/3] w-full bg-[#F5F5F5] lg:order-2 lg:aspect-auto lg:min-h-[560px]">
                 <Image
                   src="/campaign-silver.png"
-                  alt="Dubai Atelier Edit Visual"
+                  alt="The Dubai atelier"
                   fill
-                  className="object-cover scale-100 group-hover:scale-105 transition-transform duration-[1.5s] ease-[cubic-bezier(0.16,1,0.3,1)]"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover"
                 />
               </div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="flex items-center px-5 py-16 md:px-16 md:py-20 lg:order-1"
+              >
+                <div className="max-w-[46ch]">
+                  <p className="maison-eyebrow">The house</p>
+                  <h2 className="mt-5 font-display text-[22px] uppercase leading-[1.25] tracking-[0.1em] text-black md:text-[28px]">
+                    A Dubai maison since 1993
+                  </h2>
+                  <p className="mt-6 text-[15px] font-light leading-[1.75] text-black/75">
+                    Gharib began as a single counter of raw materials in Deira: Cambodian oud,
+                    Tunisian orange blossom, Indian sandalwood, weighed out and blended to order.
+                    Three decades on the method has not changed. Small batches, long macerations, and
+                    decanters finished by hand in the atelier, some wrapped in matte leather, some
+                    topped with hammered metal that doubles as sculpture. Nothing is released until it
+                    has settled.
+                  </p>
+                  <Link href="/blogs" className="maison-link mt-8">
+                    Read the journal
+                  </Link>
+                </div>
+              </motion.div>
             </div>
-          </div>
-        </section>
+          </section>
+
+          {/* ══════════════════════════════════════════════════════════════
+              7. PULL-QUOTE
+              ══════════════════════════════════════════════════════════════ */}
+          <section className="maison w-full" style={{ background: "var(--surface-3)" }}>
+            <div className="maison-container maison-section">
+              <motion.figure
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.4 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="mx-auto max-w-[820px] border-b border-t py-14 text-center"
+                style={{ borderColor: HAIRLINE }}
+              >
+                <blockquote className="font-display text-[20px] italic leading-[1.5] tracking-[0.02em] text-black md:text-[24px]">
+                  A fragrance should arrive a moment before you do, and stay a little after you have
+                  left the room.
+                </blockquote>
+                <figcaption className="maison-eyebrow mt-8">The Gharib atelier, Dubai</figcaption>
+              </motion.figure>
+            </div>
+          </section>
+
+          {/* ══════════════════════════════════════════════════════════════
+              8. EXCLUSIVE SERVICES
+              ══════════════════════════════════════════════════════════════ */}
+          <section className="maison maison-section w-full border-t" style={{ borderColor: HAIRLINE }}>
+            <div className="maison-container">
+              <div className="grid grid-cols-1 md:grid-cols-3">
+                {[
+                  {
+                    title: "Complimentary delivery",
+                    copy: "Express shipping across the UAE at no cost, tracked worldwide dispatch on every order.",
+                    icon: (
+                      <>
+                        <path d="M2 6h12v11H2z" />
+                        <path d="M14 10h4.5l3 3.5V17H14z" />
+                        <circle cx="6.5" cy="18.5" r="2" />
+                        <circle cx="17.5" cy="18.5" r="2" />
+                      </>
+                    ),
+                  },
+                  {
+                    title: "Authenticity guaranteed",
+                    copy: "Every bottle is sourced through official channels and arrives sealed as it left the house.",
+                    icon: (
+                      <>
+                        <path d="M12 2.5 4.5 5.3v5.9c0 4.6 3.2 8.3 7.5 10 4.3-1.7 7.5-5.4 7.5-10V5.3L12 2.5Z" />
+                        <path d="m8.6 12.2 2.4 2.4 4.4-4.6" />
+                      </>
+                    ),
+                  },
+                  {
+                    title: "Gift wrapping",
+                    copy: "Hand-wrapped boxes, ribbon and a written card, prepared at no additional charge.",
+                    icon: (
+                      <>
+                        <path d="M3.5 8.5h17V21h-17z" />
+                        <path d="M3.5 12.6h17M12 8.5V21" />
+                        <path d="M12 8.5S10.7 3.4 8.2 3.4a2.5 2.5 0 0 0 0 5.1H12Z" />
+                        <path d="M12 8.5s1.3-5.1 3.8-5.1a2.5 2.5 0 0 1 0 5.1H12Z" />
+                      </>
+                    ),
+                  },
+                ].map((service, index) => (
+                  <div
+                    key={service.title}
+                    className={`flex flex-col items-center px-6 py-12 text-center md:py-4 ${index > 0 ? "border-t md:border-l md:border-t-0" : ""
+                      }`}
+                    style={index > 0 ? { borderColor: HAIRLINE } : undefined}
+                  >
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-black"
+                      aria-hidden="true"
+                    >
+                      {service.icon}
+                    </svg>
+                    <h3 className="mt-6 font-display text-[18px] uppercase leading-[1.3] tracking-[0.08em] text-black">
+                      {service.title}
+                    </h3>
+                    <p className="mt-3 max-w-[36ch] text-[14px] font-light leading-[1.7] text-black/70">
+                      {service.copy}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+        </>
       )}
 
-      {/* 4. High-Fashion Suede E-Commerce Footer */}
-      <footer className="w-full bg-[#FAF5EF] text-black border-t border-[#EAE3DB] relative z-10 font-sans-luxury">
-        {/* Main Footer Links & Newsletter */}
-        <div className="w-full max-w-[1360px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 py-16 px-6 md:px-12 border-b border-black/10">
-          {/* Column 1: Brand manifesto & core identity - takes 4 columns */}
-          <div className="lg:col-span-4 text-left flex flex-col justify-between min-h-[180px]">
-            <div>
-              <Link href="/" className="inline-block mb-4">
+      {/* 4. Maison Footer — design-system.md §5.8 */}
+      <footer
+        className="relative z-10 w-full bg-white text-black font-body border-t"
+        style={{ borderColor: HAIRLINE }}
+      >
+        {/* ── Newsletter strip ─────────────────────────────────────── */}
+        <section className="border-b" style={{ borderColor: HAIRLINE }}>
+          <div className="maison-container py-14 md:py-16 text-center">
+            <h2 className="font-display text-[18px] md:text-[20px] leading-none tracking-[0.08em] uppercase text-black">
+              Join the private circle
+            </h2>
+            <p className="mt-5 text-[14px] font-light leading-relaxed text-black/75">
+              Private archive releases, new arrivals and invitations to our closed sales.
+            </p>
+
+            {isSubscribed ? (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="mt-8 text-[14px] font-light text-black"
+              >
+                Thank you. You are now part of the private circle.
+              </motion.p>
+            ) : (
+              <form
+                onSubmit={(e) => { e.preventDefault(); if (subscribedEmail) setIsSubscribed(true); }}
+                className="mt-8 mx-auto flex w-full max-w-[520px] items-stretch gap-4"
+              >
+                <input
+                  type="email"
+                  required
+                  placeholder="Your email address"
+                  value={subscribedEmail}
+                  onChange={(e) => setSubscribedEmail(e.target.value)}
+                  aria-label="Email address"
+                  className="h-12 min-w-0 flex-1 bg-transparent border-b border-[rgba(0,0,0,0.35)] text-[14px] font-light text-black placeholder:text-[#757575] outline-none transition-colors duration-300 focus:border-black"
+                />
+                <button type="submit" className="maison-btn-outline h-12">
+                  Join in
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
+
+        {/* ── Brand column + link columns ──────────────────────────── */}
+        <section className="maison-container py-14 md:py-20">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-12 md:grid-cols-4 lg:grid-cols-12 lg:gap-x-10">
+            {/* Brand column */}
+            <div className="col-span-2 md:col-span-4 lg:col-span-4">
+              <Link href="/" className="inline-block">
                 <Image
                   src="/logo.png"
                   alt="GHARIB Perfumes"
                   width={180}
                   height={55}
-                  className="h-12 w-auto object-contain mix-blend-multiply cursor-pointer"
+                  className="h-10 w-auto object-contain mix-blend-multiply cursor-pointer"
                 />
               </Link>
-              <p className="text-[11px] leading-relaxed text-[#8C8276] tracking-widest uppercase max-w-sm">
-                Curating premium, high-art olfactory masterpieces and private perfume campaigns since 1993. Evoking raw emotion through elite liquid scent signatures.
+              <p className="maison-body mt-6 max-w-[42ch]">
+                Gharib has curated high-art olfactory masterpieces and private perfume
+                commissions from Dubai since 1993. Every bottle is filled, sealed and
+                inspected by hand in our atelier.
               </p>
-            </div>
 
-            {/* Social Media Icons */}
-            <div className="flex items-center gap-3 mt-6">
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
-                title="Instagram"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                </svg>
-              </a>
-              <a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
-                title="Facebook"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
-                </svg>
-              </a>
-              <a
-                href="https://twitter.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
-                title="X (Twitter)"
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </a>
-              <a
-                href="https://youtube.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
-                title="YouTube"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                </svg>
-              </a>
-            </div>
-
-            <div className="mt-6 text-[9px] tracking-[0.25em] text-[#8C8276]/60 uppercase">
-              Curated globally. Crafted in Dubai.
-            </div>
-          </div>
-
-          {/* Column 2: Directory links - takes 2 columns */}
-          <div className="lg:col-span-2 text-left">
-            <h4 className="text-[10px] font-black tracking-[0.25em] text-black uppercase mb-5">
-              BOUTIQUE
-            </h4>
-            <ul className="flex flex-col gap-3 text-[10px] font-bold tracking-[0.15em] text-[#8C8276] uppercase">
-              <li><a href="#new-in" className="hover:text-black transition-colors duration-300">New arrivals</a></li>
-              <li><a href="#best-sellers" className="hover:text-black transition-colors duration-300">Bestsellers</a></li>
-              <li><a href="#offers" className="hover:text-black transition-colors duration-300">Offers</a></li>
-              <li><a href="#about" className="hover:text-black transition-colors duration-300">About Maison</a></li>
-              <li><a href="#atelier-curations" className="hover:text-black transition-colors duration-300">Atelier edit</a></li>
-            </ul>
-          </div>
-
-          {/* Column 3: Care/Support - takes 2 columns */}
-          <div className="lg:col-span-2 text-left">
-            <h4 className="text-[10px] font-black tracking-[0.25em] text-black uppercase mb-5">
-              PRIVATE CARE
-            </h4>
-            <ul className="flex flex-col gap-3 text-[10px] font-bold tracking-[0.15em] text-[#8C8276] uppercase">
-              <li><Link href="/contact" className="hover:text-black transition-colors duration-300">Contact Us</Link></li>
-              <li><span className="hover:text-black transition-colors duration-300 cursor-pointer">Private Consult</span></li>
-              <li><span className="hover:text-black transition-colors duration-300 cursor-pointer">Shipping & Vaulting</span></li>
-              <li><span className="hover:text-black transition-colors duration-300 cursor-pointer">Return Policy</span></li>
-            </ul>
-          </div>
-
-          {/* Column 4: Newsletter subscription - takes 4 columns */}
-          <div className="lg:col-span-4 text-left flex flex-col justify-between min-h-[160px]">
-            <div>
-              <h4 className="text-[10px] font-black tracking-[0.25em] text-black uppercase mb-3">
-                JOIN THE PRIVATE SCENT CIRCLE
-              </h4>
-              <p className="text-[10px] leading-relaxed text-[#8C8276] tracking-widest uppercase mb-6">
-                Subscribe to receive private archive releases and exclusive private sale invitations.
-              </p>
-            </div>
-
-            {/* Newsletter Input Form */}
-            {isSubscribed ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-[10px] font-bold tracking-[0.15em] text-black uppercase bg-[#EAE3DB]/40 p-3 text-center border border-black/10"
-              >
-                ✓ Welcome to the private circle.
-              </motion.div>
-            ) : (
-              <form
-                onSubmit={(e) => { e.preventDefault(); if (subscribedEmail) setIsSubscribed(true); }}
-                className="flex items-center border-b border-black pb-2 mt-2 w-full"
-              >
-                <input
-                  type="email"
-                  required
-                  placeholder="ENTER YOUR EMAIL ATELIER"
-                  value={subscribedEmail}
-                  onChange={(e) => setSubscribedEmail(e.target.value)}
-                  className="bg-transparent text-[10px] tracking-widest text-black placeholder-[#8C8276]/60 uppercase py-1 outline-none w-full font-bold"
-                />
-                <button
-                  type="submit"
-                  className="text-black hover:translate-x-1 transition-transform duration-300 pl-2 text-sm font-black cursor-pointer"
-                  aria-label="Subscribe"
+              <div className="mt-7 flex items-center gap-6">
+                <a
+                  href="https://instagram.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  title="Instagram"
+                  className="text-black/75 transition-colors duration-300 hover:text-black"
                 >
-                  →
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-
-        {/* Bottom Utility Bar: legal, social, region and currency selects */}
-        <div className="w-full max-w-[1360px] mx-auto flex flex-wrap items-center justify-between py-8 px-6 md:px-12 text-[9px] tracking-[0.2em] text-[#8C8276] uppercase font-bold gap-4">
-          <div className="flex flex-wrap items-center gap-6">
-            <span>© 2026 GHARIB. All Rights Reserved.</span>
-            <span onClick={() => router.push(userEmail ? "/customer/dashboard" : "/signin")} className="hover:text-black transition-colors duration-300 cursor-pointer">My Account</span>
-            <span onClick={() => router.push("/admin")} className="hover:text-black transition-colors duration-300 cursor-pointer">Admin Desk</span>
-            <span className="hover:text-black transition-colors duration-300 cursor-pointer">Privacy Policy</span>
-            <span className="hover:text-black transition-colors duration-300 cursor-pointer">Terms of Use</span>
-          </div>
-
-          <div className="flex items-center gap-8">
-            {/* Currency Selector */}
-            <div className="relative">
-              <div
-                onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
-                className="flex items-center gap-2 cursor-pointer hover:text-black transition-colors"
-              >
-                <span>Currency:</span>
-                <span className="text-black font-extrabold flex items-center gap-1">
-                  {activeCurrency === "AED" && "🇦🇪 AED"}
-                  {activeCurrency === "SAR" && "🇸🇦 SAR"}
-                  {activeCurrency === "QAR" && "🇶🇦 QAR"}
-                  {activeCurrency === "KWD" && "🇰🇼 KWD"}
-                  {activeCurrency === "BHD" && "🇧🇭 BHD"}
-                  {activeCurrency === "OMR" && "🇴🇲 OMR"}
-                  {activeCurrency === "USD" && "🇺🇸 USD"}
-                  {activeCurrency === "EUR" && "🇪🇺 EUR"}
-                  {activeCurrency === "GBP" && "🇬🇧 GBP"}
-                  {activeCurrency === "INR" && "🇮🇳 INR"}
-                  <span className="text-[7px] opacity-60 ml-0.5">▼</span>
-                </span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.25" viewBox="0 0 24 24">
+                    <rect x="2" y="2" width="20" height="20" />
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                  </svg>
+                </a>
+                <a
+                  href="https://facebook.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Facebook"
+                  title="Facebook"
+                  className="text-black/75 transition-colors duration-300 hover:text-black"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.25" viewBox="0 0 24 24">
+                    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+                  </svg>
+                </a>
+                <a
+                  href="https://twitter.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="X"
+                  title="X"
+                  className="text-black/75 transition-colors duration-300 hover:text-black"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </a>
+                <a
+                  href="https://youtube.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="YouTube"
+                  title="YouTube"
+                  className="text-black/75 transition-colors duration-300 hover:text-black"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.25" viewBox="0 0 24 24">
+                    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
+                    <path d="M9.75 15.02 15.5 11.75 9.75 8.48v6.54z" />
+                  </svg>
+                </a>
               </div>
 
-              <AnimatePresence>
-                {isCurrencyDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute right-0 bottom-full mb-2.5 bg-[#FAF6F0] border border-amber-800/15 p-2 shadow-xl z-50 flex flex-col gap-1 w-64 font-sans-luxury"
-                  >
-                    {[
-                      { code: "AED", label: "🇦🇪 AED - UAE Dirham" },
-                      { code: "SAR", label: "🇸🇦 SAR - Saudi Riyal" },
-                      { code: "QAR", label: "🇶🇦 QAR - Qatari Riyal" },
-                      { code: "KWD", label: "🇰🇼 KWD - Kuwaiti Dinar" },
-                      { code: "BHD", label: "🇧🇭 BHD - Bahraini Dinar" },
-                      { code: "OMR", label: "🇴🇲 OMR - Omani Rial" },
-                      { code: "USD", label: "🇺🇸 USD - US Dollar" },
-                      { code: "EUR", label: "🇪🇺 EUR - Euro" },
-                      { code: "GBP", label: "🇬🇧 GBP - British Pound" },
-                      { code: "INR", label: "🇮🇳 INR - Indian Rupee" }
-                    ].map((curr) => (
-                      <button
-                        key={curr.code}
-                        onClick={() => {
-                          setActiveCurrency(curr.code);
-                          localStorage.setItem("gharib_active_currency", curr.code);
-                          setIsCurrencyDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
-                          ? "bg-amber-800/10 text-amber-800"
-                          : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
-                          }`}
-                      >
-                        <span>{curr.label}</span>
-                        {activeCurrency === curr.code && (
-                          <span className="text-amber-800 text-[8px]">✓</span>
-                        )}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <p className="mt-7 text-[12px] font-light text-[#757575]">
+                Curated globally. Crafted in Dubai.
+              </p>
             </div>
 
-            {/* Social handles */}
-            <div className="flex items-center gap-4">
-              <span className="hover:text-black transition-colors duration-300 cursor-pointer">Instagram</span>
-              <span className="hover:text-black transition-colors duration-300 cursor-pointer">Journal</span>
+            {/* Link columns */}
+            {([
+              {
+                heading: "Boutique",
+                links: [
+                  { label: "New arrivals", href: "#new-in" },
+                  { label: "Bestsellers", href: "#best-sellers" },
+                  { label: "Offers", href: "#offers" },
+                  { label: "Atelier edit", href: "#atelier-curations" },
+                ],
+              },
+              {
+                heading: "The maison",
+                links: [
+                  { label: "About the maison", href: "#about" },
+                  { label: "Journal", href: "/blogs" },
+                  { label: "Contact us", href: "/contact" },
+                ],
+              },
+              {
+                heading: "Private care",
+                links: [
+                  { label: "Private consultation" },
+                  { label: "Shipping & vaulting" },
+                  { label: "Return policy" },
+                ],
+              },
+              {
+                heading: "Account & orders",
+                links: [
+                  {
+                    label: "My account",
+                    onClick: () => router.push(userEmail ? "/customer/dashboard" : "/signin"),
+                  },
+                  { label: "Order tracking", href: "/customer/dashboard" },
+                  { label: "Admin desk", onClick: () => router.push("/admin") },
+                ],
+              },
+            ] as {
+              heading: string;
+              links: { label: string; href?: string; onClick?: () => void }[];
+            }[]).map((column) => {
+              const linkClass =
+                "text-[14px] font-[350] text-black/75 transition-colors duration-300 hover:text-black hover:underline hover:underline-offset-[5px] decoration-1";
+
+              return (
+                <div key={column.heading} className="lg:col-span-2">
+                  <h4 className="mb-6 text-[16px] font-normal tracking-[0.04em] text-black">
+                    {column.heading}
+                  </h4>
+                  <ul className="flex flex-col gap-3.5">
+                    {column.links.map((link) => (
+                      <li key={link.label}>
+                        {link.href ? (
+                          <Link href={link.href} className={linkClass}>
+                            {link.label}
+                          </Link>
+                        ) : link.onClick ? (
+                          <button
+                            type="button"
+                            onClick={link.onClick}
+                            className={`${linkClass} cursor-pointer text-left`}
+                          >
+                            {link.label}
+                          </button>
+                        ) : (
+                          <span className={`${linkClass} cursor-pointer`}>{link.label}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── Bottom bar ───────────────────────────────────────────── */}
+        <section className="border-t" style={{ borderColor: HAIRLINE }}>
+          <div className="maison-container flex flex-wrap items-center justify-between gap-x-10 gap-y-6 py-7 text-[12px] font-light text-[#757575]">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+              <span>© 2026 Gharib. All rights reserved.</span>
+
+              {/* Currency selector — bare text button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsFooterCurrencyOpen(!isFooterCurrencyOpen)}
+                  aria-expanded={isFooterCurrencyOpen}
+                  aria-haspopup="listbox"
+                  className="flex cursor-pointer items-center gap-1.5 text-[12px] font-light text-[#757575] transition-colors duration-300 hover:text-black"
+                >
+                  <span>Currency</span>
+                  <span className="text-black">{activeCurrency}</span>
+                  <ChevronDown
+                    className={`w-3 h-3 transition-transform duration-300 ${isFooterCurrencyOpen ? "rotate-180" : ""}`}
+                    strokeWidth={1.25}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {isFooterCurrencyOpen && (
+                    <motion.ul
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      className="absolute bottom-full left-0 z-50 mb-3 max-h-72 w-60 overflow-y-auto border bg-white py-1"
+                      style={{ borderColor: HAIRLINE }}
+                    >
+                      {[
+                        { code: "AED", name: "UAE Dirham" },
+                        { code: "SAR", name: "Saudi Riyal" },
+                        { code: "QAR", name: "Qatari Riyal" },
+                        { code: "KWD", name: "Kuwaiti Dinar" },
+                        { code: "BHD", name: "Bahraini Dinar" },
+                        { code: "OMR", name: "Omani Rial" },
+                        { code: "USD", name: "US Dollar" },
+                        { code: "EUR", name: "Euro" },
+                        { code: "GBP", name: "British Pound" },
+                        { code: "INR", name: "Indian Rupee" }
+                      ].map((curr) => (
+                        <li key={curr.code}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveCurrency(curr.code);
+                              localStorage.setItem("gharib_active_currency", curr.code);
+                              setIsFooterCurrencyOpen(false);
+                            }}
+                            className={`flex w-full cursor-pointer items-center justify-between px-4 py-2.5 text-left text-[13px] transition-colors duration-300 hover:bg-[#F5F5F5] hover:text-black ${
+                              activeCurrency === curr.code ? "text-black" : "text-black/60"
+                            }`}
+                          >
+                            <span>
+                              {curr.code} — {curr.name}
+                            </span>
+                            {activeCurrency === curr.code && (
+                              <span aria-hidden="true" className="text-[11px]">
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </motion.ul>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+              <div className="flex items-center gap-2">
+                {["Visa", "Mastercard", "Amex", "Apple Pay"].map((mark) => (
+                  <span
+                    key={mark}
+                    className="flex h-6 items-center border px-2.5 text-[10px] font-normal uppercase tracking-[0.12em] text-[#757575]"
+                    style={{ borderColor: HAIRLINE }}
+                  >
+                    {mark}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                <span className="cursor-pointer transition-colors duration-300 hover:text-black">
+                  Privacy policy
+                </span>
+                <span className="cursor-pointer transition-colors duration-300 hover:text-black">
+                  Terms of use
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       </footer>
 
-      {/* Relocated Dynamic Interactive Notification Toast */}
+      {/* Notification toast — flat black panel, one-shot fade */}
       <AnimatePresence>
         {showNotification && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="fixed bottom-8 right-8 z-[200] bg-black text-white px-6 py-4 rounded-none shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-[#EAE3DB]/20 max-w-sm flex items-center justify-between gap-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="fixed bottom-8 right-8 z-[200] flex max-w-sm items-center justify-between gap-6 bg-black px-6 py-4 text-white font-body"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-amber-400 rounded-full animate-ping"></div>
-              <p className="text-[11px] font-sans-luxury tracking-widest font-semibold uppercase leading-normal">
-                {showNotification}
-              </p>
-            </div>
+            <p className="text-[12px] font-normal uppercase tracking-[0.1em] leading-[1.5]">
+              {showNotification}
+            </p>
             <button
               onClick={() => setShowNotification(null)}
-              className="text-white/40 hover:text-white text-xs tracking-widest font-bold cursor-pointer"
+              aria-label="Dismiss notification"
+              className="text-white/60 transition-colors duration-300 hover:text-white cursor-pointer"
             >
-              ✕
+              <X className="w-[14px] h-[14px]" strokeWidth={1.25} />
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 5. Luxury Slide-In Cart Drawer */}
+      {/* 5. Cart drawer — design-system.md §5.6 */}
       <AnimatePresence>
         {isCartOpen && (
           <>
-            {/* Backdrop Blur Overlay */}
+            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
               onClick={() => setIsCartOpen(false)}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] cursor-pointer"
+              className="fixed inset-0 bg-black/40 z-[100] cursor-pointer"
             />
 
-            {/* Side Drawer Panel */}
+            {/* Panel */}
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 32, stiffness: 300 } as any}
-              className="fixed right-0 top-0 bottom-0 w-full sm:w-[460px] bg-[#FAF9F6]/95 backdrop-blur-md border-l border-[#EAE3DB] shadow-[0_0_60px_rgba(0,0,0,0.08)] z-[101] flex flex-col font-sans-luxury text-neutral-900"
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed right-0 top-0 bottom-0 w-full sm:w-[440px] bg-white border-l z-[101] flex flex-col font-body text-black"
+              style={{ borderColor: HAIRLINE }}
             >
-              {/* Drawer Header */}
-              <div className="p-6 border-b border-[#EAE3DB]/60 flex items-center justify-between">
+              {/* Header */}
+              <div
+                className="flex items-start justify-between gap-4 px-6 py-6 border-b"
+                style={{ borderColor: HAIRLINE }}
+              >
+                <div className="flex items-baseline gap-3">
+                  <h3 className="font-display text-[20px] leading-none tracking-[0.07em] uppercase text-black">
+                    Your selection
+                  </h3>
+                  <span className="text-[12px] font-normal uppercase tracking-[0.1em] text-[#646464]">
+                    ({cartCount})
+                  </span>
+                </div>
+
                 <button
+                  type="button"
                   onClick={() => setIsCartOpen(false)}
-                  className="group flex items-center gap-2 text-[10px] tracking-[0.25em] text-neutral-500 hover:text-neutral-950 uppercase transition-colors duration-300 cursor-pointer"
+                  aria-label="Close cart"
+                  className="text-black transition-opacity duration-300 hover:opacity-60 cursor-pointer"
                 >
-                  <span className="group-hover:-translate-x-1 transition-transform duration-300">←</span> CLOSE
+                  <X className="w-[18px] h-[18px]" strokeWidth={1.25} />
                 </button>
-
-                <h3 className="text-[11px] font-extrabold tracking-[0.3em] uppercase text-amber-800 flex items-center gap-1.5 pl-[0.3em]">
-                  <span>✧</span> MY SELECTION <span>✧</span>
-                </h3>
-
-                <span className="text-[10px] font-mono text-neutral-400 font-bold">
-                  [{cartCount}]
-                </span>
               </div>
 
-              {/* Drawer Content / List Area */}
-              <div className="flex-grow overflow-y-auto p-6 divide-y divide-[#EAE3DB]/60 custom-scrollbar">
+              {/* Line items */}
+              <div className="flex-grow overflow-y-auto px-6 flex flex-col">
                 {cartItems.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center gap-4">
-                    <span className="text-3xl text-amber-600/40">✧</span>
-                    <p className="text-[11px] uppercase tracking-[0.25em] text-neutral-400 font-bold">
-                      Your selection is empty
+                  <div className="flex flex-grow flex-col items-center justify-center gap-8 py-20 text-center">
+                    <p className="font-display text-[20px] leading-none tracking-[0.07em] uppercase text-black">
+                      Your cart is empty
                     </p>
                     <button
+                      type="button"
                       onClick={() => setIsCartOpen(false)}
-                      className="text-[10px] text-amber-700 hover:text-black tracking-[0.2em] uppercase font-black transition-colors duration-300 mt-2 border border-amber-600/30 hover:border-neutral-900 px-4 py-2 cursor-pointer"
+                      className="maison-btn-outline"
                     >
-                      Return to Gallery
+                      Continue shopping
                     </button>
                   </div>
                 ) : (
-                  cartItems.map((item, idx) => {
-                    const priceNum = parseFloat(String(item.product.price).replace("$", "")) || 0;
-                    const itemTotal = priceNum * item.quantity;
+                  <ul className="flex flex-col">
+                    {cartItems.map((item) => {
+                      const priceNum = parseFloat(String(item.product.price).replace("$", "")) || 0;
+                      const itemTotal = priceNum * item.quantity;
 
-                    return (
-                      <motion.div
-                        key={`${item.product.id}-${item.selectedSize}`}
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -15 }}
-                        transition={{ delay: idx * 0.05 }}
-                        className="py-5 flex gap-4 first:pt-0 last:pb-0"
-                      >
-                        {/* Product Image Frame */}
-                        <div className="relative w-20 h-24 bg-white border border-[#EAE3DB] flex-shrink-0 overflow-hidden shadow-sm">
-                          <Image
-                            src={item.product.image}
-                            alt={item.product.name}
-                            fill
-                            sizes="80px"
-                            className="object-contain p-2"
-                          />
-                        </div>
+                      return (
+                        <li
+                          key={`${item.product.id}-${item.selectedSize}`}
+                          className="flex gap-5 py-6 border-b last:border-b-0"
+                          style={{ borderColor: HAIRLINE }}
+                        >
+                          {/* Thumb */}
+                          <div className="relative w-24 h-24 flex-shrink-0 bg-[#F5F5F5]">
+                            {item.product.image && (
+                              <Image
+                                src={item.product.image}
+                                alt={item.product.name}
+                                fill
+                                sizes="96px"
+                                className="object-contain p-2"
+                              />
+                            )}
+                          </div>
 
-                        {/* Product Info details */}
-                        <div className="flex-grow flex flex-col justify-between min-w-0">
-                          <div>
-                            <div className="flex justify-between items-start gap-2">
-                              <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
-                                {item.product.brand}
+                          {/* Details */}
+                          <div className="flex min-w-0 flex-grow flex-col">
+                            <div className="flex items-start justify-between gap-4">
+                              <h4 className="font-display text-[16px] leading-[1.3] tracking-[0.06em] uppercase text-black">
+                                {item.product.name}
+                              </h4>
+                              <span className="maison-price whitespace-nowrap">
+                                {formatCurrency(itemTotal)}
                               </span>
-                              <button
-                                onClick={() => handleRemoveItem(item.product.id, item.selectedSize)}
-                                className="text-[9px] text-neutral-400 hover:text-red-600 transition-colors uppercase tracking-widest cursor-pointer font-bold"
-                              >
-                                REMOVE
-                              </button>
                             </div>
-                            <h4 className="text-xs uppercase font-serif tracking-wider font-semibold text-neutral-900 mt-0.5 truncate">
-                              {item.product.name}
-                            </h4>
-                            <p className="text-[9px] uppercase tracking-widest text-neutral-500 mt-1 font-mono">
-                              Size: {item.selectedSize}
+
+                            <p className="mt-2 text-[12px] font-normal uppercase tracking-[0.02em] text-[#646464]">
+                              {item.product.brand} — {item.selectedSize}
                             </p>
-                          </div>
 
-                          {/* Quantity control & pricing */}
-                          <div className="flex justify-between items-center mt-3">
-                            {/* Modern Boxy Counter */}
-                            <div className="flex items-center border border-neutral-200/80">
-                              <button
-                                onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, -1)}
-                                className="w-6 h-6 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
+                            <div className="mt-auto flex items-center justify-between gap-4 pt-5">
+                              {/* Bare hairline quantity stepper */}
+                              <div
+                                className="inline-flex items-center border"
+                                style={{ borderColor: HAIRLINE }}
                               >
-                                −
-                              </button>
-                              <span className="w-8 text-center text-[10px] font-mono font-bold text-neutral-800">
-                                {item.quantity}
-                              </span>
+                                <button
+                                  type="button"
+                                  aria-label="Decrease quantity"
+                                  onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, -1)}
+                                  className="flex h-8 w-8 items-center justify-center text-[14px] font-light text-black transition-colors duration-300 hover:bg-[#F5F5F5] cursor-pointer"
+                                >
+                                  −
+                                </button>
+                                <span className="w-8 text-center text-[13px] font-light text-black">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  aria-label="Increase quantity"
+                                  onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, 1)}
+                                  className="flex h-8 w-8 items-center justify-center text-[14px] font-light text-black transition-colors duration-300 hover:bg-[#F5F5F5] cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+
                               <button
-                                onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, 1)}
-                                className="w-6 h-6 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
+                                type="button"
+                                onClick={() => handleRemoveItem(item.product.id, item.selectedSize)}
+                                className="text-[12px] uppercase tracking-[0.1em] text-[#646464] transition-colors duration-300 hover:text-black cursor-pointer"
                               >
-                                +
+                                Remove
                               </button>
                             </div>
-
-                            {/* Price display */}
-                            <span className="text-xs font-serif text-amber-800 font-semibold tracking-wider">
-                              {formatCurrency(itemTotal)}
-                            </span>
                           </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
               </div>
 
-              {/* Drawer Footer summary */}
+              {/* Footer / totals */}
               {cartItems.length > 0 && (
-                <div className="p-6 border-t border-[#EAE3DB] bg-[#FAF5EF] flex flex-col gap-4 shadow-[0_-10px_30px_rgba(0,0,0,0.02)]">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex justify-between items-center text-[10px] tracking-widest uppercase text-neutral-500">
-                      <span>Valued Subtotal</span>
-                      <span className="font-mono text-neutral-800 font-bold">
-                        {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[9px] tracking-widest uppercase text-amber-700/80">
-                      <span>Standard Luxury Delivery</span>
-                      <span className="font-bold">COMPLIMENTARY</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[9px] tracking-widest uppercase text-amber-700/80 border-b border-neutral-200/60 pb-2">
-                      <span>Olfactory Custom wrapping</span>
-                      <span className="font-bold">COMPLIMENTARY</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs tracking-[0.15em] uppercase font-bold text-neutral-950 pt-2">
-                      <span>ESTIMATED TOTAL</span>
-                      <span className="font-mono text-amber-800 text-sm font-extrabold">
-                        {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
-                      </span>
-                    </div>
+                <div
+                  className="border-t px-6 py-6 flex flex-col gap-5"
+                  style={{ borderColor: HAIRLINE }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[14px] font-light text-black">Subtotal</span>
+                    <span className="text-[14px] font-light text-black text-right">
+                      {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
+                    </span>
                   </div>
 
-                  {/* Actions buttons */}
-                  <div className="flex flex-col gap-2.5 mt-2">
-                    <button
-                      onClick={() => {
-                        setIsCartOpen(false);
-                        setIsCartPageOpen(true);
-                      }}
-                      className="w-full text-center border border-neutral-300 hover:border-neutral-900 bg-transparent hover:bg-neutral-50 text-neutral-900 text-[10px] font-extrabold tracking-[0.25em] py-3.5 uppercase transition-all duration-300 cursor-pointer rounded-none"
-                    >
-                      GO TO CART (FULL VIEW)
-                    </button>
+                  <p className="text-[12px] font-light leading-relaxed text-[#646464]">
+                    Complimentary delivery and hand-finished gift wrapping are included with
+                    every order. Taxes calculated at checkout.
+                  </p>
 
+                  <Link href="/checkout" className="maison-btn w-full">
+                    Proceed to checkout
+                  </Link>
+
+                  <div className="text-center">
                     <button
-                      onClick={() => triggerNotification("Redirecting to our secure luxury concierge...")}
-                      className="w-full py-4 text-center bg-black hover:bg-amber-950 text-white text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.1)] rounded-none active:scale-[0.99] cursor-pointer"
+                      type="button"
+                      onClick={() => setIsCartOpen(false)}
+                      className="maison-link cursor-pointer"
                     >
-                      CONCIERGE CHECKOUT
+                      Continue shopping
                     </button>
                   </div>
                 </div>
               )}
             </motion.div>
           </>
-        )}
-      </AnimatePresence>
-
-      {/* 6. Cinematic Full-Screen Cart Overlay Dashboard */}
-      <AnimatePresence>
-        {isCartPageOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="fixed inset-0 bg-[#FAF9F6] z-[110] flex flex-col text-neutral-900 font-sans-luxury overflow-y-auto"
-          >
-            {/* Header Area */}
-            <header className="w-full px-6 md:px-12 py-5 border-b border-[#EAE3DB] flex items-center justify-between sticky top-0 bg-[#FAF9F6]/95 backdrop-blur-md z-10">
-              <button
-                onClick={() => setIsCartPageOpen(false)}
-                className="group flex items-center gap-2 text-[10px] tracking-[0.25em] text-neutral-500 hover:text-neutral-950 uppercase transition-all duration-300 cursor-pointer"
-              >
-                <span className="group-hover:-translate-x-1.5 transition-transform duration-300">←</span> RETURN TO ATELIER
-              </button>
-
-              <h2 className="text-base md:text-lg font-bold tracking-[0.4em] uppercase text-neutral-950 font-serif pl-[0.4em]">
-                GHARIB
-              </h2>
-
-              <span className="text-[10px] font-mono tracking-widest text-amber-800 uppercase font-bold">
-                SECURE BAG [{cartCount}]
-              </span>
-            </header>
-
-            {/* Split Content Grid */}
-            <main className="flex-grow w-full max-w-7xl mx-auto px-6 md:px-12 py-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
-              {/* Left Column: Cart Selection & Options */}
-              <div className="lg:col-span-7 flex flex-col gap-10">
-                <div>
-                  <h3 className="text-[11px] font-extrabold tracking-[0.25em] text-amber-800 uppercase border-b border-[#EAE3DB] pb-3.5 mb-6 flex items-center gap-2">
-                    <span>✧</span> SELECTION DETAILS <span>✧</span>
-                  </h3>
-
-                  {cartItems.length === 0 ? (
-                    <div className="text-center py-16 bg-white border border-[#EAE3DB] p-8 flex flex-col items-center justify-center gap-4 shadow-sm">
-                      <span className="text-2xl text-amber-700/30">✧</span>
-                      <p className="text-xs uppercase tracking-widest text-neutral-400 font-bold">YOUR ATELIER SELECTION IS CURRENTLY EMPTY.</p>
-                      <button
-                        onClick={() => setIsCartPageOpen(false)}
-                        className="text-[10px] text-amber-700 hover:text-black border border-amber-600/30 hover:border-neutral-900 px-6 py-2.5 uppercase tracking-widest font-black transition-all mt-2 cursor-pointer"
-                      >
-                        BROWSE EXCLUSIVES
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-6">
-                      {cartItems.map((item, idx) => {
-                        const priceNum = parseFloat(String(item.product.price).replace("$", "")) || 0;
-                        return (
-                          <motion.div
-                            key={`full-${item.product.id}-${item.selectedSize}`}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.08 }}
-                            className="bg-white border border-[#EAE3DB] p-5 md:p-6 flex flex-col md:flex-row gap-6 relative group hover:border-amber-700/30 transition-colors duration-300 shadow-[0_2px_12px_rgba(0,0,0,0.02)]"
-                          >
-                            {/* Product Frame */}
-                            <div className="relative w-24 h-28 bg-white border border-[#EAE3DB] flex-shrink-0 overflow-hidden shadow-sm">
-                              <Image
-                                src={item.product.image}
-                                alt={item.product.name}
-                                fill
-                                sizes="96px"
-                                className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
-                              />
-                            </div>
-
-                            {/* Details layout */}
-                            <div className="flex-grow flex flex-col justify-between min-w-0">
-                              <div>
-                                <div className="flex justify-between items-start gap-4">
-                                  <div>
-                                    <span className="text-[9px] font-extrabold tracking-widest text-amber-800 uppercase">
-                                      {item.product.brand}
-                                    </span>
-                                    <h4 className="text-sm md:text-base uppercase font-serif tracking-wider font-semibold text-neutral-900 mt-0.5">
-                                      {item.product.name}
-                                    </h4>
-                                  </div>
-                                  <button
-                                    onClick={() => handleRemoveItem(item.product.id, item.selectedSize)}
-                                    className="text-[9px] tracking-widest text-neutral-400 hover:text-red-600 uppercase transition-colors cursor-pointer font-bold"
-                                  >
-                                    ✕ ELIMINATE
-                                  </button>
-                                </div>
-
-                                <p className="text-[10px] tracking-widest text-neutral-500 mt-1 font-mono uppercase">
-                                  Scent Family: {item.product.olfactory || "Bespoke blend"} &nbsp;|&nbsp; Size: {item.selectedSize}
-                                </p>
-                              </div>
-
-                              <div className="flex justify-between items-center mt-5 border-t border-neutral-100 pt-4">
-                                {/* Quantity adjusts */}
-                                <div className="flex items-center border border-neutral-200">
-                                  <button
-                                    onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, -1)}
-                                    className="w-7 h-7 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
-                                  >
-                                    −
-                                  </button>
-                                  <span className="w-10 text-center text-[11px] font-mono font-bold text-neutral-800">
-                                    {item.quantity}
-                                  </span>
-                                  <button
-                                    onClick={() => handleUpdateQuantity(item.product.id, item.selectedSize, 1)}
-                                    className="w-7 h-7 flex items-center justify-center hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-all text-xs font-bold cursor-pointer"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-
-                                {/* Price computation */}
-                                <div className="text-right">
-                                  <span className="text-[9px] uppercase tracking-widest text-neutral-400 block mb-0.5 font-mono">
-                                    {item.quantity} x {formatCurrency(parseFloat(String(item.product.price).replace("$", "")) || 0)}
-                                  </span>
-                                  <span className="text-sm font-serif text-amber-800 font-semibold tracking-wider">
-                                    {formatCurrency(priceNum * item.quantity)}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Luxury Gifting Customization Option */}
-                {cartItems.length > 0 && (
-                  <div className="bg-white border border-[#EAE3DB] p-6 md:p-8 flex flex-col gap-4 shadow-sm">
-                    <div className="flex items-start gap-4">
-                      <div className="w-5 h-5 border border-amber-600/40 rounded-none flex items-center justify-center cursor-pointer bg-amber-50/50 text-amber-800 font-mono mt-0.5 hover:border-amber-700 transition-colors">
-                        ✓
-                      </div>
-                      <div>
-                        <h4 className="text-[11px] font-extrabold tracking-[0.2em] text-neutral-900 uppercase">
-                          Signature Gold Gilded Gift Packaging
-                        </h4>
-                        <p className="text-[10px] tracking-widest text-neutral-500 leading-relaxed mt-1.5">
-                          Enclosed in a premium high-end hot gold-stamped dark chocolate suede box, tied with natural silk cord, and finished with dried floral olfactory accents. Fully complimentary.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Free Sample Selector */}
-                {cartItems.length > 0 && (
-                  <div>
-                    <h3 className="text-[11px] font-extrabold tracking-[0.25em] text-amber-800 uppercase border-b border-[#EAE3DB] pb-3.5 mb-5 flex items-center gap-2">
-                      <span>✧</span> COMPLIMENTARY TRIAL DECANT (SELECT 1) <span>✧</span>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="border-2 border-amber-700 bg-[#FAF5EF] p-4 flex items-center justify-between cursor-pointer transition-all duration-300 shadow-sm">
-                        <div>
-                          <span className="text-[8px] font-extrabold tracking-widest text-amber-800 block">INITIO</span>
-                          <span className="text-xs font-serif uppercase tracking-wider font-bold text-neutral-900">Oud Imperial (2ml)</span>
-                        </div>
-                        <span className="text-[9px] tracking-widest uppercase bg-amber-800 text-white font-extrabold px-2.5 py-0.5">SELECTED</span>
-                      </div>
-                      <div className="border border-[#EAE3DB] hover:border-amber-600/30 bg-white p-4 flex items-center justify-between cursor-pointer transition-all duration-300 hover:shadow-sm group">
-                        <div>
-                          <span className="text-[8px] font-extrabold tracking-widest text-neutral-400 block">RABANNE</span>
-                          <span className="text-xs font-serif uppercase tracking-wider font-semibold text-neutral-600">Phantom Parfum (2ml)</span>
-                        </div>
-                        <span className="text-[9px] tracking-widest uppercase border border-neutral-300 text-neutral-500 px-2.5 py-0.5 group-hover:border-amber-600 group-hover:text-amber-800 transition-colors">CHOOSE</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: Order Summary details */}
-              <div className="lg:col-span-5">
-                {cartItems.length > 0 && (
-                  <div className="bg-[#FAF5EF] border border-[#EAE3DB] p-8 flex flex-col gap-6 sticky top-28 backdrop-blur-md shadow-sm">
-                    <h3 className="text-[11px] font-extrabold tracking-[0.25em] text-amber-800 uppercase border-b border-[#EAE3DB] pb-4">
-                      VALUED SUMMARY
-                    </h3>
-
-                    {/* Math breakdown */}
-                    <div className="flex flex-col gap-3.5 text-[10px] tracking-widest uppercase">
-                      <div className="flex justify-between items-center text-neutral-500">
-                        <span>Items Subtotal</span>
-                        <span className="font-mono text-neutral-800 font-bold">
-                          {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center text-neutral-500">
-                        <span>Luxury Secure Transport</span>
-                        <span className="text-amber-800 font-bold">COMPLIMENTARY</span>
-                      </div>
-                      <div className="flex justify-between items-center text-neutral-500">
-                        <span>Temperature Controlled Pack</span>
-                        <span className="text-amber-800 font-bold">COMPLIMENTARY</span>
-                      </div>
-
-                      {/* Promo Code Sharp Box */}
-                      <div className="flex flex-col gap-2 mt-2">
-                        <label className="text-[8px] tracking-[0.25em] text-neutral-400 block font-bold">
-                          PROMOTIONAL ATELIER CODE
-                        </label>
-                        <div className="flex">
-                          <input
-                            type="text"
-                            placeholder="ENTER GOLDEN CODE..."
-                            className="flex-grow bg-white border border-[#EAE3DB] rounded-none px-3.5 py-2.5 text-[10px] tracking-widest uppercase outline-none text-neutral-800 focus:border-amber-600 placeholder-neutral-300"
-                          />
-                          <button
-                            onClick={() => triggerNotification("Golden Code applied successfully.")}
-                            className="bg-neutral-900 hover:bg-black text-white border-y border-r border-neutral-900 text-[9px] font-black tracking-widest px-5 uppercase transition-all duration-300 rounded-none cursor-pointer"
-                          >
-                            APPLY
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-[#EAE3DB] pt-4 flex justify-between items-center text-xs tracking-[0.15em] font-extrabold text-neutral-950 mt-2">
-                        <span>ESTIMATED TOTAL</span>
-                        <span className="font-mono text-amber-800 text-base font-extrabold">
-                          {formatCurrency(cartItems.reduce((sum, item) => sum + (parseFloat(String(item.product.price).replace("$", "")) || 0) * item.quantity, 0))}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* CTA Concierge buttons */}
-                    <div className="flex flex-col gap-3 mt-4">
-                      <Link
-                        href="/checkout"
-                        className="w-full py-4 text-center bg-black hover:bg-amber-950 text-white text-[10px] font-black tracking-[0.3em] uppercase transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.1)] rounded-none active:scale-[0.99] cursor-pointer text-decoration-none block"
-                      >
-                        PROCEED TO SECURE CHECKOUT
-                      </Link>
-
-                      <button
-                        onClick={() => setIsCartPageOpen(false)}
-                        className="w-full text-center border border-neutral-300 hover:border-neutral-950 bg-transparent text-neutral-800 text-[10px] font-extrabold tracking-[0.25em] py-3.5 uppercase transition-all duration-300 cursor-pointer rounded-none"
-                      >
-                        CONTINUE EXPLORING
-                      </button>
-                    </div>
-
-                    {/* Trust badges */}
-                    <div className="border-t border-[#EAE3DB] pt-6 mt-2 flex flex-col gap-3 text-center">
-                      <p className="text-[9px] tracking-widest text-neutral-400 uppercase leading-relaxed font-semibold">
-                        Authorized Original Brand Guarantee &nbsp;•&nbsp; Temperature-Guaranteed Cargo &nbsp;•&nbsp; Gilded Silk Gifting Included
-                      </p>
-
-                      {/* Gilded Lock Badge */}
-                      <div className="flex items-center justify-center gap-1.5 text-[8px] font-extrabold tracking-[0.2em] uppercase text-amber-800">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                        </svg>
-                        SSL SECURED 256-BIT CHECKSUM
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </main>
-          </motion.div>
         )}
       </AnimatePresence>
     </div>

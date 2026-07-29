@@ -2,220 +2,125 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ArrowRight, Sparkles } from "lucide-react";
 
+/* A maison, exactly as the `collections` table stores it (kind = 'brand').
+   Nothing here is invented locally — AppHeader reads the rows and passes them
+   down, so the menu can never advertise a house the database does not have. */
 export interface BrandItem {
   id: string;
-  name: string;
-  image: string;
-  accent: string;
-  href: string;
-  tagline: string;
+  title: string;
+  description?: string | null;
+  cover_image?: string | null;
+  sort_order?: number | null;
 }
-
-export const BRAND_HOUSES: BrandItem[] = [
-  {
-    id: "rasasi",
-    name: "RASASI",
-    image: "/brands/rasasi-perfume.png",
-    accent: "#E3B573",
-    href: "/collection/rasasi",
-    tagline: "Royal Oriental & Amber Edition"
-  },
-  {
-    id: "lattafa",
-    name: "LATTAFA",
-    image: "/brands/lattafa-perfume.png",
-    accent: "#E8C07F",
-    href: "/collection/lattafa",
-    tagline: "Opulent Arabian Masterpieces"
-  },
-  {
-    id: "armaf",
-    name: "ARMAF",
-    image: "/brands/armaf-perfume.png",
-    accent: "#CFC6B0",
-    href: "/collection/armaf",
-    tagline: "Club De Nuit High Perfumery"
-  },
-  {
-    id: "french-avenue",
-    name: "FRENCH AVENUE",
-    image: "/brands/french-avenue-perfume.png",
-    accent: "#E9A075",
-    href: "/collection/french-avenue",
-    tagline: "Parisian & Oriental Fusion"
-  },
-  {
-    id: "afnan",
-    name: "AFNAN",
-    image: "/brands/afnan-perfume.png",
-    accent: "#CDC58D",
-    href: "/collection/afnan",
-    tagline: "Crafted Luxury Blends"
-  },
-  {
-    id: "al-haramain",
-    name: "AL HARAMAIN",
-    image: "/brands/al-haramain-perfume.png",
-    accent: "#DDA96F",
-    href: "/collection/al-haramain",
-    tagline: "Heritage & Rare Oud"
-  }
-];
 
 interface BrandsDropdownProps {
   isOpen: boolean;
   onClose: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  /** Brand collections (kind = 'brand'), already sorted by sort_order.
+   *  Optional so a caller that has not fetched yet renders an empty menu
+   *  rather than crashing the page that contains it. */
+  brands?: BrandItem[];
+  /** Legacy prop — the mega-menu is always the white maison panel. */
   isDarkTheme?: boolean;
 }
+
+const HAIRLINE = "rgba(0,0,0,0.12)";
+
+/* "AL HARAMAIN" → "Al Haramain" */
+const toTitleCase = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/(^|[\s-])([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toUpperCase());
 
 export default function BrandsDropdown({
   isOpen,
   onClose,
   onMouseEnter,
   onMouseLeave,
-  isDarkTheme = false
+  brands = []
 }: BrandsDropdownProps) {
-  if (!isOpen) return null;
+  /* The editorial column shows the first three maisons that actually carry
+     cover art. An unfetched or art-less menu simply renders the list alone. */
+  const featuredTiles = brands.filter((brand) => Boolean(brand.cover_image)).slice(0, 3);
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -6 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -6 }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        className={`absolute top-full left-0 w-full z-50 min-h-[48vh] flex flex-col justify-between shadow-[0_35px_90px_rgba(27,15,10,0.25)] border-b transition-colors duration-300 ${
-          isDarkTheme
-            ? "bg-[#0E0A07]/98 backdrop-blur-2xl border-white/15 text-white"
-            : "bg-[#FAF6F0]/98 backdrop-blur-2xl border-amber-900/15 text-[#3B1F0B]"
-        }`}
-      >
-        {/* Invisible Hover Bridge */}
-        <div className="absolute -top-6 left-0 right-0 h-6 bg-transparent pointer-events-auto" />
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+          className="absolute top-full left-0 w-full z-50 bg-white text-black font-body border-t border-b"
+          style={{ borderColor: HAIRLINE }}
+        >
+          <div className="maison-container py-12 lg:py-16 grid grid-cols-12 gap-10 lg:gap-16">
+            {/* Brand list */}
+            <div className={featuredTiles.length > 0 ? "col-span-12 lg:col-span-4" : "col-span-12"}>
+              <p className="maison-eyebrow mb-7">Maisons</p>
 
-        <div className="max-w-[1440px] mx-auto w-full px-6 md:px-12 py-8 flex flex-col justify-between flex-grow relative z-10 font-sans-luxury">
-          {/* Header Row */}
-          <div className="flex flex-wrap items-center justify-between border-b border-amber-900/15 pb-5 mb-6 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#4A2C11]/10 border border-[#4A2C11]/30 flex items-center justify-center text-[#4A2C11] shrink-0">
-                <Sparkles className="w-4 h-4 text-[#4A2C11] dark:text-[#E8C07F]" />
-              </div>
-              <div>
-                <h3
-                  className="text-xs font-black tracking-[0.25em] uppercase"
-                  style={{ color: isDarkTheme ? "#E8C07F" : "#4A2C11" }}
-                >
-                  FEATURED BRANDS
-                </h3>
-                <p
-                  className="text-[11px] font-sans tracking-wider"
-                  style={{ color: isDarkTheme ? "#D4A373" : "#6B4423" }}
-                >
-                  Select a brand to view its perfume collection
-                </p>
-              </div>
+              <ul>
+                {brands.map((brand) => (
+                  <li key={brand.id}>
+                    <Link
+                      href={`/collection/${brand.id}`}
+                      onClick={onClose}
+                      className="inline-block py-2.5 text-[15px] font-[350] tracking-[0.02em] text-black leading-none decoration-1 underline-offset-[6px] transition-opacity duration-300 hover:underline"
+                    >
+                      {toTitleCase(brand.title)}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+
+              <Link href="/collections" onClick={onClose} className="maison-link mt-8">
+                View all brands
+              </Link>
             </div>
 
-            <Link
-              href="/collections"
-              onClick={onClose}
-              className="inline-flex items-center gap-2 text-[11px] font-extrabold tracking-[0.2em] uppercase transition-colors group cursor-pointer"
-              style={{ color: isDarkTheme ? "#E8C07F" : "#4A2C11" }}
-            >
-              <span>VIEW ALL BRANDS</span>
-              <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
-            </Link>
-          </div>
-
-          {/* Horizontal Banner Cards featuring actual Perfume Bottle Images */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 my-auto">
-            {BRAND_HOUSES.map((brand) => (
-              <Link
-                key={brand.id}
-                href={brand.href}
-                onClick={onClose}
-                className={`group rounded-2xl border transition-all duration-300 flex items-center justify-between overflow-hidden cursor-pointer h-28 sm:h-32 shadow-md hover:shadow-xl ${
-                  isDarkTheme
-                    ? "bg-white/[0.04] border-white/15 hover:border-amber-400/60 hover:bg-white/[0.08]"
-                    : "bg-white border-amber-900/15 hover:border-amber-800/50 hover:shadow-[0_12px_30px_rgba(180,120,60,0.15)]"
-                }`}
-              >
-                {/* Horizontal Perfume Bottle Showcase Window */}
-                <div className="relative w-28 sm:w-36 md:w-40 h-full overflow-hidden shrink-0 bg-gradient-to-b from-neutral-900/10 to-amber-950/20 dark:from-white/5 dark:to-amber-500/10 border-r border-amber-900/10 flex items-center justify-center p-2.5">
-                  {/* Backlight Ambient Glow */}
-                  <div
-                    className="absolute inset-0 opacity-25 group-hover:opacity-50 transition-opacity duration-500 blur-lg pointer-events-none"
-                    style={{ background: `radial-gradient(circle, ${brand.accent} 0%, transparent 70%)` }}
-                  />
-
-                  {/* Perfume Bottle Image */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={brand.image}
-                    alt={brand.name}
-                    className="h-24 sm:h-28 w-auto object-contain relative z-10 drop-shadow-[0_8px_18px_rgba(0,0,0,0.25)] group-hover:scale-108 transition-all duration-300 ease-out"
-                  />
-                </div>
-
-                {/* Content Section */}
-                <div className="p-4 sm:p-5 flex-1 flex items-center justify-between gap-3">
-                  <div>
-                    <h4
-                      className="text-sm sm:text-base font-black tracking-[0.2em] uppercase transition-colors"
-                      style={{ color: isDarkTheme ? "#FFFFFF" : "#3B1F0B" }}
-                    >
-                      {brand.name}
-                    </h4>
-                    <p
-                      className="text-[11px] font-medium font-sans mt-1"
-                      style={{ color: isDarkTheme ? "#E8C07F" : "#78350F" }}
-                    >
-                      {brand.tagline}
-                    </p>
-                  </div>
-
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0 ${
-                      isDarkTheme
-                        ? "bg-white/10 text-amber-400 group-hover:bg-amber-400 group-hover:text-black"
-                        : "bg-[#4A2C11]/10 text-[#3B1F0B] group-hover:bg-[#3B1F0B] group-hover:text-white"
-                    }`}
+            {/* Editorial tiles */}
+            {featuredTiles.length > 0 && (
+              <div className="col-span-12 lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-8 lg:gap-10">
+                {featuredTiles.map((brand) => (
+                  <Link
+                    key={brand.id}
+                    href={`/collection/${brand.id}`}
+                    onClick={onClose}
+                    className="group block text-center"
                   >
-                    <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                    <div className="relative w-full aspect-[4/5] overflow-hidden bg-[#F5F5F5]">
+                      <Image
+                        src={brand.cover_image as string}
+                        alt={toTitleCase(brand.title)}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 300px"
+                        className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+                      />
+                    </div>
 
-          {/* Footer Bar */}
-          <div className="mt-6 pt-4 border-t border-amber-900/15 flex items-center justify-between">
-            <span
-              className="text-[10px] font-bold tracking-widest uppercase"
-              style={{ color: isDarkTheme ? "#AAAAAA" : "#6B4423" }}
-            >
-              AUTHENTIC DUBAI & ARABIAN PERFUME BRANDS
-            </span>
+                    <h3 className="maison-card-title mt-5">{brand.title.toUpperCase()}</h3>
 
-            <Link
-              href="/collections"
-              onClick={onClose}
-              className="text-[11px] font-black tracking-[0.2em] uppercase transition-colors flex items-center gap-1.5 cursor-pointer"
-              style={{ color: isDarkTheme ? "#E8C07F" : "#4A2C11" }}
-            >
-              <span>VIEW ALL BRANDS</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+                    {brand.description && (
+                      <p className="mt-2 text-[13px] font-light leading-relaxed text-[#646464] line-clamp-2">
+                        {brand.description}
+                      </p>
+                    )}
+
+                    <span className="maison-link mt-4">Discover</span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }
