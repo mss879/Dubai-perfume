@@ -99,3 +99,12 @@ body {
 .animate-marquee-track:hover {
   animation-play-state: paused;
 }
+/* Hide scrollbars on horizontal rails (brand collection pages) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

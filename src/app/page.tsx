@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import gsap from "gsap";
+import BrandsDropdown from "./components/BrandsDropdown";
 
 interface Product {
   id: number;
@@ -406,7 +407,7 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
   useEffect(() => {
     const ctx = gsap.context(() => {
       const tl = gsap.timeline();
-      
+
       // Slide in cards
       tl.fromTo(
         leftCardRef.current,
@@ -432,7 +433,7 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
       const textElements: HTMLElement[] = [];
       if (leftTextRef.current) textElements.push(...Array.from(leftTextRef.current.children) as HTMLElement[]);
       if (rightTextRef.current) textElements.push(...Array.from(rightTextRef.current.children) as HTMLElement[]);
-      
+
       tl.fromTo(
         textElements,
         { y: 20, opacity: 0 },
@@ -447,7 +448,7 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
   return (
     <div ref={containerRef} className="w-full max-w-5xl mx-auto px-4 md:px-8 py-8 relative font-sans-luxury">
       <div className="flex flex-col md:flex-row h-[360px] md:h-[400px] border border-amber-800/10 relative overflow-hidden bg-black/5">
-        
+
         {/* Left Card: MEN */}
         <div
           ref={leftCardRef}
@@ -455,21 +456,20 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
           onMouseEnter={() => setHovered("men")}
           onMouseLeave={() => setHovered(null)}
           style={{ transition: "flex 0.8s cubic-bezier(0.16, 1, 0.3, 1)" }}
-          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${
-            hovered === "men" ? "flex-[1.3]" : hovered === "women" ? "flex-[0.7]" : "flex-[1]"
-          }`}
+          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${hovered === "men" ? "flex-[1.3]" : hovered === "women" ? "flex-[0.7]" : "flex-[1]"
+            }`}
         >
           {/* Cover image */}
           <div
             className="absolute inset-0 bg-cover bg-center transition-transform duration-[1200ms] ease-out"
-            style={{ 
+            style={{
               backgroundImage: "url('/men-perfume.jpg')",
-              transform: hovered === "men" ? "scale(1.05)" : "scale(1)" 
+              transform: hovered === "men" ? "scale(1.05)" : "scale(1)"
             }}
           />
           {/* Dimming overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-500" />
-          
+
           {/* Content */}
           <div ref={leftTextRef} className="relative z-10 flex flex-col gap-1.5">
             <span className="text-[9px] font-black tracking-[0.3em] text-amber-500 uppercase">
@@ -485,16 +485,15 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
               ✧ DISCOVER COLLECTION →
             </span>
           </div>
-          
+
           {/* Elegant gold hairline border on hover */}
-          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${
-            hovered === "men" ? "opacity-100 scale-100" : "opacity-0 scale-95"
-          }`} />
+          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${hovered === "men" ? "opacity-100 scale-100" : "opacity-0 scale-95"
+            }`} />
         </div>
 
         {/* Dynamic vertical Gold line Divider */}
-        <div 
-          ref={dividerRef} 
+        <div
+          ref={dividerRef}
           style={{ transformOrigin: "top" }}
           className="hidden md:block w-[1px] bg-gradient-to-b from-transparent via-amber-600/40 to-transparent self-stretch z-20 relative pointer-events-none"
         />
@@ -506,21 +505,20 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
           onMouseEnter={() => setHovered("women")}
           onMouseLeave={() => setHovered(null)}
           style={{ transition: "flex 0.8s cubic-bezier(0.16, 1, 0.3, 1)" }}
-          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${
-            hovered === "women" ? "flex-[1.3]" : hovered === "men" ? "flex-[0.7]" : "flex-[1]"
-          }`}
+          className={`relative overflow-hidden cursor-pointer flex flex-col justify-end p-8 text-left group ${hovered === "women" ? "flex-[1.3]" : hovered === "men" ? "flex-[0.7]" : "flex-[1]"
+            }`}
         >
           {/* Cover image */}
           <div
             className="absolute inset-0 bg-cover bg-center transition-transform duration-[1200ms] ease-out"
-            style={{ 
+            style={{
               backgroundImage: "url('/women-perfume.jpg')",
-              transform: hovered === "women" ? "scale(1.05)" : "scale(1)" 
+              transform: hovered === "women" ? "scale(1.05)" : "scale(1)"
             }}
           />
           {/* Dimming overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-500" />
-          
+
           {/* Content */}
           <div ref={rightTextRef} className="relative z-10 flex flex-col gap-1.5">
             <span className="text-[9px] font-black tracking-[0.3em] text-amber-500 uppercase">
@@ -538,9 +536,8 @@ const GenderSelector: React.FC<GenderSelectorProps> = ({ onSelect }) => {
           </div>
 
           {/* Elegant gold hairline border on hover */}
-          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${
-            hovered === "women" ? "opacity-100 scale-100" : "opacity-0 scale-95"
-          }`} />
+          <div className={`absolute inset-3 border border-amber-600/20 pointer-events-none transition-all duration-700 ${hovered === "women" ? "opacity-100 scale-100" : "opacity-0 scale-95"
+            }`} />
         </div>
 
       </div>
@@ -562,70 +559,20 @@ const ProductCard: React.FC<{
   formatCurrency: (aedAmount: number) => string;
 }> = ({ prod, isFav, isBuyLater, isLoggedIn, activeSize, onToggleFavorite, onToggleBuyLater, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
 
-  const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
+
+  // Clean long perfume names (replace underscores with spaces for elegant wrapping)
+  const displayName = prod.name ? prod.name.replace(/_/g, " ") : "";
 
   return (
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative border border-[#EAE3DB] bg-white hover:border-amber-700/40 hover:shadow-[0_24px_55px_rgba(28,18,12,0.06)] transition-all duration-500 rounded-none overflow-hidden flex flex-col justify-between h-full"
+      className="group relative bg-transparent flex flex-col justify-between h-full text-center transition-all duration-300 min-w-0"
     >
-      {/* Decorative gold hairline accents that appear on card hover */}
-      <div className="absolute inset-0 border border-amber-600/0 group-hover:border-amber-600/10 pointer-events-none transition-all duration-500 z-20"></div>
-
-      {/* Image Container */}
-      <Link href={`/product/${prod.id}`} className="bg-[#F6F5F2] relative flex items-center justify-center p-0 w-full aspect-square overflow-hidden border-b border-[#EAE3DB]/50 cursor-pointer block">
-
-        {/* Luxury Badge */}
-        {badgeText && (
-          <span className="absolute top-3 left-3 bg-black/90 backdrop-blur-md text-white text-[7px] font-bold tracking-[0.25em] uppercase px-2.5 py-1 z-20 border border-white/5">
-            {badgeText}
-          </span>
-        )}
-
-        {/* Favorite & Buy Later Triggers (Only visible when logged in) */}
-        {isLoggedIn && (
-          <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <button
-              onClick={() => onToggleFavorite(prod.id)}
-              className="w-7 h-7 flex items-center justify-center bg-white/95 border border-neutral-100 text-neutral-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 hover:scale-105 active:scale-95 transition-all duration-200 rounded-full cursor-pointer shadow-sm"
-              title={isFav ? "Remove from Favorites" : "Add to Favorites"}
-            >
-              <svg
-                className={`w-3 h-3 transition-colors duration-200 ${isFav ? "fill-red-600 text-red-600" : ""}`}
-                fill={isFav ? "currentColor" : "none"}
-                stroke={isFav ? "none" : "currentColor"}
-                strokeWidth="2.2"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-              </svg>
-            </button>
-
-            <button
-              onClick={() => onToggleBuyLater(prod.id)}
-              className="w-7 h-7 flex items-center justify-center bg-white/95 border border-neutral-100 text-neutral-600 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-100 hover:scale-105 active:scale-95 transition-all duration-200 rounded-full cursor-pointer shadow-sm"
-              title={isBuyLater ? "Remove from Buy Later" : "Save to Buy Later"}
-            >
-              <svg
-                className={`w-3 h-3 transition-colors duration-200 ${isBuyLater ? "fill-amber-600 text-amber-600" : ""}`}
-                fill={isBuyLater ? "currentColor" : "none"}
-                stroke={isBuyLater ? "none" : "currentColor"}
-                strokeWidth="2.2"
-                viewBox="0 0 24 24"
-              >
-                <path d="M5 3h14a2 2 0 0 1 2 2v16l-9-4-9 4V5a2 2 0 0 1 2-2z" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {/* Subtle Ambient Glow */}
-        <div className="absolute inset-0 bg-radial from-amber-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
-
-        {/* Main Bottle Image */}
-        <div className="relative w-full h-full transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03] flex items-center justify-center">
+      {/* 1. Product Image Stage (No background box, no container border) */}
+      <Link href={`/product/${prod.id}`} className="relative w-full aspect-[4/5] overflow-hidden cursor-pointer block mb-3 bg-transparent border-none">
+        <div className="relative w-full h-full transition-transform duration-[900ms] ease-out group-hover:scale-[1.04] flex items-center justify-center">
           {(() => {
             let hoverImage = null;
             if (prod.images && prod.images.length > 1) {
@@ -636,21 +583,19 @@ const ProductCard: React.FC<{
               <>
                 <Image
                   src={prod.image}
-                  alt={prod.name}
+                  alt={displayName}
                   fill
-                  className={`object-cover p-0 transition-opacity duration-700 ${
-                    isHovered && hoverImage ? "opacity-0" : "opacity-100"
-                  }`}
+                  className={`object-contain p-2 transition-opacity duration-700 ${isHovered && hoverImage ? "opacity-0" : "opacity-100"
+                    }`}
                   priority
                 />
                 {hoverImage && (
                   <Image
                     src={hoverImage}
-                    alt={prod.name}
+                    alt={displayName}
                     fill
-                    className={`object-cover p-0 transition-opacity duration-700 absolute inset-0 ${
-                      isHovered ? "opacity-100" : "opacity-0"
-                    }`}
+                    className={`object-contain p-2 transition-opacity duration-700 absolute inset-0 ${isHovered ? "opacity-100" : "opacity-0"
+                      }`}
                   />
                 )}
               </>
@@ -659,69 +604,25 @@ const ProductCard: React.FC<{
         </div>
       </Link>
 
-      {/* Details Box */}
-      <div className="p-4 flex-grow flex flex-col justify-between text-left bg-white transition-all duration-500 font-sans-luxury">
-        {/* Brand & Name Row */}
-        <Link href={`/product/${prod.id}`} className="cursor-pointer block text-left group-hover:opacity-85 transition-opacity">
-          <span className="text-[8px] tracking-[0.25em] font-extrabold text-amber-800 uppercase block mb-1">
-            {prod.brand}
-          </span>
-          <h3 className="text-[13px] font-bold text-neutral-950 uppercase tracking-wider line-clamp-1 group-hover:text-amber-900 transition-colors duration-300 font-sans-luxury">
-            {prod.name}
+      {/* 2. Details directly under the image (Name, Price, Add to Basket) */}
+      <div className="flex flex-col items-center flex-grow justify-between w-full px-1">
+        <Link href={`/product/${prod.id}`} className="cursor-pointer block group/title w-full">
+          <h3 className="font-serif-luxury text-[14px] md:text-[15px] font-medium text-[#171310] uppercase tracking-[0.04em] leading-[1.35] line-clamp-2 break-words text-center group-hover/title:text-[#8C6D46] transition-colors duration-300">
+            {displayName}
           </h3>
         </Link>
 
-        {/* Pricing & CTA Buttons on the same row */}
-        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-neutral-100">
-          <span className="text-[13px] font-serif font-extrabold text-[#2A1A0F] tracking-widest">
+        <div className="flex flex-col items-center gap-2.5 w-full mt-2">
+          <span className="font-serif-luxury text-[14px] md:text-[15px] font-semibold text-[#2A1A0F] tracking-widest">
             {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
           </span>
 
-          <div className="flex items-center gap-2">
-            {/* Basket Icon Button with Slide-Up Hover Effect */}
-            <button
-              onClick={() => onAddToCart(prod.id)}
-              className="w-7 h-7 flex items-center justify-center border border-neutral-200 hover:border-black text-neutral-700 hover:text-black bg-transparent hover:bg-neutral-50 transition-all duration-300 rounded-none cursor-pointer active:scale-95 group/basket overflow-hidden relative"
-              title="Add to Basket"
-            >
-              <div className="relative w-3.5 h-3.5 overflow-hidden flex flex-col justify-center items-center">
-                <svg
-                  className="w-3.5 h-3.5 absolute transition-all duration-300 transform group-hover/basket:-translate-y-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                <svg
-                  className="w-3.5 h-3.5 absolute text-amber-700 transition-all duration-300 transform translate-y-5 group-hover/basket:translate-y-0"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-              </div>
-            </button>
-
-            {/* Buy Now Text Button with Shine and Slide Background Effect */}
-            <button
-              onClick={() => {
-                onAddToCart(prod.id);
-                router.push("/checkout");
-              }}
-              className="bg-black text-white text-[8px] font-black tracking-[0.2em] hover:tracking-[0.28em] uppercase px-3 py-1.5 transition-all duration-500 rounded-none cursor-pointer border border-black active:scale-95 shadow-sm relative overflow-hidden group/buynow flex items-center justify-center"
-            >
-              {/* Background gradient slide-up fill */}
-              <span className="absolute inset-0 bg-gradient-to-r from-amber-950 to-amber-800 translate-y-full group-hover/buynow:translate-y-0 transition-transform duration-500 ease-out z-0"></span>
-              {/* Shine Sweep Reflection */}
-              <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 -translate-x-[150%] group-hover/buynow:translate-x-[150%] transition-transform duration-1000 ease-in-out z-0"></span>
-
-              <span className="relative z-10">BUY NOW</span>
-            </button>
-          </div>
+          <button
+            onClick={() => onAddToCart(prod.id)}
+            className="w-full text-center py-2.5 px-3 bg-[#171310] text-[#F4E7D4] hover:bg-[#8C6D46] hover:text-white text-[9px] font-medium tracking-[0.22em] uppercase transition-all duration-300 rounded-none cursor-pointer border border-[#171310] active:scale-95"
+          >
+            Add to Basket
+          </button>
         </div>
       </div>
     </div>
@@ -741,13 +642,47 @@ export default function Home() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  // Dynamic Homepage Hero Products state (with fallback to default static items)
+  const [heroProducts, setHeroProducts] = useState<Product[]>(PRODUCTS);
+
+  // Fetch dynamic Hero products from Supabase
+  useEffect(() => {
+    const fetchHeroProducts = async () => {
+      try {
+        const { data, error } = await clientSafeSupabase
+          .from("products")
+          .select("*")
+          .eq("is_hero", true)
+          .order("hero_order", { ascending: true })
+          .order("id", { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          const mapped: Product[] = data.map((item: any) => ({
+            id: item.id,
+            title: item.name,
+            price: String(item.price),
+            image: item.image_url || "/gold-memoir.png",
+            description: item.description || "",
+            tagline: item.tagline || item.brand || "PRIVÉ COLLECTION",
+          }));
+          setHeroProducts(mapped);
+        }
+      } catch (err) {
+        console.error("Hero products fetch fallback to defaults:", err);
+      }
+    };
+    fetchHeroProducts();
+  }, []);
+
   // Load products list and collections list from db/mock
   const [productsList, setProductsList] = useState<CatalogProduct[]>(CATALOG_PRODUCTS);
   const [collectionsList, setCollectionsList] = useState<any[]>(MEGA_MENU_COLLECTIONS);
   const [productCollectionsList, setProductCollectionsList] = useState<any[]>([]);
+  // Brand collections (kind = 'brand'), each of which owns a /collection/<id> page
+  const [brandCollections, setBrandCollections] = useState<any[]>([]);
 
-  // Preloader Visibility State
-  const [showIntro, setShowIntro] = useState(true);
+  // Preloader Visibility State (Only displayed once on first visit)
+  const [showIntro, setShowIntro] = useState(false);
 
   // Main Storefront UI Staggered Entrance Reveal State
   const [revealInterface, setRevealInterface] = useState(false);
@@ -755,7 +690,7 @@ export default function Home() {
   // Scroll visibility state for sticky light navbar
   const [isScrolled, setIsScrolled] = useState(false);
 
-  const activeProduct = PRODUCTS[activeIndex];
+  const activeProduct = heroProducts[activeIndex] || heroProducts[0] || PRODUCTS[0];
 
   // Catalog e-commerce states
   const [activeCatalogTab, setActiveCatalogTab] = useState<"all" | "new" | "bestsellers" | "favorites">("all");
@@ -1023,7 +958,27 @@ export default function Home() {
   const [selectedMenuGender, setSelectedMenuGender] = useState<string | null>(null);
   const [searchSuggestions, setSearchSuggestions] = useState<CatalogProduct[]>([]);
   const [isMegaMenuOpen, setIsMegaMenuOpen] = useState(false);
+  const [isBrandsMenuOpen, setIsBrandsMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const brandsLeaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleBrandsMouseEnter = () => {
+    if (brandsLeaveTimeoutRef.current) {
+      clearTimeout(brandsLeaveTimeoutRef.current);
+      brandsLeaveTimeoutRef.current = null;
+    }
+    setIsBrandsMenuOpen(true);
+    setIsMegaMenuOpen(false);
+  };
+
+  const handleBrandsMouseLeave = () => {
+    if (brandsLeaveTimeoutRef.current) {
+      clearTimeout(brandsLeaveTimeoutRef.current);
+    }
+    brandsLeaveTimeoutRef.current = setTimeout(() => {
+      setIsBrandsMenuOpen(false);
+    }, 250);
+  };
 
   useEffect(() => {
     if (!isMegaMenuOpen) {
@@ -1082,13 +1037,11 @@ export default function Home() {
                 <li key={col.id}>
                   <button
                     onClick={() => {
-                      setSelectedGender(selectedMenuGender);
-                      setSelectedCollection(col.id as any);
-                      setSelectedBrand(null);
-                      setSelectedOlfactory(null);
                       setIsMegaMenuOpen(false);
-                      const el = document.getElementById("new-in");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                      const qParams = new URLSearchParams();
+                      if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
+                      qParams.set("collection", col.id);
+                      router.push(`/shop?${qParams.toString()}`);
                     }}
                     className="transition-all duration-300 uppercase cursor-pointer flex flex-col group text-left w-full relative pl-2 hover:pl-4"
                   >
@@ -1106,14 +1059,10 @@ export default function Home() {
               <li className="border-t border-amber-800/10 pt-5 mt-1">
                 <button
                   onClick={() => {
-                    setSelectedGender(selectedMenuGender);
-                    setSearchTerm("");
-                    setSelectedCollection(null);
-                    setSelectedBrand(null);
-                    setSelectedOlfactory(null);
                     setIsMegaMenuOpen(false);
-                    const el = document.getElementById("new-in");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                    const qParams = new URLSearchParams();
+                    if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
+                    router.push(qParams.toString() ? `/shop?${qParams.toString()}` : `/shop`);
                   }}
                   className="hover:text-amber-800 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 group text-left w-full text-[13px] font-black tracking-[0.2em] text-neutral-800 pl-2 hover:pl-4"
                 >
@@ -1133,13 +1082,11 @@ export default function Home() {
                 <button
                   key={item.label}
                   onClick={() => {
-                    setSelectedGender(selectedMenuGender);
-                    setSelectedOlfactory(item.label);
-                    setSelectedBrand(null);
-                    setSelectedCollection(null);
                     setIsMegaMenuOpen(false);
-                    const el = document.getElementById("new-in");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                    const qParams = new URLSearchParams();
+                    if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
+                    qParams.set("olfactory", item.label);
+                    router.push(`/shop?${qParams.toString()}`);
                   }}
                   className="relative overflow-hidden bg-white/75 hover:bg-gradient-to-b hover:from-white hover:to-[#FAF6F0] border border-amber-800/10 hover:border-amber-600/30 p-5 transition-all duration-300 group/olf flex items-center gap-4 text-left w-full rounded-none cursor-pointer shadow-[0_2px_8px_rgba(27,15,10,0.01)] hover:shadow-[0_15px_30px_rgba(27,15,10,0.04),_0_0_15px_rgba(180,100,50,0.02)]"
                 >
@@ -1168,35 +1115,59 @@ export default function Home() {
               AUTEUR BRANDS
             </span>
             <ul className="flex flex-col text-xs font-bold tracking-widest text-neutral-800">
-              {[
-                "FILIPPO SORCINELLI",
-                "INITIO PARFUMS PRIVES",
-                "TOM FORD",
-                "RABANNE",
-                "JULIETTE HAS A GUN",
-                "HFC",
-              ].map((bname) => (
-                <li key={bname} className="border-b border-amber-800/10 last:border-0 py-3.5 first:pt-0">
-                  <button
-                    onClick={() => {
-                      setSelectedGender(selectedMenuGender);
-                      setSelectedBrand(bname);
-                      setSelectedOlfactory(null);
-                      setSelectedCollection(null);
-                      setIsMegaMenuOpen(false);
-                      const el = document.getElementById("new-in");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
-                      <span>{bname.replace(" PARFUMS PRIVES", "")}</span>
-                    </div>
-                    <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-amber-600">✧</span>
-                  </button>
+              {(brandCollections.length > 0
+                ? brandCollections.map((c: any) => ({ id: c.id, label: c.title }))
+                : [
+                  "FILIPPO SORCINELLI",
+                  "INITIO PARFUMS PRIVES",
+                  "TOM FORD",
+                  "RABANNE",
+                  "JULIETTE HAS A GUN",
+                  "HFC",
+                ].map((bname) => ({ id: null, label: bname }))
+              ).map((brand: any) => (
+                <li key={brand.id || brand.label} className="border-b border-amber-800/10 last:border-0 py-3.5 first:pt-0">
+                  {brand.id ? (
+                    <Link
+                      href={`/collection/${brand.id}`}
+                      onClick={() => setIsMegaMenuOpen(false)}
+                      className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
+                        <span>{brand.label}</span>
+                      </div>
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-amber-600">✧</span>
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsMegaMenuOpen(false);
+                        const qParams = new URLSearchParams();
+                        if (selectedMenuGender) qParams.set("gender", selectedMenuGender);
+                        qParams.set("brand", brand.label);
+                        router.push(`/shop?${qParams.toString()}`);
+                      }}
+                      className="text-neutral-800 hover:text-amber-800 hover:translate-x-2.5 transition-all duration-300 uppercase cursor-pointer flex items-center justify-between group text-left w-full text-[12.5px] font-extrabold tracking-[0.22em] truncate"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <span className="w-1.5 h-1.5 border border-amber-600/30 bg-amber-500/10 group-hover:bg-amber-600 group-hover:border-amber-600 rounded-none transform rotate-45 group-hover:rotate-135 transition-all duration-300"></span>
+                        <span>{brand.label.replace(" PARFUMS PRIVES", "")}</span>
+                      </div>
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-amber-600">✧</span>
+                    </button>
+                  )}
                 </li>
               ))}
+              <li className="border-t border-amber-800/10 pt-3.5 mt-2">
+                <Link
+                  href="/collections"
+                  onClick={() => setIsMegaMenuOpen(false)}
+                  className="text-amber-800 hover:text-amber-900 transition-all duration-300 uppercase cursor-pointer flex items-center gap-2.5 text-[12px] font-black tracking-[0.22em]"
+                >
+                  <span>✧</span> ALL BRANDS
+                </Link>
+              </li>
             </ul>
           </motion.div>
 
@@ -1320,7 +1291,7 @@ export default function Home() {
         const { data: dbProducts, error: pErr } = await clientSafeSupabase
           .from("products")
           .select("*");
-        
+
         const { data: dbCollections, error: cErr } = await clientSafeSupabase
           .from("collections")
           .select("*");
@@ -1339,7 +1310,7 @@ export default function Home() {
                 gender = "women";
               }
             }
-             return {
+            return {
               id: dbProd.id,
               brand: dbProd.brand,
               name: dbProd.name,
@@ -1360,13 +1331,24 @@ export default function Home() {
 
         if (dbCollections && !cErr && dbCollections.length > 0) {
           const standardIds = ["new", "bestsellers", "favorites", "trending"];
-          const userCollections = dbCollections.filter((c: any) => !standardIds.includes(c.id));
+          // Brand and line collections live on their own pages, so they stay out of the
+          // in-page collection filter list.
+          const userCollections = dbCollections.filter(
+            (c: any) =>
+              !standardIds.includes(c.id) && c.kind !== "brand" && c.kind !== "line"
+          );
           const mappedUserCollections = userCollections.map((c: any) => ({
             id: c.id,
             title: c.title,
             desc: c.description || "Exclusive Scent Curation"
           }));
           setCollectionsList([...MEGA_MENU_COLLECTIONS, ...mappedUserCollections]);
+
+          setBrandCollections(
+            dbCollections
+              .filter((c: any) => c.kind === "brand")
+              .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+          );
         }
 
         if (dbMappings && !mErr) {
@@ -1543,19 +1525,32 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // 1. Preloader runs for 3.2 seconds
-    const introTimer = setTimeout(() => {
-      setShowIntro(false);
+    if (typeof window !== "undefined") {
+      const hasVisited = localStorage.getItem("gharib_has_visited");
+      if (!hasVisited) {
+        setShowIntro(true);
+        // 1. Preloader runs for 3.2 seconds on first visit
+        const introTimer = setTimeout(() => {
+          setShowIntro(false);
+          try {
+            localStorage.setItem("gharib_has_visited", "true");
+          } catch (_) { }
 
-      // 2. Wait for preloader slide exit curtain (1.2s) + 2.0s of pure ambient background video play!
-      const interfaceTimer = setTimeout(() => {
+          // 2. Reveal interface smoothly
+          const interfaceTimer = setTimeout(() => {
+            setRevealInterface(true);
+          }, 1200);
+
+          return () => clearTimeout(interfaceTimer);
+        }, 3200);
+
+        return () => clearTimeout(introTimer);
+      } else {
+        // Return visits: skip preloader completely and reveal interface immediately
+        setShowIntro(false);
         setRevealInterface(true);
-      }, 3200);
-
-      return () => clearTimeout(interfaceTimer);
-    }, 3200);
-
-    return () => clearTimeout(introTimer);
+      }
+    }
   }, []);
 
   // Scroll detection for sticky light-theme navbar
@@ -1576,7 +1571,7 @@ export default function Home() {
     if (isAnimating) return;
     setIsAnimating(true);
     setTimeout(() => {
-      setActiveIndex((prev) => (prev === 0 ? PRODUCTS.length - 1 : prev - 1));
+      setActiveIndex((prev) => (prev === 0 ? heroProducts.length - 1 : prev - 1));
       setIsAnimating(false);
     }, 400);
   };
@@ -1585,7 +1580,7 @@ export default function Home() {
     if (isAnimating) return;
     setIsAnimating(true);
     setTimeout(() => {
-      setActiveIndex((prev) => (prev === PRODUCTS.length - 1 ? 0 : prev + 1));
+      setActiveIndex((prev) => (prev === heroProducts.length - 1 ? 0 : prev + 1));
       setIsAnimating(false);
     }, 400);
   };
@@ -1656,19 +1651,12 @@ export default function Home() {
                 >
                   HOME
                 </button>
-                <a
-                  href="#about"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors"
-                >
-                  ABOUT
-                </a>
                 <Link
-                  href="/contact"
+                  href="/collections"
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="text-lg font-black tracking-[0.25em] text-neutral-800 hover:text-amber-800 uppercase transition-colors"
                 >
-                  CONTACT
+                  BRANDS
                 </Link>
                 <Link
                   href="/blogs"
@@ -1678,6 +1666,27 @@ export default function Home() {
                   BLOGS
                 </Link>
               </div>
+
+              {/* Brand Collections — each opens its own house page */}
+              {brandCollections.length > 0 && (
+                <div className="flex flex-col border-t border-amber-800/10 pt-6">
+                  <span className="text-[10px] font-black tracking-[0.25em] text-amber-800 uppercase mb-4 pl-[0.1em]">
+                    Shop by Brand
+                  </span>
+                  <div className="grid grid-cols-2 gap-3.5 text-xs font-bold tracking-widest text-neutral-500">
+                    {brandCollections.map((brand: any) => (
+                      <Link
+                        key={brand.id}
+                        href={`/collection/${brand.id}`}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="hover:text-amber-800 text-left uppercase"
+                      >
+                        ✧ {brand.title}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Collections Grid */}
               <div className="flex flex-col border-t border-amber-800/10 pt-6">
@@ -1783,24 +1792,28 @@ export default function Home() {
                   >
                     HOME
                   </button>
-                  <a
-                    href="#about"
-                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
+                  {/* Brands trigger wrapper for Dropdown */}
+                  <div
+                    className="relative py-2 cursor-pointer"
+                    onMouseEnter={handleBrandsMouseEnter}
+                    onMouseLeave={handleBrandsMouseLeave}
                   >
-                    ABOUT
-                  </a>
-                  <Link
-                    href="/contact"
-                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
-                  >
-                    CONTACT
-                  </Link>
-                  <Link
-                    href="/blogs"
-                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
-                  >
-                    BLOGS
-                  </Link>
+                    <Link
+                      href="/collections"
+                      className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-amber-800"
+                    >
+                      BRANDS
+                      <svg
+                        className={`w-2.5 h-2.5 transition-transform duration-300 ${isBrandsMenuOpen ? "rotate-180 text-amber-800" : "text-neutral-800/40"}`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </Link>
+                  </div>
                   {/* Shop trigger wrapper for Mega Menu */}
                   <div
                     className="relative py-2 cursor-pointer"
@@ -1823,6 +1836,12 @@ export default function Home() {
                       </svg>
                     </button>
                   </div>
+                  <Link
+                    href="/blogs"
+                    className="transition-colors duration-300 uppercase font-medium hover:text-amber-800"
+                  >
+                    BLOGS
+                  </Link>
                 </div>
 
                 {/* Logo Center */}
@@ -2404,6 +2423,15 @@ export default function Home() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* Brands Dropdown inside sticky header */}
+            <BrandsDropdown
+              isOpen={isBrandsMenuOpen}
+              onClose={() => setIsBrandsMenuOpen(false)}
+              onMouseEnter={handleBrandsMouseEnter}
+              onMouseLeave={handleBrandsMouseLeave}
+              isDarkTheme={false}
+            />
           </motion.header>
         )}
       </AnimatePresence>
@@ -2449,15 +2477,21 @@ export default function Home() {
 
         {/* Visual Isolation Backdrop Dimmer */}
         <AnimatePresence>
-          {isMegaMenuOpen && (
+          {(isMegaMenuOpen || isBrandsMenuOpen) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.4, ease: "easeInOut" }}
-              onClick={() => setIsMegaMenuOpen(false)}
-              onMouseEnter={() => setIsMegaMenuOpen(false)}
-              className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-20 pointer-events-auto cursor-pointer"
+              onClick={() => {
+                setIsMegaMenuOpen(false);
+                setIsBrandsMenuOpen(false);
+              }}
+              onMouseEnter={() => {
+                setIsMegaMenuOpen(false);
+                setIsBrandsMenuOpen(false);
+              }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 pointer-events-auto"
             />
           )}
         </AnimatePresence>
@@ -2486,24 +2520,28 @@ export default function Home() {
                 >
                   HOME
                 </button>
-                <a
-                  href="#about"
-                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
+                {/* Brands trigger wrapper for Dropdown in Hero Header */}
+                <div
+                  className="relative py-2 cursor-pointer"
+                  onMouseEnter={handleBrandsMouseEnter}
+                  onMouseLeave={handleBrandsMouseLeave}
                 >
-                  ABOUT
-                </a>
-                <Link
-                  href="/contact"
-                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
-                >
-                  CONTACT
-                </Link>
-                <Link
-                  href="/blogs"
-                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
-                >
-                  BLOGS
-                </Link>
+                  <Link
+                    href="/collections"
+                    className="transition-colors duration-300 flex items-center gap-1.5 uppercase font-medium cursor-pointer hover:text-white"
+                  >
+                    BRANDS
+                    <svg
+                      className={`w-2.5 h-2.5 transition-transform duration-300 ${isBrandsMenuOpen ? "rotate-180 text-white" : "text-white/50"}`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </Link>
+                </div>
                 {/* Shop trigger wrapper for Mega Menu */}
                 <div
                   className="relative py-2 cursor-pointer"
@@ -2526,6 +2564,12 @@ export default function Home() {
                     </svg>
                   </button>
                 </div>
+                <Link
+                  href="/blogs"
+                  className="transition-colors duration-300 uppercase font-medium hover:text-white"
+                >
+                  BLOGS
+                </Link>
               </div>
 
               {/* Logo Center */}
@@ -3128,6 +3172,15 @@ export default function Home() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Brands Dropdown in Hero Header */}
+          <BrandsDropdown
+            isOpen={isBrandsMenuOpen}
+            onClose={() => setIsBrandsMenuOpen(false)}
+            onMouseEnter={handleBrandsMouseEnter}
+            onMouseLeave={handleBrandsMouseLeave}
+            isDarkTheme={true}
+          />
         </motion.header>
 
         {/* 2. Main Hero Section */}
@@ -3225,9 +3278,12 @@ export default function Home() {
 
             {/* CTA Action Buttons */}
             <div className="flex items-center gap-8 mt-6 lg:mt-10">
-              <button className="bg-white text-black px-8 py-3.5 text-xs font-semibold tracking-[0.2em] uppercase rounded-none hover:bg-white/90 hover:scale-102 hover:shadow-[0_10px_20px_rgba(255,255,255,0.1)] transition-all duration-300">
+              <Link
+                href="/shop"
+                className="bg-white text-black px-8 py-3.5 text-xs font-semibold tracking-[0.2em] uppercase rounded-none hover:bg-white/90 hover:scale-102 hover:shadow-[0_10px_20px_rgba(255,255,255,0.1)] transition-all duration-300 inline-block text-center cursor-pointer"
+              >
                 Shop Now
-              </button>
+              </Link>
               <button
                 onClick={() => {
                   const el = document.getElementById("about");
@@ -3268,7 +3324,7 @@ export default function Home() {
             >
               <div className="animate-marquee-track flex divide-x divide-white/10">
                 {/* Loop 1 */}
-                {PRODUCTS.map((prod, index) => {
+                {heroProducts.map((prod, index) => {
                   const isSelfActive = activeIndex === index;
                   return (
                     <div
@@ -3312,7 +3368,7 @@ export default function Home() {
                 })}
 
                 {/* Loop 2 */}
-                {PRODUCTS.map((prod, index) => {
+                {heroProducts.map((prod, index) => {
                   const isSelfActive = activeIndex === index;
                   return (
                     <div
@@ -3356,7 +3412,7 @@ export default function Home() {
                 })}
 
                 {/* Loop 3 */}
-                {PRODUCTS.map((prod, index) => {
+                {heroProducts.map((prod, index) => {
                   const isSelfActive = activeIndex === index;
                   return (
                     <div
@@ -4108,16 +4164,73 @@ export default function Home() {
         {/* Main Footer Links & Newsletter */}
         <div className="w-full max-w-[1360px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 py-16 px-6 md:px-12 border-b border-black/10">
           {/* Column 1: Brand manifesto & core identity - takes 4 columns */}
-          <div className="lg:col-span-4 text-left flex flex-col justify-between min-h-[160px]">
+          <div className="lg:col-span-4 text-left flex flex-col justify-between min-h-[180px]">
             <div>
-              <h2 className="text-2xl font-serif-luxury font-bold tracking-[0.25em] text-black uppercase mb-4">
-                GHARIB
-              </h2>
+              <Link href="/" className="inline-block mb-4">
+                <Image
+                  src="/logo.png"
+                  alt="GHARIB Perfumes"
+                  width={180}
+                  height={55}
+                  className="h-12 w-auto object-contain mix-blend-multiply cursor-pointer"
+                />
+              </Link>
               <p className="text-[11px] leading-relaxed text-[#8C8276] tracking-widest uppercase max-w-sm">
                 Curating premium, high-art olfactory masterpieces and private perfume campaigns since 1993. Evoking raw emotion through elite liquid scent signatures.
               </p>
             </div>
-            <div className="mt-8 text-[9px] tracking-[0.25em] text-[#8C8276]/60 uppercase">
+
+            {/* Social Media Icons */}
+            <div className="flex items-center gap-3 mt-6">
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
+                title="Instagram"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                </svg>
+              </a>
+              <a
+                href="https://facebook.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
+                title="Facebook"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path>
+                </svg>
+              </a>
+              <a
+                href="https://twitter.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
+                title="X (Twitter)"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </a>
+              <a
+                href="https://youtube.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-full border border-black/15 flex items-center justify-center text-[#171310] hover:text-white hover:bg-[#171310] hover:border-[#171310] transition-all duration-300 shadow-sm"
+                title="YouTube"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                </svg>
+              </a>
+            </div>
+
+            <div className="mt-6 text-[9px] tracking-[0.25em] text-[#8C8276]/60 uppercase">
               Curated globally. Crafted in Dubai.
             </div>
           </div>
@@ -4131,6 +4244,7 @@ export default function Home() {
               <li><a href="#new-in" className="hover:text-black transition-colors duration-300">New arrivals</a></li>
               <li><a href="#best-sellers" className="hover:text-black transition-colors duration-300">Bestsellers</a></li>
               <li><a href="#offers" className="hover:text-black transition-colors duration-300">Offers</a></li>
+              <li><a href="#about" className="hover:text-black transition-colors duration-300">About Maison</a></li>
               <li><a href="#atelier-curations" className="hover:text-black transition-colors duration-300">Atelier edit</a></li>
             </ul>
           </div>
@@ -4141,10 +4255,10 @@ export default function Home() {
               PRIVATE CARE
             </h4>
             <ul className="flex flex-col gap-3 text-[10px] font-bold tracking-[0.15em] text-[#8C8276] uppercase">
+              <li><Link href="/contact" className="hover:text-black transition-colors duration-300">Contact Us</Link></li>
               <li><span className="hover:text-black transition-colors duration-300 cursor-pointer">Private Consult</span></li>
               <li><span className="hover:text-black transition-colors duration-300 cursor-pointer">Shipping & Vaulting</span></li>
               <li><span className="hover:text-black transition-colors duration-300 cursor-pointer">Return Policy</span></li>
-              <li><span className="hover:text-black transition-colors duration-300 cursor-pointer">Contact Atelier</span></li>
             </ul>
           </div>
 

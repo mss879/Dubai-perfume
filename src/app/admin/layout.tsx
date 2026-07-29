@@ -7,7 +7,7 @@ import {
   Home, ShoppingBag, Tag, FolderOpen, Layers, ClipboardList, 
   GitCompare, Gift, Users, Megaphone, Percent, FileText, Globe, 
   BarChart3, Loader2, LogOut, ShieldAlert, ChevronLeft, Menu, X,
-  ChevronDown, ChevronRight, Mail
+  ChevronDown, ChevronRight, Mail, Sparkles
 } from "lucide-react";
 import { clientSafeSupabase } from "../lib/supabase";
 
@@ -59,6 +59,7 @@ const categories = [
     label: "Store Settings",
     icon: Globe,
     subItems: [
+      { id: "homepage", label: "Homepage Editor", icon: Sparkles },
       { id: "content", label: "CMS & Pages", icon: FileText },
       { id: "markets", label: "Global Markets", icon: Globe }
     ]

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
+import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -351,7 +352,7 @@ function AdminDashboardContent() {
       }
       const reader = new FileReader();
       reader.onload = (e) => {
-        const img = new Image();
+        const img = new window.Image();
         img.onload = () => {
           const canvas = document.createElement("canvas");
           canvas.width = img.width;
@@ -3264,6 +3265,289 @@ function AdminDashboardContent() {
               )}
             </AnimatePresence>
 
+          </div>
+        )}
+
+        {/* ========================================================
+            TAB: HOMEPAGE EDITOR (TOP-RIGHT PRODUCT ICONS & HERO SLIDER)
+            ======================================================== */}
+        {currentTab === "homepage" && (
+          <div className="flex flex-col gap-8 font-sans-luxury">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/[0.06] pb-6">
+              <div>
+                <span className="text-[9px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
+                  STORE FRONT CONTROL DESK
+                </span>
+                <h2 className="text-2xl font-serif-luxury text-[#EAE3DB] uppercase tracking-wider flex items-center gap-3">
+                  HOMEPAGE EDITOR <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2.5 py-1 font-sans-luxury font-bold">HERO ICONS CONTROL</span>
+                </h2>
+                <p className="text-xs text-[#EAE3DB]/60 mt-1 max-w-2xl">
+                  Manage the featured top-right product icons, miniature bottle carousel, prices, descriptions, and display order shown on the main homepage.
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] tracking-widest uppercase text-[#EAE3DB]/60 bg-white/[0.03] border border-white/[0.08] px-4 py-2 font-bold">
+                  Active Hero Items: <strong className="text-amber-400 font-extrabold">{products.filter((p: any) => p.is_hero).length}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Active Hero Products Carousel Control Cards */}
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-serif-luxury text-[#EAE3DB] tracking-wider uppercase flex items-center gap-2">
+                  <span>✦</span> Active Homepage Top-Right Product Icons (In Display Order)
+                </h3>
+              </div>
+
+              {products.filter((p: any) => p.is_hero).length === 0 ? (
+                <div className="bg-[#090503] border border-amber-900/20 p-8 text-center flex flex-col items-center">
+                  <p className="text-xs text-[#EAE3DB]/60 uppercase tracking-widest mb-4">No hero products currently selected. Add products from the catalog below.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {products
+                    .filter((p: any) => p.is_hero)
+                    .sort((a: any, b: any) => (a.hero_order || 0) - (b.hero_order || 0))
+                    .map((item: any, idx: number) => (
+                      <div 
+                        key={item.id} 
+                        className="bg-[#090503] border border-amber-500/20 p-5 flex flex-col justify-between relative group hover:border-amber-500/50 transition-all duration-300 shadow-lg"
+                      >
+                        {/* Order Badge */}
+                        <div className="absolute top-3 left-3 bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 tracking-widest uppercase z-10">
+                          #{idx + 1} HERO ICON
+                        </div>
+
+                        {/* Remove button */}
+                        <button
+                          onClick={async () => {
+                            try {
+                              const { error } = await clientSafeSupabase
+                                .from("products")
+                                .update({ is_hero: false })
+                                .eq("id", item.id);
+                              if (error) throw error;
+                              setProducts(prev => prev.map(p => p.id === item.id ? { ...p, is_hero: false } : p));
+                              triggerToast(`Removed "${item.name}" from homepage hero products.`);
+                            } catch (err: any) {
+                              triggerToast(`Failed to update hero status: ${err.message}`);
+                            }
+                          }}
+                          className="absolute top-3 right-3 text-[#EAE3DB]/40 hover:text-red-400 text-xs font-bold transition-colors p-1"
+                          title="Remove from Hero"
+                        >
+                          ✕
+                        </button>
+
+                        {/* Product Image Stage */}
+                        <div className="w-full h-36 relative mt-6 mb-4 flex items-center justify-center bg-black/40 border border-white/[0.04]">
+                          <Image
+                            src={item.image_url || "/gold-memoir.png"}
+                            alt={item.name}
+                            fill
+                            className="object-contain p-2"
+                          />
+                        </div>
+
+                        {/* Product Details */}
+                        <div className="flex flex-col gap-1.5 mb-4">
+                          <span className="text-[9px] font-bold text-amber-500/80 uppercase tracking-widest truncate">
+                            {item.tagline || item.brand || "PRIVÉ COLLECTION"}
+                          </span>
+                          <h4 className="text-sm font-semibold text-[#EAE3DB] uppercase tracking-wide truncate">
+                            {item.name}
+                          </h4>
+                          <span className="text-xs font-bold text-[#EAE3DB] tracking-widest">
+                            AED {parseFloat(String(item.price)).toFixed(2)}
+                          </span>
+                          <p className="text-[10px] text-[#EAE3DB]/50 line-clamp-2 leading-relaxed mt-1">
+                            {item.description || "No description set."}
+                          </p>
+                        </div>
+
+                        {/* Order Reorder Controls & Edit Button */}
+                        <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1">
+                            <button
+                              disabled={idx === 0}
+                              onClick={async () => {
+                                const heroList = products.filter((p: any) => p.is_hero).sort((a: any, b: any) => (a.hero_order || 0) - (b.hero_order || 0));
+                                if (idx <= 0) return;
+                                const prevItem = heroList[idx - 1];
+                                const currentOrder = item.hero_order || (idx + 1);
+                                const targetOrder = prevItem.hero_order || idx;
+                                
+                                await clientSafeSupabase.from("products").update({ hero_order: targetOrder }).eq("id", item.id);
+                                await clientSafeSupabase.from("products").update({ hero_order: currentOrder }).eq("id", prevItem.id);
+                                
+                                setProducts(prev => prev.map(p => {
+                                  if (p.id === item.id) return { ...p, hero_order: targetOrder };
+                                  if (p.id === prevItem.id) return { ...p, hero_order: currentOrder };
+                                  return p;
+                                }));
+                                triggerToast("Reordered homepage hero products.");
+                              }}
+                              className="w-7 h-7 bg-white/[0.04] hover:bg-amber-500 hover:text-black text-[#EAE3DB] text-xs font-bold flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                              title="Move Left/Up"
+                            >
+                              ←
+                            </button>
+                            <button
+                              disabled={idx === products.filter((p: any) => p.is_hero).length - 1}
+                              onClick={async () => {
+                                const heroList = products.filter((p: any) => p.is_hero).sort((a: any, b: any) => (a.hero_order || 0) - (b.hero_order || 0));
+                                if (idx >= heroList.length - 1) return;
+                                const nextItem = heroList[idx + 1];
+                                const currentOrder = item.hero_order || (idx + 1);
+                                const targetOrder = nextItem.hero_order || (idx + 2);
+
+                                await clientSafeSupabase.from("products").update({ hero_order: targetOrder }).eq("id", item.id);
+                                await clientSafeSupabase.from("products").update({ hero_order: currentOrder }).eq("id", nextItem.id);
+
+                                setProducts(prev => prev.map(p => {
+                                  if (p.id === item.id) return { ...p, hero_order: targetOrder };
+                                  if (p.id === nextItem.id) return { ...p, hero_order: currentOrder };
+                                  return p;
+                                }));
+                                triggerToast("Reordered homepage hero products.");
+                              }}
+                              className="w-7 h-7 bg-white/[0.04] hover:bg-amber-500 hover:text-black text-[#EAE3DB] text-xs font-bold flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                              title="Move Right/Down"
+                            >
+                              →
+                            </button>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              setEditingProduct(item);
+                            }}
+                            className="text-[9px] font-extrabold uppercase tracking-widest text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-black px-2.5 py-1.5 transition-all"
+                          >
+                            EDIT DETAILS
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Catalog Selector: Toggle Hero Status for any product */}
+            <div className="bg-[#090503] border border-white/[0.06] p-6 mt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.06] pb-4 mb-6">
+                <div>
+                  <h4 className="text-sm font-serif-luxury text-[#EAE3DB] tracking-wider uppercase">
+                    Catalog Product Hero Selector
+                  </h4>
+                  <p className="text-[11px] text-[#EAE3DB]/50">
+                    Toggle any catalog fragrance to feature it on the homepage top-right hero section.
+                  </p>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search products by title or brand..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-black/50 border border-white/10 text-xs text-white px-4 py-2 w-full sm:w-72 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10 text-[9px] font-extrabold tracking-widest text-[#EAE3DB]/50 uppercase">
+                      <th className="py-3 px-4">Item</th>
+                      <th className="py-3 px-4">Brand & Name</th>
+                      <th className="py-3 px-4">Price</th>
+                      <th className="py-3 px-4">Tagline</th>
+                      <th className="py-3 px-4">Hero Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {products
+                      .filter((p: any) => 
+                        !searchTerm || 
+                        p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                        p.brand.toLowerCase().includes(searchTerm.toLowerCase())
+                      )
+                      .map((prod: any) => {
+                        const isHero = !!prod.is_hero;
+                        return (
+                          <tr key={prod.id} className="hover:bg-white/[0.01] transition-colors text-xs text-[#EAE3DB]">
+                            <td className="py-3 px-4">
+                              <div className="w-10 h-12 relative bg-black/40 border border-white/5">
+                                <Image
+                                  src={prod.image_url || "/gold-memoir.png"}
+                                  alt={prod.name}
+                                  fill
+                                  className="object-contain p-1"
+                                />
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col">
+                                <span className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">{prod.brand}</span>
+                                <span className="font-semibold text-white">{prod.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 font-mono">
+                              AED {parseFloat(String(prod.price)).toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-[10px] text-[#EAE3DB]/60">
+                              {prod.tagline || "—"}
+                            </td>
+                            <td className="py-3 px-4">
+                              {isHero ? (
+                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[9px] font-extrabold tracking-widest px-2.5 py-1 uppercase">
+                                  ACTIVE HERO #{prod.hero_order || "—"}
+                                </span>
+                              ) : (
+                                <span className="bg-white/[0.03] text-[#EAE3DB]/40 text-[9px] font-bold tracking-widest px-2.5 py-1 uppercase border border-white/5">
+                                  STANDARD CATALOG
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={async () => {
+                                  const nextState = !isHero;
+                                  const maxOrder = Math.max(...products.filter((p: any) => p.is_hero).map((p: any) => p.hero_order || 0), 0);
+                                  const newOrder = nextState ? maxOrder + 1 : 0;
+
+                                  try {
+                                    const { error } = await clientSafeSupabase
+                                      .from("products")
+                                      .update({ is_hero: nextState, hero_order: newOrder })
+                                      .eq("id", prod.id);
+
+                                    if (error) throw error;
+
+                                    setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, is_hero: nextState, hero_order: newOrder } : p));
+                                    triggerToast(nextState ? `Added "${prod.name}" to homepage hero icons.` : `Removed "${prod.name}" from homepage hero.`);
+                                  } catch (err: any) {
+                                    triggerToast(`Failed to update hero status: ${err.message}`);
+                                  }
+                                }}
+                                className={`text-[9px] font-black tracking-widest px-3 py-1.5 uppercase transition-all ${
+                                  isHero 
+                                    ? "bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white"
+                                    : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-black"
+                                }`}
+                              >
+                                {isHero ? "REMOVE FROM HERO" : "+ SET AS HERO"}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 

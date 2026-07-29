@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, MapPin, Clock, ChevronDown, Check, Sparkles, Compass } from "lucide-react";
 import { clientSafeSupabase } from "../lib/supabase";
+import BrandsDropdown from "../components/BrandsDropdown";
+import AppHeader from "../components/AppHeader";
 
 interface CatalogProduct {
   id: number;
@@ -128,6 +130,25 @@ export default function ContactPage() {
   const [activeCurrency, setActiveCurrency] = useState("AED");
   const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isBrandsMenuOpen, setIsBrandsMenuOpen] = useState(false);
+  const brandsLeaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleBrandsMouseEnter = () => {
+    if (brandsLeaveTimeoutRef.current) {
+      clearTimeout(brandsLeaveTimeoutRef.current);
+      brandsLeaveTimeoutRef.current = null;
+    }
+    setIsBrandsMenuOpen(true);
+  };
+
+  const handleBrandsMouseLeave = () => {
+    if (brandsLeaveTimeoutRef.current) {
+      clearTimeout(brandsLeaveTimeoutRef.current);
+    }
+    brandsLeaveTimeoutRef.current = setTimeout(() => {
+      setIsBrandsMenuOpen(false);
+    }, 250);
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [searchSuggestions, setSearchSuggestions] = useState<CatalogProduct[]>([]);
   const [exchangeRates] = useState<Record<string, number>>({
@@ -358,358 +379,7 @@ export default function ContactPage() {
         }}
       />
 
-      {/* ═══════════════════════════════════════════════════
-          HEADER: Premium Responsive Light-Theme Navbar
-          ═══════════════════════════════════════════════════ */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-[#FAF6F0]/95 backdrop-blur-md text-neutral-800 shadow-[0_2px_15px_rgba(27,15,10,0.06)] border-b border-amber-800/10 font-sans-luxury">
-        <div className="w-full">
-          <nav className="max-w-[1440px] mx-auto px-6 md:px-12 py-4 flex items-center justify-between relative">
-            
-            {/* Left Menu Items */}
-            <div className="hidden md:flex items-center gap-10 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 text-neutral-800/70">
-              <Link
-                href="/"
-                className="transition-colors duration-300 uppercase font-medium hover:text-amber-800 decoration-none"
-              >
-                HOME
-              </Link>
-              <Link
-                href="/#about"
-                className="transition-colors duration-300 uppercase font-medium hover:text-amber-800 decoration-none"
-              >
-                ABOUT
-              </Link>
-              <Link
-                href="/contact"
-                className="transition-colors duration-300 uppercase font-black text-amber-800 decoration-none"
-              >
-                CONTACT
-              </Link>
-              <Link
-                href="/blogs"
-                className="transition-colors duration-300 uppercase font-medium hover:text-amber-800 decoration-none"
-              >
-                BLOGS
-              </Link>
-              <Link
-                href="/#new-in"
-                className="transition-colors duration-300 uppercase font-medium hover:text-amber-800 decoration-none"
-              >
-                SHOP
-              </Link>
-            </div>
-
-            {/* Logo Center */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              <Link href="/">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/logo.png"
-                  alt="Gharib"
-                  className="h-14 md:h-[62px] w-auto object-contain rounded-xl overflow-hidden cursor-pointer transition-all duration-300 mix-blend-multiply"
-                  style={{ mixBlendMode: 'multiply' }}
-                />
-              </Link>
-            </div>
-
-            {/* Right Menu Items */}
-            <div className="hidden md:flex items-center gap-8 text-[13px] font-medium tracking-[0.2em] transition-colors duration-300 justify-end text-neutral-800/70">
-              
-              {/* Better Search Bar Container */}
-              <div className="relative flex items-center">
-                <div className="relative flex items-center rounded-none px-4 py-1.5 w-[200px] lg:w-[240px] transition-all duration-300 bg-neutral-900/5 border border-neutral-900/10 hover:border-neutral-900/20 focus-within:border-amber-800/50">
-                  <svg className="w-3.5 h-3.5 mr-2 flex-shrink-0 transition-colors duration-300 text-neutral-800/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSearchTerm(val);
-                      if (val.trim() === "") {
-                        setSearchSuggestions([]);
-                      } else {
-                        const searchLower = val.toLowerCase();
-                        const matches = CATALOG_PRODUCTS.filter(prod =>
-                          prod.brand.toLowerCase().includes(searchLower) ||
-                          prod.name.toLowerCase().includes(searchLower)
-                        ).slice(0, 4);
-                        setSearchSuggestions(matches);
-                      }
-                    }}
-                    placeholder="Search scent..."
-                    className="bg-transparent text-[10px] tracking-widest uppercase outline-none w-full font-bold transition-colors duration-300 text-neutral-800 placeholder-neutral-800/40"
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => {
-                        setSearchTerm("");
-                        setSearchSuggestions([]);
-                      }}
-                      className="text-[9px] font-bold ml-1 cursor-pointer transition-colors duration-300 text-neutral-800/40 hover:text-neutral-900"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {/* Intelligent Search Suggestions Dropdown */}
-                <AnimatePresence>
-                  {searchTerm.trim() !== "" && searchSuggestions.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 15 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 15 }}
-                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute top-full mt-2.5 right-0 w-[300px] md:w-[360px] bg-[#FAF6F0] border border-amber-800/15 shadow-[0_20px_50px_rgba(27,15,10,0.08)] z-50 overflow-hidden flex flex-col text-neutral-800"
-                    >
-                      <div className="px-4 py-2 bg-neutral-900/5 border-b border-amber-800/10 text-[9px] tracking-widest text-amber-800 font-extrabold uppercase">
-                        Real-time Suggestions
-                      </div>
-
-                      <div className="flex flex-col max-h-[320px] overflow-y-auto divide-y divide-amber-800/10">
-                        {searchSuggestions.map((prod) => (
-                          <div
-                            key={prod.id}
-                            onClick={() => {
-                              router.push(`/?search=${encodeURIComponent(prod.name)}`);
-                            }}
-                            className="p-3 flex items-center gap-3.5 hover:bg-neutral-900/5 transition-colors duration-200 cursor-pointer text-left group"
-                          >
-                            <div className="relative w-10 h-12 bg-neutral-900/5 flex-shrink-0 flex items-center justify-center p-1 border border-neutral-800/5 overflow-hidden">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={prod.image}
-                                alt={prod.name}
-                                className="object-contain filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300 h-10 w-auto"
-                              />
-                            </div>
-                            <div className="flex-grow flex flex-col justify-center min-w-0">
-                              <span className="text-[8px] font-extrabold tracking-widest text-amber-800 uppercase truncate">
-                                {prod.brand}
-                              </span>
-                              <span className="text-[11px] font-medium tracking-wide text-neutral-800 uppercase truncate mt-0.5 group-hover:text-amber-800 transition-colors duration-200">
-                                {prod.name}
-                              </span>
-                              <span className="text-[9px] text-neutral-500 tracking-wider font-semibold uppercase mt-0.5">
-                                {prod.olfactory} • Extrait de Parfum
-                              </span>
-                            </div>
-                            <div className="text-[12px] font-bold text-neutral-800 tracking-wider flex-shrink-0 pl-1">
-                              {formatCurrency(parseFloat(prod.price) || 0)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="p-3.5 bg-neutral-900/5 border-t border-amber-800/10 flex items-center justify-between">
-                        <span className="text-[9px] tracking-widest text-neutral-500 font-semibold uppercase">
-                          Click to filter catalog view
-                        </span>
-                        <Link
-                          href="/#new-in"
-                          className="text-[9px] tracking-widest text-amber-800 hover:text-amber-900 font-extrabold uppercase transition-colors decoration-none"
-                        >
-                          View All ✧
-                        </Link>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* User Profile / Sign In */}
-              <Link
-                href={userEmail ? "/customer/dashboard" : "/signin"}
-                className="relative flex items-center justify-center cursor-pointer py-1.5 active:scale-[0.92] transition-transform text-neutral-800"
-              >
-                <div className="relative flex items-center justify-center w-[38px] h-[38px]">
-                  <svg
-                    className="w-[28px] h-[28px] relative z-10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    strokeWidth="1.5"
-                    stroke="currentColor"
-                  >
-                    <circle cx="12" cy="12" r="9" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" fill="none" />
-                    <circle cx="12" cy="10" r="3" stroke="rgba(27,15,10,0.7)" strokeLinecap="round" fill="none" />
-                    <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" stroke="rgba(27,15,10,0.55)" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                  </svg>
-                  {userEmail && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.9)] animate-pulse z-20 border border-amber-400/50" />
-                  )}
-                </div>
-              </Link>
-
-              {/* Wishlist */}
-              <Link
-                href="/#offers"
-                className="relative flex items-center justify-center cursor-pointer py-1.5 text-neutral-800"
-              >
-                <div className="relative flex items-center justify-center w-[38px] h-[38px]">
-                  <svg
-                    className="w-[28px] h-[28px] relative z-10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    strokeWidth="1.5"
-                    stroke="currentColor"
-                  >
-                    <path
-                      d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                  {favoritesCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20">
-                      {favoritesCount}
-                    </span>
-                  )}
-                </div>
-              </Link>
-
-              {/* Cart/Bag */}
-              <Link
-                href="/checkout"
-                className="relative flex items-center justify-center cursor-pointer py-1.5 text-neutral-800"
-              >
-                <div className="relative flex items-center justify-center w-[38px] h-[38px]">
-                  <svg
-                    className="w-[28px] h-[28px] relative z-10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    strokeWidth="1.5"
-                    stroke="currentColor"
-                  >
-                    <path
-                      d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                    <path
-                      d="M8 8V7a4 4 0 018 0v1"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                  {cartCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2.5 bg-amber-500 text-black text-[9px] font-black w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-[0_2px_10px_rgba(245,158,11,0.5)] z-20">
-                      {cartCount}
-                    </span>
-                  )}
-                </div>
-              </Link>
-
-              {/* Premium Currency Selector */}
-              <div className="relative">
-                <button
-                  onClick={() => setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)}
-                  className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest hover:text-black transition-colors duration-300 uppercase cursor-pointer text-neutral-800/70 py-1.5"
-                >
-                  <span>
-                    {activeCurrency === "AED" && "🇦🇪 AED"}
-                    {activeCurrency === "SAR" && "🇸🇦 SAR"}
-                    {activeCurrency === "QAR" && "🇶🇦 QAR"}
-                    {activeCurrency === "KWD" && "🇰🇼 KWD"}
-                    {activeCurrency === "BHD" && "🇧🇭 BHD"}
-                    {activeCurrency === "OMR" && "🇴🇲 OMR"}
-                    {activeCurrency === "USD" && "🇺🇸 USD"}
-                    {activeCurrency === "EUR" && "🇪🇺 EUR"}
-                    {activeCurrency === "GBP" && "🇬🇧 GBP"}
-                    {activeCurrency === "INR" && "🇮🇳 INR"}
-                  </span>
-                  <span className="text-[7px] opacity-60">▼</span>
-                </button>
-
-                <AnimatePresence>
-                  {isCurrencyDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className="absolute right-0 top-full mt-2.5 bg-[#FAF6F0] border border-amber-800/15 p-2 shadow-xl z-50 flex flex-col gap-1 w-64 font-sans-luxury"
-                    >
-                      {[
-                        { code: "AED", label: "🇦🇪 AED - UAE Dirham" },
-                        { code: "SAR", label: "🇸🇦 SAR - Saudi Riyal" },
-                        { code: "QAR", label: "🇶🇦 QAR - Qatari Riyal" },
-                        { code: "KWD", label: "🇰🇼 KWD - Kuwaiti Dinar" },
-                        { code: "BHD", label: "🇧🇭 BHD - Bahraini Dinar" },
-                        { code: "OMR", label: "🇴🇲 OMR - Omani Rial" },
-                        { code: "USD", label: "🇺🇸 USD - US Dollar" },
-                        { code: "EUR", label: "🇪🇺 EUR - Euro" },
-                        { code: "GBP", label: "🇬🇧 GBP - British Pound" },
-                        { code: "INR", label: "🇮🇳 INR - Indian Rupee" }
-                      ].map((curr) => (
-                        <button
-                          key={curr.code}
-                          onClick={() => {
-                            setActiveCurrency(curr.code);
-                            localStorage.setItem("gharib_active_currency", curr.code);
-                            setIsCurrencyDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-[10px] tracking-widest uppercase font-bold transition-all duration-200 cursor-pointer flex justify-between items-center ${activeCurrency === curr.code
-                            ? "bg-amber-800/10 text-amber-800"
-                            : "text-neutral-700 hover:bg-neutral-800/5 hover:text-black"
-                            }`}
-                        >
-                          <span>{curr.label}</span>
-                          {activeCurrency === curr.code && (
-                            <span className="text-amber-800 text-[8px]">✓</span>
-                          )}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* MOBILE: Action Bar & Hamburger Toggle */}
-            <div className="flex md:hidden items-center gap-4 text-neutral-800">
-              <Link
-                href={userEmail ? "/customer/dashboard" : "/signin"}
-                className="text-neutral-800"
-              >
-                <svg className="w-5.5 h-5.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <circle cx="12" cy="12" r="9" strokeLinecap="round" />
-                  <circle cx="12" cy="10" r="3" strokeLinecap="round" />
-                  <path d="M6.168 18.849A4.5 4.5 0 0112 15.75a4.5 4.5 0 015.832 3.099" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Link>
-              <Link
-                href="/checkout"
-                className="relative text-neutral-800"
-              >
-                <svg className="w-5.5 h-5.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path d="M4 8h16v11a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M8 8V7a4 4 0 018 0v1" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {cartCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-amber-500 text-black text-[8px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full">
-                    {cartCount}
-                  </span>
-                )}
-              </Link>
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-1 transition-colors text-neutral-800/70 hover:text-neutral-900 cursor-pointer"
-                aria-label="Toggle Menu"
-              >
-                <div className="w-6 h-5 flex flex-col justify-between">
-                  <span className="w-6 h-0.5 bg-neutral-800"></span>
-                  <span className="w-6 h-0.5 bg-neutral-800"></span>
-                  <span className="w-6 h-0.5 bg-neutral-800"></span>
-                </div>
-              </button>
-            </div>
-          </nav>
-        </div>
-      </header>
+      <AppHeader activePage="contact" />
 
       {/* Mobile Luxury Navigation Drawer */}
       <AnimatePresence>
