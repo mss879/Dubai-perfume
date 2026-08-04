@@ -4,7 +4,14 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { Camera, Music2, Users, MessageCircle } from "lucide-react";
 import { useCurrency, SUPPORTED_CURRENCIES } from "../lib/currency";
+import {
+  INSTAGRAM_URL,
+  TIKTOK_URL,
+  FACEBOOK_URL,
+  whatsappLink,
+} from "../lib/site";
 
 type FooterLink = {
   label: string;
@@ -51,6 +58,23 @@ const FOOTER_COLUMNS: FooterColumn[] = [
 ];
 
 const PAYMENT_MARKS = ["Cash on Delivery"];
+
+/**
+ * Where to find the maison. Each entry survives the filter only once its handle
+ * is configured, so an account the maison does not hold leaves no dead link.
+ * lucide 1.x carries no brand marks, so the platform name does the naming and
+ * the glyph is there for rhythm.
+ */
+const SOCIAL_LINKS = [
+  { label: "Instagram", href: INSTAGRAM_URL, Icon: Camera },
+  { label: "TikTok", href: TIKTOK_URL, Icon: Music2 },
+  { label: "Facebook", href: FACEBOOK_URL, Icon: Users },
+  {
+    label: "WhatsApp",
+    href: whatsappLink("Hello Gharib, I would like to speak with an advisor."),
+    Icon: MessageCircle,
+  },
+].filter((item) => item.href);
 
 const LINK_CLASS =
   "text-[14px] font-[350] text-black/75 transition-colors duration-300 hover:text-black hover:underline hover:underline-offset-[5px] decoration-1";
@@ -152,6 +176,23 @@ export default function Footer() {
               Gharib has composed rare oriental and contemporary fragrances in Dubai since 1993.
               Every bottle is filled, sealed and inspected by hand in our atelier.
             </p>
+
+            {SOCIAL_LINKS.length > 0 && (
+              <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3">
+                {SOCIAL_LINKS.map(({ label, href, Icon }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-[13px] font-[350] text-black/75 transition-colors duration-300 hover:text-black"
+                  >
+                    <Icon className="w-4 h-4 shrink-0" strokeWidth={1.25} />
+                    {label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Link columns */}

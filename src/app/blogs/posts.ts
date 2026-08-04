@@ -2,6 +2,15 @@ import "server-only";
 import { cache } from "react";
 import { BLOG_POSTS, BlogPost } from "../data/blogPosts";
 import { createServerSupabase, isSupabaseConfigured } from "../lib/supabase-server";
+import { sanitizeHtml } from "../lib/html";
+
+/** Reading pace used to label an article, in words per minute. */
+const WORDS_PER_MINUTE = 200;
+
+function readTimeFor(html: string): string {
+  const words = html.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length;
+  return `${Math.max(1, Math.round(words / WORDS_PER_MINUTE))} min read`;
+}
 
 /** Shape of a row in public.blog_posts. */
 interface BlogPostRow {
@@ -39,7 +48,7 @@ function mapRowToPost(row: BlogPostRow): BlogPost {
     }),
     datePublished: row.created_at,
     dateModified: row.created_at,
-    readTime: "5 min read",
+    readTime: readTimeFor(row.content || ""),
     excerpt:
       row.summary ||
       (row.content ? row.content.replace(/<[^>]+>/g, "").slice(0, 140) + "..." : ""),
@@ -50,7 +59,12 @@ function mapRowToPost(row: BlogPostRow): BlogPost {
       avatar: "/bento-oud-imperial.png",
     },
     targetKeyword: row.title,
-    contentHtml: row.content || "",
+    // The journal renders this with dangerouslySetInnerHTML. It comes from the
+    // admin rich-text editor, which stores raw contentEditable innerHTML — so
+    // anything pasted in from another site arrives with its scripts and event
+    // handlers intact. Sanitised once here, at the point the database HTML
+    // enters the app, rather than at each render site.
+    contentHtml: sanitizeHtml(row.content || ""),
     toc: [],
     faqs: [],
     relatedProducts: [],

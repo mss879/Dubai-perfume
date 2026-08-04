@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { Check, Truck, ShieldCheck, Droplet, Headphones, Minus, Plus } from "lucide-react";
 import { getBrowserSupabase } from "../../lib/supabase-browser";
 import { useCart } from "../../lib/cart";
+import { FREE_SHIPPING_NOTE, FREE_SHIPPING_THRESHOLD_AED } from "../../lib/shipping";
+import { whatsappLink } from "../../lib/site";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
 import CartDrawer, { openCartDrawer } from "../../components/CartDrawer";
@@ -45,7 +47,7 @@ export interface RelatedItemProps {
 const serviceNotes = [
   {
     q: "Shipping & delivery",
-    a: "Complimentary express shipping across the GCC (1–2 business days) and worldwide (3–5 business days). Every order is hand-packed in a thermal-insulated coffret so the composition travels intact."
+    a: `Express shipping across the GCC (1–2 business days) and worldwide (3–5 business days), complimentary on orders over AED ${FREE_SHIPPING_THRESHOLD_AED}. Every order is hand-packed in a thermal-insulated coffret so the composition travels intact.`
   },
   {
     q: "Returns & scent verification",
@@ -224,7 +226,7 @@ export default function ProductClient({
   ].filter((row) => row.notes.length > 0);
 
   const reassurance = [
-    { Icon: Truck, label: "Complimentary delivery" },
+    { Icon: Truck, label: FREE_SHIPPING_NOTE },
     { Icon: ShieldCheck, label: "Guaranteed authentic" },
     { Icon: Droplet, label: "Complimentary samples" },
     { Icon: Headphones, label: "Responsive client care" }
@@ -232,6 +234,12 @@ export default function ProductClient({
 
   const sameMaison =
     related.length > 0 && related.every((item) => item.brand === product.brand);
+
+  /* Empty until a number is configured, so the link simply does not render
+     rather than pointing at a wa.me address the maison does not own. */
+  const whatsappHref = whatsappLink(
+    `Hello Gharib, I would like to enquire about ${product.brand} ${product.name}.`
+  );
 
   return (
     <div className="maison min-h-screen flex flex-col overflow-x-hidden">
@@ -388,10 +396,20 @@ export default function ProductClient({
                 </button>
               </div>
 
-              <div className="mt-5 text-center">
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
                 <button type="button" onClick={handleToggleFavorite} className="maison-link cursor-pointer">
                   {isFav ? "In wishlist" : "Add to wishlist"}
                 </button>
+                {whatsappHref && (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="maison-link"
+                  >
+                    Enquire on WhatsApp
+                  </a>
+                )}
               </div>
 
               {/* 6. Offer panel */}

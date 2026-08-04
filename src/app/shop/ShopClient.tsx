@@ -11,6 +11,7 @@ import Footer from "../components/Footer";
 import CartDrawer, { openCartDrawer } from "../components/CartDrawer";
 import Price from "../components/Price";
 import { useCart } from "../lib/cart";
+import { toArray } from "../lib/catalogue";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 
 export interface CatalogProduct {
@@ -27,6 +28,12 @@ export interface CatalogProduct {
   description?: string;
   olfactory?: string;
   gender?: string;
+  /* The three note columns, kept separate as the database stores them. Search
+     reads them, so a shopper hunting "oud" reaches the compositions that wear
+     it without naming it. */
+  topNotes?: string[] | null;
+  heartNotes?: string[] | null;
+  baseNotes?: string[] | null;
 }
 
 export interface DbCollectionRow {
@@ -126,7 +133,6 @@ function ShopContent({ products, collections, productCollections, initialFilters
   // UI state
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [favorites, setFavorites] = useState<number[]>([]);
-  const [wishlistUserId, setWishlistUserId] = useState<string | null>(null);
   const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({});
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
   const [lastFilterSignature, setLastFilterSignature] = useState<string>(
@@ -157,7 +163,7 @@ function ShopContent({ products, collections, productCollections, initialFilters
   }
 
   // Load the signed-in shopper's saved favourites so the Favourites tab is not
-  // empty on arrival. Signed-out visitors keep session-local hearts only.
+  // empty on arrival. Signed-out visitors have none — the heart prompts sign-in.
   useEffect(() => {
     let cancelled = false;
     const loadFavorites = async () => {
@@ -166,7 +172,6 @@ function ShopContent({ products, collections, productCollections, initialFilters
         const { data } = await supabase.auth.getUser();
         const user = data?.user;
         if (!user || cancelled) return;
-        setWishlistUserId(user.id);
         const { data: rows, error } = await supabase
           .from("wishlists")
           .select("product_id")
@@ -219,13 +224,24 @@ function ShopContent({ products, collections, productCollections, initialFilters
 
   // Filter products logic
   const filteredProducts = products.filter((prod) => {
-    // Search query filter
+    // Search query filter — a fragrance shopper searches by note far more often
+    // than by maison, so the query has to reach the family and the pyramid too.
+    // Searching "oud" previously missed every composition that wears it without
+    // naming it, despite the field promising "scent, maison or note".
     if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
-      const matchBrand = prod.brand.toLowerCase().includes(q);
-      const matchName = prod.name.toLowerCase().includes(q);
-      const matchDesc = prod.description ? prod.description.toLowerCase().includes(q) : false;
-      if (!matchBrand && !matchName && !matchDesc) return false;
+      const q = searchQuery.trim().toLowerCase();
+      const haystack = [
+        prod.brand,
+        prod.name,
+        prod.olfactory,
+        prod.description,
+        ...toArray(prod.topNotes),
+        ...toArray(prod.heartNotes),
+        ...toArray(prod.baseNotes),
+      ];
+      if (!haystack.some((field) => typeof field === "string" && field.toLowerCase().includes(q))) {
+        return false;
+      }
     }
 
     // Olfactory filter
@@ -419,30 +435,48 @@ function ShopContent({ products, collections, productCollections, initialFilters
     });
   }
 
-  /** Optimistic heart toggle, persisted to `wishlists` for signed-in shoppers. */
-  const toggleFavorite = (prod: CatalogProduct, displayName: string) => {
+  /**
+   * Heart toggle, persisted to `wishlists`.
+   *
+   * The heart only fills once the write succeeds. It previously filled
+   * optimistically and toasted "saved to favourites" for signed-out shoppers
+   * too, then dropped the write — so the grid told them something untrue and
+   * the item was gone on reload. Signed-out shoppers are prompted to sign in,
+   * matching the product page (ProductClient.handleToggleFavorite).
+   */
+  const toggleFavorite = async (prod: CatalogProduct, displayName: string) => {
     const isFav = favorites.includes(prod.id);
-    setFavorites((prev) => (isFav ? prev.filter((id) => id !== prod.id) : [...prev, prod.id]));
-    triggerToast(isFav ? `${displayName} removed from favourites` : `${displayName} saved to favourites`);
-
-    if (!wishlistUserId) return; // signed out — keep the heart local, never block the UI
     try {
       const supabase = getBrowserSupabase();
-      const write = isFav
-        ? supabase
+      const { data } = await supabase.auth.getUser();
+      const userId = data.user?.id;
+      if (!userId) {
+        triggerToast("Please sign in to use your wishlist");
+        return;
+      }
+
+      const { error } = isFav
+        ? await supabase
             .from("wishlists")
             .delete()
-            .match({ customer_id: wishlistUserId, product_id: prod.id, wishlist_type: "favorite" })
-        : supabase
+            .match({ customer_id: userId, product_id: prod.id, wishlist_type: "favorite" })
+        : await supabase
             .from("wishlists")
-            .insert({ customer_id: wishlistUserId, product_id: prod.id, wishlist_type: "favorite" });
-      Promise.resolve(write)
-        .then(({ error }: { error: unknown }) => {
-          if (error) console.error("Wishlist update failed:", error);
-        })
-        .catch((err: unknown) => console.error("Wishlist update failed:", err));
+            .insert({ customer_id: userId, product_id: prod.id, wishlist_type: "favorite" });
+
+      if (error) {
+        console.error("Wishlist update failed:", error);
+        triggerToast("We could not update your wishlist. Please try again.");
+        return;
+      }
+
+      setFavorites((prev) => (isFav ? prev.filter((id) => id !== prod.id) : [...prev, prod.id]));
+      triggerToast(
+        isFav ? `${displayName} removed from favourites` : `${displayName} saved to favourites`
+      );
     } catch (err) {
       console.error("Wishlist update failed:", err);
+      triggerToast("We could not update your wishlist. Please try again.");
     }
   };
 

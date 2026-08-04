@@ -6,16 +6,29 @@ migrations 38–42 must go live together** — the old client-side order inserts
 working the moment the new RLS policies apply, and the new checkout needs the
 `place_order()` function.
 
-> **Status check (verified against the live database):** migrations 38–42 are
-> **not applied yet**. `track_guest_order` and `subscribe_newsletter` return
-> PGRST202, and an anonymous request with only the public anon key can still
-> read `abandoned_carts` — i.e. checkout PII (names, emails, phone numbers,
-> addresses) is world-readable **right now**. Applying migration 39 is the fix
-> and is the most urgent item in this document.
+> **Status (re-verified against the live database, 4 August 2026): migrations
+> 38–42 ARE applied.** `place_order`, `subscribe_newsletter` and
+> `track_guest_order` all exist and respond; an anonymous insert into `orders`
+> is refused with `42501` (row-level security); anonymous reads of `orders` and
+> `abandoned_carts` return nothing. A real cash-on-delivery order (`ORD-10001`)
+> was placed end-to-end against production to confirm it.
 >
-> Until the migrations are applied, `/api/checkout`, `/api/track` and
+> An earlier version of this block claimed the opposite. It was stale, and it
+> was wrong in the alarming direction — treat a live probe as the authority over
+> this file, not the other way round. **Do not diagnose from this paragraph;
+> re-probe.**
+>
+> Still outstanding: migration **43** (seeds `inventory`) could not be confirmed
+> from outside, because RLS correctly hides that table from the public key — an
+> anonymous count returns zero whether the table is empty or simply invisible.
+> Check the admin Inventory tab; if it is empty, apply 43. Migration **44**
+> (`44_launch_hardening.sql`) is new and must be applied — it stores the
+> customer's phone on the order, moves free delivery to AED 300, and adds
+> discount pre-validation, server-side contact submission and rate limiting.
+>
+> Whenever a migration has not been applied, `/api/checkout`, `/api/track` and
 > `/api/newsletter` answer `503` with an explicit "migrations have not been
-> applied" message rather than a bare 500, so this state is easy to spot.
+> applied" message rather than a bare 500, so that state is easy to spot.
 
 ## 1. Apply migrations (in order, via the Supabase SQL editor)
 
@@ -63,6 +76,7 @@ server-side before any admin markup is rendered, and again by RLS on every query
 | `RESEND_API_KEY` | for email | from resend.com/api-keys. Without it the store runs normally but sends no notifications; every skipped send is logged |
 | `RESEND_FROM_EMAIL` | for email | e.g. `Gharib <orders@gharibperfumes.com>`. **The domain must be verified in Resend** or delivery is rejected |
 | `RESEND_REPLY_TO` | optional | where customer replies land |
+| `CART_RECOVERY_SECRET` | for cart recovery | must equal `app_config.cart_recovery` in the database (migration 45). Unset, no recovery emails are sent and nothing else changes — see §5a |
 
 No service-role key is needed: the trusted order path runs inside `SECURITY
 DEFINER` database functions.
@@ -124,6 +138,82 @@ Migration 42 deliberately does not invent stock levels. The footer of that file
 carries a ready-to-run statement for seeding a baseline once you know your real
 counts.
 
+## 5a. Growth features (migrations 45–46)
+
+Three additions, shipped together. Two of them need nothing but the migration;
+the first also needs a secret and a scheduler.
+
+### Abandoned-cart recovery emails
+
+Carts have been captured since migration 12 and never read back out. Migration
+**45** adds the recovery state, and `POST /api/cart-recovery` does the sending —
+three reminders per cart, at **1 hour**, **24 hours** and **72 hours** after the
+shopper last touched it (`src/app/lib/cart-recovery.ts`; change a delay there and
+it takes effect on the next run, no migration needed).
+
+To switch it on:
+
+1. Apply `45_abandoned_cart_recovery.sql`.
+2. Generate the job secret and store it (the SQL is in the operations note at the
+   foot of that file), then set the same value as `CART_RECOVERY_SECRET` in the
+   environment and redeploy. **Both are required.** The claim function returns
+   customer PII, so it refuses to run on the anon key alone — until the two
+   match, the endpoint answers `401` and nothing sends.
+3. Schedule it hourly. Any scheduler will do:
+
+   ```
+   curl -X POST https://<your-domain>/api/cart-recovery \
+        -H "Authorization: Bearer $CART_RECOVERY_SECRET"
+   ```
+
+Notes worth knowing before you turn it on:
+
+- **Every cart already in the table is exempt, permanently.** Applying 45 opts
+  out everything that exists at that moment, so the first run cannot mail months
+  of history about selections nobody remembers. Recovery starts from carts
+  abandoned afterwards.
+- A shopper who abandoned three times gets **one** reminder, about their most
+  recent cart, and anyone who has since placed an order is skipped.
+- A cart is stamped as reminded the moment it is claimed, so a run that crashes
+  half way skips a reminder rather than repeating one. Anything Resend refuses is
+  handed straight back to the queue.
+- Each run handles at most 20 carts per stage. A run that fills its batch says so
+  in the response and the log; the next hourly run takes the rest.
+- Every reminder carries an unsubscribe link (`/recover/stop`), which asks before
+  it acts — a one-click GET would let mail scanners unsubscribe people who never
+  saw the message.
+- The admin's **Abandoned Carts** tab has a **Send due reminders** button that
+  runs the same job by hand, and each row shows how many reminders it has had.
+
+The restore link in the email lands on `/recover?token=…`, which puts the
+selection back in the bag — **merged**, so a shopper who has added something
+since does not lose it. It deliberately restores only the items and does not
+prefill the address: a recovery link can be forwarded or sit in a shared inbox,
+and a home address is not worth that risk for one saved form field.
+
+### Free-delivery progress nudge
+
+`src/app/components/FreeDeliveryProgress.tsx`, shown in the cart drawer and the
+checkout summary: *"Add AED 101 more for complimentary delivery"*, with a hairline
+progress rule. No migration. It reads `lib/shipping.ts`, which mirrors
+`place_order()` — so it can never promise a threshold checkout does not honour.
+
+### Fragrance finder quiz
+
+`/discover` — four questions, three recommendations, linked from the main nav as
+**Find your scent**. The matching (`src/app/lib/quiz.ts`) runs on catalogue data
+that already exists: `olfactory_group`, `tags` and the three note arrays seeded in
+migration 37. Nothing to write, and no new product columns.
+
+Migration **46** captures what the quiz is worth commercially: the answers, and
+the email if one is offered. The email ask sits **after** the results, never in
+front of them, and asking for it actually sends the three — a promise to email
+something must be kept. Addresses land in `newsletter_subscribers` with
+`source = 'quiz'`, so there is still one list.
+
+Once it has been live a week, the queries at the foot of migration 46 tell you
+which family people reach for and what your capture rate is.
+
 ## 6. Post-deploy smoke checks
 
 1. Anonymous PostgREST reads of `abandoned_carts` / `order_tracking` with the
@@ -137,6 +227,13 @@ counts.
    source; an unknown product id returns HTTP **404** (not a 200 soft-404).
 5. `https://<site>/sitemap.xml` and `/robots.txt` resolve; the sitemap lists both
    database articles and the built-in editorial posts.
+6. `POST /api/cart-recovery` with no `Authorization` header returns **401**, and
+   with the correct bearer token returns `{"ok":true,...}`. Then abandon a
+   checkout with an address you can read and call it with `?minAgeMinutes=0` —
+   the reminder should arrive, and running it again immediately should send
+   nothing.
+7. `/discover` returns three recommendations for any set of answers, and the
+   cart drawer shows the gap to complimentary delivery on a single-bottle bag.
 
 ### A note on `loading.tsx`
 

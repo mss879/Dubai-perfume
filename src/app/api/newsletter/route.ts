@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-server";
 import { isMissingFunction } from "../../lib/rpc-errors";
+import { checkRateLimit, clientKey } from "../../lib/rate-limit";
+import { readJsonBody } from "../../lib/request-guard";
+
+/** Signups per IP before the route stops accepting them — nobody joins twice. */
+const MAX_SIGNUPS_PER_IP = 10;
+const SIGNUPS_WINDOW_SECONDS = 3600;
 
 /** Footer newsletter signup — previously the email was discarded client-side. */
 export async function POST(request: NextRequest) {
-  let body: { email?: unknown; source?: unknown };
-  try {
-    body = (await request.json()) as { email?: unknown; source?: unknown };
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 400 });
+  const parsed = await readJsonBody<{ email?: unknown; source?: unknown }>(request);
+  if (!parsed.ok) {
+    return NextResponse.json({ ok: false }, { status: parsed.status });
   }
+  const body = parsed.body;
 
   const email = String(body?.email ?? "").trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -24,6 +29,20 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServerSupabase();
+  if (
+    !(await checkRateLimit(
+      supabase,
+      `newsletter:ip:${clientKey(request)}`,
+      MAX_SIGNUPS_PER_IP,
+      SIGNUPS_WINDOW_SECONDS
+    ))
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "Please wait a little before subscribing again." },
+      { status: 429 }
+    );
+  }
+
   const { error } = await supabase.rpc("subscribe_newsletter", {
     p_email: email,
     p_source: typeof body?.source === "string" ? body.source.slice(0, 50) : "footer",

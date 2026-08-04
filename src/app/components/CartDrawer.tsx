@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useCart } from "../lib/cart";
 import { useCurrency } from "../lib/currency";
+import FreeDeliveryProgress from "./FreeDeliveryProgress";
 
 const OPEN_EVENT = "gharib:cart:open";
 const HAIRLINE = "rgba(0,0,0,0.12)";
@@ -199,9 +200,13 @@ export default function CartDrawer() {
                   </span>
                 </div>
 
+                {/* The gap to complimentary delivery, stated in money. Sits
+                    directly under the subtotal, where the shopper is already
+                    looking and can still act on it. */}
+                <FreeDeliveryProgress subtotalAed={subtotal} />
+
                 <p className="text-[12px] font-light leading-relaxed text-[#646464]">
-                  Payment is collected on delivery. Complimentary delivery on orders over
-                  AED 250.
+                  Payment is collected on delivery.
                 </p>
 
                 <Link href="/checkout" className="maison-btn w-full">

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-server";
+import { checkRateLimit, clientKey } from "../../lib/rate-limit";
+import { readJsonBody } from "../../lib/request-guard";
 
 /**
  * Checkout autosave. Replaces the direct browser upsert into abandoned_carts —
@@ -19,23 +21,41 @@ type AbandonedCartBody = {
   exchangeRate?: unknown;
 };
 
+/**
+ * Deliberately loose: the checkout page saves on a two-second debounce, so a
+ * shopper filling the form in slowly is expected to save dozens of times.
+ * The ceiling is here to stop a script, not to ration a real checkout.
+ */
+const MAX_SAVES_PER_IP = 60;
+const SAVES_WINDOW_SECONDS = 600;
+
 export async function POST(request: NextRequest) {
   if (!isSupabaseConfigured) {
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 
-  let body: AbandonedCartBody;
-  try {
-    body = (await request.json()) as AbandonedCartBody;
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 400 });
+  const parsed = await readJsonBody<AbandonedCartBody>(request);
+  if (!parsed.ok) {
+    return NextResponse.json({ ok: false }, { status: parsed.status });
   }
+  const body = parsed.body;
 
   if (!body?.id || !body?.email) {
     return NextResponse.json({ ok: false }, { status: 422 });
   }
 
   const supabase = createServerSupabase();
+  if (
+    !(await checkRateLimit(
+      supabase,
+      `abandoned-cart:ip:${clientKey(request)}`,
+      MAX_SAVES_PER_IP,
+      SAVES_WINDOW_SECONDS
+    ))
+  ) {
+    return NextResponse.json({ ok: false }, { status: 429 });
+  }
+
   const { error } = await supabase.rpc("capture_abandoned_cart", {
     p_id: String(body.id),
     p_email: String(body.email).trim(),

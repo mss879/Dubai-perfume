@@ -6,8 +6,10 @@ import Image from "next/image";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import CartDrawer from "../components/CartDrawer";
-import { useCart, type CartLine } from "../lib/cart";
+import FreeDeliveryProgress from "../components/FreeDeliveryProgress";
+import { useCart, readCart, type CartLine } from "../lib/cart";
 import { useCurrency } from "../lib/currency";
+import { shippingFeeForSubtotal } from "../lib/shipping";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 
 /** Never-changing store, used only to distinguish server render from client. */
@@ -45,12 +47,11 @@ function CartItemImage({
 
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
-/** Free delivery over AED 250; AED 25 below — matches the server (place_order). */
-const FREE_SHIPPING_THRESHOLD_AED = 250;
-const SHIPPING_FEE_AED = 25;
-
 /** sessionStorage key for the stable abandoned-cart id. */
 const ABANDONED_CART_ID_KEY = "gharib_ac_id";
+
+/** sessionStorage key for the last confirmation, so a reload does not lose it. */
+const LAST_ORDER_KEY = "gharib_last_order";
 
 const CHECKOUT_STEPS = [
   { id: "selection", label: "Selection" },
@@ -75,6 +76,55 @@ interface OrderResult {
   discount_amount: number;
   total: number;
 }
+
+/**
+ * What the confirmation screen still needs after a reload: the server's figures
+ * plus the email and code the order was placed with, neither of which survives
+ * in the form once the page is re-rendered from scratch.
+ */
+interface ConfirmedOrder extends OrderResult {
+  email: string;
+  code: string | null;
+}
+
+/**
+ * The last confirmation from this session, if there is one to show.
+ *
+ * A cart with anything in it means the shopper is buying again rather than
+ * re-reading a receipt, so the stale confirmation is dropped instead.
+ */
+function readStoredOrder(): ConfirmedOrder | null {
+  try {
+    const raw = sessionStorage.getItem(LAST_ORDER_KEY);
+    if (!raw) return null;
+    if (readCart().length > 0) {
+      sessionStorage.removeItem(LAST_ORDER_KEY);
+      return null;
+    }
+    const saved = JSON.parse(raw) as ConfirmedOrder;
+    return saved?.order_id ? saved : null;
+  } catch {
+    // An unreadable store simply means there is nothing to restore.
+    return null;
+  }
+}
+
+/**
+ * Snapshot of the stored confirmation, resolved once and then held.
+ *
+ * useSyncExternalStore compares snapshots by reference, so this must return the
+ * same object every time or the component re-renders forever. Cached at module
+ * scope, and refreshed by the submit handler when a new order replaces it.
+ */
+let storedOrderSnapshot: ConfirmedOrder | null | undefined;
+
+function getStoredOrder(): ConfirmedOrder | null {
+  if (storedOrderSnapshot === undefined) storedOrderSnapshot = readStoredOrder();
+  return storedOrderSnapshot;
+}
+
+/** Server render has no sessionStorage, so it restores nothing. */
+const noStoredOrder = () => null;
 
 export default function CheckoutClient() {
   const { lines, count, subtotal, remove, setQuantity, clear } = useCart();
@@ -103,14 +153,21 @@ export default function CheckoutClient() {
   const [country, setCountry] = useState("United Arab Emirates");
   const [postalCode, setPostalCode] = useState("");
 
-  // Discount code — stored client-side only; the server validates and prices it.
+  // Honeypot — a bot filling this in is the only way it carries a value.
+  const [company, setCompany] = useState("");
+
+  // Discount code — priced by the server before the shopper commits, then
+  // re-validated and re-priced at order time, which is the authority.
   const [discountInput, setDiscountInput] = useState("");
   const [discountCode, setDiscountCode] = useState<string | null>(null);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountNote, setDiscountNote] = useState<string | null>(null);
+  const [checkingDiscount, setCheckingDiscount] = useState(false);
 
   // System states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
+  const [orderResult, setOrderResult] = useState<ConfirmedOrder | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Prefill the contact email from the signed-in session, if any.
@@ -135,6 +192,38 @@ export default function CheckoutClient() {
     };
   }, []);
 
+  // The confirmation lived in component state alone, so a reload lost it. It is
+  // now kept for the session and read back through the same external-store
+  // mechanism the cart uses: the server snapshot is null so the markup matches
+  // on both sides, and no state is set from an effect to achieve it.
+  const restoredOrder = useSyncExternalStore(
+    subscribeToNothing,
+    getStoredOrder,
+    noStoredOrder
+  );
+
+  /**
+   * A new bag retires the old receipt.
+   *
+   * storedOrderSnapshot is module-scoped and resolved once — useSyncExternalStore
+   * compares snapshots by reference, so it must not be re-read on every render.
+   * The consequence is that readStoredOrder's own "cart is non-empty, drop the
+   * receipt" guard stops being consulted the moment the snapshot is set, and the
+   * submit handler sets it directly. Clearing it here is what lets a shopper
+   * place a second order in the same tab.
+   *
+   * Touches no React state, so it cannot cascade a render.
+   */
+  useEffect(() => {
+    if (lines.length === 0) return;
+    storedOrderSnapshot = null;
+    try {
+      sessionStorage.removeItem(LAST_ORDER_KEY);
+    } catch {
+      // A sessionStorage that will not co-operate simply keeps nothing.
+    }
+  }, [lines.length]);
+
   // Stable per-session abandoned-cart id, minted lazily on first use.
   const abandonedCartIdRef = useRef<string | null>(null);
   const getAbandonedCartId = useCallback((): string | null => {
@@ -154,9 +243,78 @@ export default function CheckoutClient() {
   }, []);
 
   // Client-side estimate only — the server reprices everything on placement.
-  const shippingFee =
-    subtotal > FREE_SHIPPING_THRESHOLD_AED || subtotal === 0 ? 0 : SHIPPING_FEE_AED;
-  const total = subtotal + shippingFee;
+  const shippingFee = subtotal === 0 ? 0 : shippingFeeForSubtotal(subtotal);
+  const total = Math.max(0, subtotal + shippingFee - discountAmount);
+
+  /**
+   * Re-price an applied code whenever the basket changes.
+   *
+   * discountAmount is a quote for one particular basket. Change the bag and it
+   * goes stale: a percentage code is worth more on a larger basket, and a code
+   * with a minimum stops applying to a smaller one. place_order() always
+   * re-prices from the live basket, so leaving the old figure on screen means
+   * quoting a total the server will not charge.
+   *
+   * The server is asked again rather than the arithmetic being repeated here —
+   * percentage-vs-fixed, the minimum and the usage cap all live in the database,
+   * and a second implementation of them would be a second thing to get wrong.
+   */
+  const pricedForSubtotal = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!discountCode) {
+      pricedForSubtotal.current = null;
+      return;
+    }
+    // Already priced for exactly this basket (including the apply that set it).
+    if (pricedForSubtotal.current === subtotal) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/discount", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: discountCode, subtotal }),
+        });
+        const json = (await res.json().catch(() => null)) as {
+          valid?: boolean | null;
+          discountAmount?: number;
+          message?: string;
+        } | null;
+        if (cancelled) return;
+
+        pricedForSubtotal.current = subtotal;
+
+        if (res.ok && json?.valid === true) {
+          setDiscountAmount(Number(json.discountAmount) || 0);
+          setDiscountNote(json.message || "Your code has been applied.");
+        } else if (res.ok && json?.valid === false) {
+          // Usually a minimum the basket has dropped below. The code stays in
+          // the box so the shopper can see which one stopped applying, and it
+          // is worth nothing until it qualifies again.
+          setDiscountAmount(0);
+          setDiscountNote(json.message || "That code no longer applies to this order.");
+        } else {
+          setDiscountAmount(0);
+          setDiscountNote(
+            "We could not re-check that code. It will be applied if it is valid when your order is placed."
+          );
+        }
+      } catch {
+        // Promise nothing we cannot verify; place_order still honours a valid code.
+        if (cancelled) return;
+        pricedForSubtotal.current = subtotal;
+        setDiscountAmount(0);
+      }
+    })();
+
+    return () => {
+      // A later basket must win: an in-flight answer for a bag the shopper has
+      // already changed is discarded rather than overwriting the newer quote.
+      cancelled = true;
+    };
+  }, [subtotal, discountCode]);
 
   const goToDetails = () => {
     setStep("details");
@@ -247,6 +405,7 @@ export default function CheckoutClient() {
           currency,
           exchangeRate: rate,
           paymentMethod: "cod",
+          company,
         }),
       });
 
@@ -266,18 +425,25 @@ export default function CheckoutClient() {
       }
 
       if (res.ok && json?.ok) {
-        clear();
-        try {
-          sessionStorage.removeItem(ABANDONED_CART_ID_KEY);
-        } catch {}
-        abandonedCartIdRef.current = null;
-        setOrderResult({
+        const confirmed: ConfirmedOrder = {
           order_id: String(json.order_id ?? ""),
           subtotal: Number(json.subtotal) || 0,
           shipping_fee: Number(json.shipping_fee) || 0,
           discount_amount: Number(json.discount_amount) || 0,
           total: Number(json.total) || 0,
-        });
+          email: email.trim(),
+          code: discountCode,
+        };
+        clear();
+        try {
+          sessionStorage.removeItem(ABANDONED_CART_ID_KEY);
+          sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(confirmed));
+        } catch {}
+        // Keep the restore snapshot in step, so returning to checkout later in
+        // the same session shows this order rather than a stale earlier one.
+        storedOrderSnapshot = confirmed;
+        abandonedCartIdRef.current = null;
+        setOrderResult(confirmed);
         if (typeof window !== "undefined") {
           window.scrollTo({ top: 0 });
         }
@@ -293,16 +459,70 @@ export default function CheckoutClient() {
     }
   };
 
-  const applyDiscount = () => {
+  // Ask the server what the code is worth for this basket. The figure is only
+  // ever shown, never charged: place_order re-validates and re-prices it.
+  const applyDiscount = async () => {
     const code = discountInput.trim();
-    if (!code) return;
-    setDiscountCode(code);
+    if (!code || checkingDiscount) return;
     setErrorMsg(null);
+    setCheckingDiscount(true);
+    try {
+      const res = await fetch("/api/discount", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, subtotal }),
+      });
+
+      let json: {
+        valid?: boolean | null;
+        discountAmount?: number;
+        message?: string;
+      } | null = null;
+      try {
+        json = await res.json();
+      } catch {
+        json = null;
+      }
+
+      // Records the basket this answer was priced against, so the re-pricing
+      // effect does not immediately ask the same question again.
+      pricedForSubtotal.current = subtotal;
+
+      if (res.ok && json?.valid === true) {
+        setDiscountCode(code);
+        setDiscountAmount(Number(json.discountAmount) || 0);
+        setDiscountNote(json.message || "Your code has been applied.");
+      } else if (res.ok && json?.valid === false) {
+        setDiscountCode(null);
+        setDiscountAmount(0);
+        setDiscountNote(json.message || "That code cannot be used with this order.");
+      } else {
+        // valid: null, or an endpoint that is not answering properly — keep the
+        // code so the server can still honour it, and promise nothing.
+        setDiscountCode(code);
+        setDiscountAmount(0);
+        setDiscountNote(
+          json?.message ||
+            "We could not check that code just now. It will be applied if it is valid when your order is placed."
+        );
+      }
+    } catch {
+      pricedForSubtotal.current = subtotal;
+      setDiscountCode(code);
+      setDiscountAmount(0);
+      setDiscountNote(
+        "We could not check that code just now. It will be applied if it is valid when your order is placed."
+      );
+    } finally {
+      setCheckingDiscount(false);
+    }
   };
 
   const removeDiscount = () => {
     setDiscountCode(null);
     setDiscountInput("");
+    setDiscountAmount(0);
+    setDiscountNote(null);
     setErrorMsg(null);
   };
 
@@ -342,15 +562,23 @@ export default function CheckoutClient() {
           {shippingFee === 0 ? "Complimentary" : format(shippingFee)}
         </span>
       </div>
-      {shippingFee > 0 && (
-        <p className="pt-1 pb-2 text-[12px] font-light text-[#646464]">
-          Complimentary delivery on orders over {format(FREE_SHIPPING_THRESHOLD_AED)}.
-        </p>
+      {discountAmount > 0 && (
+        <div className="flex items-baseline justify-between py-2">
+          <span className="text-[14px] font-light text-black">
+            Discount{discountCode ? ` (${discountCode})` : ""}
+          </span>
+          <span className="text-[14px] font-light text-black">
+            &minus;{format(discountAmount)}
+          </span>
+        </div>
       )}
-      {discountCode && (
-        <p className="pt-1 pb-2 text-[12px] font-light text-[#646464]">
-          Code {discountCode} will be applied when the order is placed.
-        </p>
+      {/* The same nudge the cart drawer shows, so a shopper who ignored it
+          there meets it once more with the total in front of them.
+          Only while there is still a fee to lose: the Delivery row above
+          already reads "Complimentary" once they qualify, and saying it twice
+          in adjacent lines reads as a mistake. */}
+      {shippingFee > 0 && (
+        <FreeDeliveryProgress subtotalAed={subtotal} className="pt-2 pb-1" />
       )}
       <div
         className="mt-4 pt-5 flex items-baseline justify-between gap-4"
@@ -403,11 +631,17 @@ export default function CheckoutClient() {
           <button
             type="button"
             onClick={applyDiscount}
+            disabled={checkingDiscount}
             className="maison-btn-outline shrink-0"
           >
-            Apply
+            {checkingDiscount ? "Checking" : "Apply"}
           </button>
         </div>
+      )}
+      {discountNote && (
+        <p className="pt-3 text-[12px] font-light leading-[1.7] text-[#646464]" role="status">
+          {discountNote}
+        </p>
       )}
     </div>
   );
@@ -453,7 +687,16 @@ export default function CheckoutClient() {
 
   /* ── Order confirmation ───────────────────────────────────────── */
 
-  if (orderResult) {
+  // The order just placed, or the one this session placed before a reload.
+  //
+  // A RESTORED receipt is shown only while the bag is empty: with something in
+  // it the shopper is buying again, and the confirmation offers no route back to
+  // the form, so rendering it over a full bag strands them. orderResult is not
+  // gated — someone who adds an item while still reading the receipt they just
+  // earned should keep seeing it.
+  const confirmedOrder = orderResult ?? (lines.length === 0 ? restoredOrder : null);
+
+  if (confirmedOrder) {
     return (
       <div className="maison min-h-screen flex flex-col">
         <AppHeader />
@@ -465,13 +708,13 @@ export default function CheckoutClient() {
               {stepIndicator("confirmation")}
 
               <div className="mt-12 pt-10" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
-                <p className="maison-eyebrow">Order reference&nbsp;&nbsp;{orderResult.order_id}</p>
+                <p className="maison-eyebrow">Order reference&nbsp;&nbsp;{confirmedOrder.order_id}</p>
               </div>
 
               <p className="mt-6 text-[14px] font-light leading-[1.8] text-black">
                 Your fragrances are being prepared in our Dubai atelier. A confirmation has been sent
-                to {email || "your inbox"}. Your order is payable in cash or by card to the courier
-                on delivery.
+                to {confirmedOrder.email || "your inbox"}. Your order is payable in cash or by card to
+                the courier on delivery.
               </p>
 
               {/* Server-computed figures — the authoritative record. */}
@@ -479,22 +722,22 @@ export default function CheckoutClient() {
                 <div className="flex items-baseline justify-between py-2">
                   <span className="text-[14px] font-light text-black">Subtotal</span>
                   <span className="text-[14px] font-light text-black">
-                    {format(orderResult.subtotal)}
+                    {format(confirmedOrder.subtotal)}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between py-2">
                   <span className="text-[14px] font-light text-black">Delivery</span>
                   <span className="text-[14px] font-light text-black">
-                    {orderResult.shipping_fee === 0 ? "Complimentary" : format(orderResult.shipping_fee)}
+                    {confirmedOrder.shipping_fee === 0 ? "Complimentary" : format(confirmedOrder.shipping_fee)}
                   </span>
                 </div>
-                {orderResult.discount_amount > 0 && (
+                {confirmedOrder.discount_amount > 0 && (
                   <div className="flex items-baseline justify-between py-2">
                     <span className="text-[14px] font-light text-black">
-                      Discount{discountCode ? ` (${discountCode})` : ""}
+                      Discount{confirmedOrder.code ? ` (${confirmedOrder.code})` : ""}
                     </span>
                     <span className="text-[14px] font-light text-black">
-                      &minus;{format(orderResult.discount_amount)}
+                      &minus;{format(confirmedOrder.discount_amount)}
                     </span>
                   </div>
                 )}
@@ -506,22 +749,28 @@ export default function CheckoutClient() {
                     Total due on delivery
                   </span>
                   <span className="font-display text-[16px] uppercase tracking-[0.08em] text-black">
-                    {format(orderResult.total)}
+                    {format(confirmedOrder.total)}
                   </span>
                 </div>
               </div>
 
               <p className="mt-10 text-[13px] font-light leading-[1.8] text-[#646464]">
-                To track your order, keep your order reference {orderResult.order_id} and the email
+                To track your order, keep your order reference {confirmedOrder.order_id} and the email
                 address you ordered with to hand — both are needed to follow the parcel.
               </p>
 
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
-                  href={`/track?order=${encodeURIComponent(orderResult.order_id)}`}
+                  href={`/track?order=${encodeURIComponent(confirmedOrder.order_id)}`}
                   className="maison-btn w-full sm:w-auto"
                 >
                   Track your order
+                </Link>
+                <Link
+                  href={`/order/${encodeURIComponent(confirmedOrder.order_id)}?email=${encodeURIComponent(confirmedOrder.email)}`}
+                  className="maison-btn-outline w-full sm:w-auto"
+                >
+                  View your order
                 </Link>
                 <Link href="/shop" className="maison-btn-outline w-full sm:w-auto">
                   Back to the boutique
@@ -672,6 +921,28 @@ export default function CheckoutClient() {
                 </>
               ) : (
                 <form onSubmit={handlePlaceOrder} className="flex flex-col gap-14">
+                  {/*
+                    Honeypot. Positioned off-screen rather than hidden with
+                    `display: none`, which the cruder form-fillers know to skip.
+                    Out of flow, so it adds no gap to the column.
+                  */}
+                  <input
+                    type="text"
+                    name="company"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    autoComplete="off"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      left: "-9999px",
+                      width: 1,
+                      height: 1,
+                      opacity: 0,
+                    }}
+                  />
+
                   {errorMsg && (
                     <p
                       className="pl-4 text-[13px] font-light leading-[1.7] text-black"
@@ -932,9 +1203,6 @@ export default function CheckoutClient() {
               <div className="mt-8 flex flex-col gap-2">
                 <p className="text-[12px] uppercase tracking-[0.1em] text-[#646464]">
                   Payment on delivery
-                </p>
-                <p className="text-[12px] uppercase tracking-[0.1em] text-[#646464]">
-                  Hand-finished gift wrapping
                 </p>
               </div>
             </aside>

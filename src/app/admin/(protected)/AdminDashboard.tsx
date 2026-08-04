@@ -9,7 +9,7 @@ import {
   TrendingUp, ShoppingBag, Users, Percent, Gift, Package, Layers, 
   MapPin, ClipboardList, RefreshCw, Megaphone, FileText, Globe, 
   BarChart3, Plus, Trash2, Edit2, Search, ArrowUpRight, ArrowDownRight, 
-  Check, X, AlertCircle, ShieldAlert, Loader2, Sparkles, Filter
+  Check, X, AlertCircle, ShieldAlert, Loader2, Sparkles, Filter, Send
 } from "lucide-react";
 import { getBrowserSupabase } from "../../lib/supabase-browser";
 import {
@@ -35,6 +35,39 @@ type Row = Record<string, any>;
 /** Narrows an unknown thrown value to a displayable message. */
 function errorMessage(err: unknown, fallback = "Unknown error"): string {
   return err instanceof Error && err.message ? err.message : fallback;
+}
+
+/**
+ * Escape a value for the printable report, which is assembled as raw HTML and
+ * written into a print frame. Order ids, client names and addresses are all
+ * customer-supplied, so none of them may reach that document unescaped.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * A Date as "YYYY-MM-DD" in the viewer's own timezone.
+ *
+ * toISOString() would convert to UTC first, which in Dubai (UTC+4) yields
+ * yesterday's date between midnight and 4am — long enough for a morning report
+ * to silently omit the day it was run.
+ */
+function isoLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** "2026-08-05" → "5 August 2026", for report headings. */
+function longDate(value: string): string {
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
 
@@ -256,15 +289,14 @@ function AdminDashboardContent() {
   const [startDate, setStartDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30); // Default to last 30 days
-    return d.toISOString().split("T")[0];
+    return isoLocalDate(d);
   });
-  const [endDate, setEndDate] = useState<string>(() => {
-    return new Date().toISOString().split("T")[0];
-  });
+  const [endDate, setEndDate] = useState<string>(() => isoLocalDate(new Date()));
 
   // Page interaction states
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [sendingRecovery, setSendingRecovery] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   
   // Collections states
@@ -308,6 +340,10 @@ function AdminDashboardContent() {
   const [dispatchOrderId, setDispatchOrderId] = useState<string | null>(null);
   const [trackingNumberInput, setTrackingNumberInput] = useState("");
   const [dispatchSubmitting, setDispatchSubmitting] = useState(false);
+
+  // Invoice drawer's own tracking fields, seeded when the drawer opens.
+  const [drawerTrackingNumber, setDrawerTrackingNumber] = useState("");
+  const [drawerTrackingUrl, setDrawerTrackingUrl] = useState("");
   
   // New Scent Product Form
   const [newProductName, setNewProductName] = useState("");
@@ -338,7 +374,10 @@ function AdminDashboardContent() {
   const [discType, setDiscType] = useState("percentage");
   const [discValue, setDiscValue] = useState("");
   const [discMinReq, setDiscMinReq] = useState("0");
-  
+  const [discEndsAt, setDiscEndsAt] = useState("");
+  const [discUsageLimit, setDiscUsageLimit] = useState("");
+  const [discSubmitting, setDiscSubmitting] = useState(false);
+
   // New Gift Card Form
   const [giftCode, setGiftCode] = useState("");
   const [giftBalance, setGiftBalance] = useState("");
@@ -348,6 +387,38 @@ function AdminDashboardContent() {
   const [editingStockId, setEditingStockId] = useState<string | null>(null);
   const [editingStockVal, setEditingStockVal] = useState("");
 
+  // Customer memorandum notes + client dossier drawer
+  const [editingNoteCustomerId, setEditingNoteCustomerId] = useState<string | null>(null);
+  const [editingNoteVal, setEditingNoteVal] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Row | null>(null);
+
+  // Stock transfer composer
+  const [showAddTransfer, setShowAddTransfer] = useState(false);
+  const [transferOrigin, setTransferOrigin] = useState("Main Warehouse");
+  const [transferDestination, setTransferDestination] = useState("");
+  const [transferLines, setTransferLines] = useState<Row[]>([]);
+  const [transferProductId, setTransferProductId] = useState("");
+  const [transferSize, setTransferSize] = useState("");
+  const [transferQty, setTransferQty] = useState("1");
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+
+  // Collection editor
+  const [editingCollection, setEditingCollection] = useState<Row | null>(null);
+  const [editColTitle, setEditColTitle] = useState("");
+  const [editColDescription, setEditColDescription] = useState("");
+  const [editColCover, setEditColCover] = useState("");
+  const [editColType, setEditColType] = useState("manual");
+  const [editColRuleTag, setEditColRuleTag] = useState("");
+  const [editColSaving, setEditColSaving] = useState(false);
+  const [editColUploading, setEditColUploading] = useState(false);
+
+  // Inquiry reply desk
+  const [replyingInquiry, setReplyingInquiry] = useState<Row | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [replySubmitting, setReplySubmitting] = useState(false);
+  const [inquiryStatusFilter, setInquiryStatusFilter] = useState<"all" | "new" | "answered">("all");
+
   // Quick seed loader
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -356,6 +427,9 @@ function AdminDashboardContent() {
         // Every table the panel renders is loaded here — the transfers, gift
         // card, markets, analytics and CMS tabs used to display hardcoded
         // markup instead of querying at all.
+        // Star-selects on purpose: naming columns would fail the whole read on
+        // any deployment that has not applied the newest migration yet, so newly
+        // added columns (orders.phone) arrive on their own once it is applied.
         const db = getBrowserSupabase();
         const table = (name: string) => db.from(name).select("*");
         const [
@@ -400,6 +474,43 @@ function AdminDashboardContent() {
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  /**
+   * Runs the abandoned-cart recovery job by hand.
+   *
+   * The same endpoint a scheduler calls hourly (see migration 45). It is safe
+   * to press twice: a cart is stamped as reminded the moment it is claimed, so
+   * a second run within the same hour finds nothing left to send.
+   */
+  const sendCartRecovery = async () => {
+    if (sendingRecovery) return;
+    setSendingRecovery(true);
+    try {
+      const res = await fetch("/api/cart-recovery", { method: "POST" });
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        sent?: number;
+        failed?: number;
+        error?: string;
+      } | null;
+
+      if (res.ok && json?.ok) {
+        const sent = json.sent ?? 0;
+        const failed = json.failed ?? 0;
+        triggerToast(
+          sent === 0 && failed === 0
+            ? "NO CARTS ARE DUE A REMINDER RIGHT NOW"
+            : `${sent} REMINDER${sent === 1 ? "" : "S"} SENT${failed > 0 ? ` — ${failed} FAILED` : ""}`
+        );
+      } else {
+        triggerToast((json?.error || "RECOVERY RUN FAILED").toUpperCase());
+      }
+    } catch {
+      triggerToast("COULD NOT REACH THE RECOVERY ENDPOINT");
+    } finally {
+      setSendingRecovery(false);
+    }
   };
 
   const convertToWebP = (file: File): Promise<File> => {
@@ -849,36 +960,123 @@ function AdminDashboardContent() {
   };
 
   // Add Discount Action
+  /**
+   * Register a promotional code.
+   *
+   * `id` is deliberately absent: discounts.id is a SERIAL, and the old code
+   * sent `discounts.length + 1`, which collides with an existing row as soon
+   * as anything has been deleted. Migration 48 resyncs the sequence that those
+   * client-supplied ids left behind.
+   *
+   * The expiry and usage cap are real controls, not decoration — place_order()
+   * and validate_discount() both refuse a code past `ends_at` or at its
+   * `usage_limit` (migration 44).
+   */
   const handleCreateDiscount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!discCode || !discValue) {
-      triggerToast("Please input a code and discount value.");
+    if (discSubmitting) return;
+
+    const code = discCode.toUpperCase().replace(/\s+/g, "");
+    const value = parseFloat(discValue);
+
+    if (!code || !Number.isFinite(value) || value <= 0) {
+      triggerToast("Please input a code and a discount value above zero.");
+      return;
+    }
+    if (discType === "percentage" && value > 100) {
+      triggerToast("A percentage discount cannot exceed 100%.");
       return;
     }
 
-    const value = parseFloat(discValue);
-    const newPromo = {
-      id: discounts.length + 1,
-      code: discCode.toUpperCase().replace(/\s+/g, ""),
-      title: `${discCode.toUpperCase()} Campaign`,
-      type: discType,
-      value: value,
-      min_requirement: parseFloat(discMinReq) || 0.00,
-      usage_limit: null,
-      usage_count: 0,
-      is_active: true
-    };
+    const usageLimit = discUsageLimit.trim() ? parseInt(discUsageLimit, 10) : null;
+    if (usageLimit !== null && (!Number.isFinite(usageLimit) || usageLimit < 1)) {
+      triggerToast("Redemption cap must be a whole number of at least 1.");
+      return;
+    }
 
+    // A date input gives a bare day; the code stays live to the end of it.
+    const endsAt = discEndsAt ? new Date(`${discEndsAt}T23:59:59`).toISOString() : null;
+    if (endsAt && new Date(endsAt) < new Date()) {
+      triggerToast("That expiry date is already in the past.");
+      return;
+    }
+
+    setDiscSubmitting(true);
     try {
-      await getBrowserSupabase().from("discounts").insert(newPromo);
-      setDiscounts(prev => [newPromo, ...prev]);
-      triggerToast(`Registered discount code ${newPromo.code} successfully.`);
+      const { data, error } = await getBrowserSupabase()
+        .from("discounts")
+        .insert({
+          code,
+          title: `${code} Campaign`,
+          type: discType,
+          value,
+          min_requirement: parseFloat(discMinReq) || 0.0,
+          ends_at: endsAt,
+          usage_limit: usageLimit,
+          usage_count: 0,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setDiscounts(prev => [data, ...prev]);
+      triggerToast(`Registered discount code ${code} successfully.`);
       setShowAddDiscount(false);
       setDiscCode("");
       setDiscValue("");
       setDiscMinReq("0");
+      setDiscEndsAt("");
+      setDiscUsageLimit("");
     } catch (err) {
-      triggerToast("Discount registration failed.");
+      const msg = errorMessage(err, "");
+      triggerToast(
+        msg.includes("duplicate") || msg.includes("unique")
+          ? `The code ${code} already exists.`
+          : `Discount registration failed. ${msg}`.trim()
+      );
+    } finally {
+      setDiscSubmitting(false);
+    }
+  };
+
+  /** Switch a code on or off. Checkout reads is_active on every redemption. */
+  const handleToggleDiscount = async (disc: Row) => {
+    const next = !disc.is_active;
+    try {
+      const { error } = await getBrowserSupabase()
+        .from("discounts")
+        .update({ is_active: next })
+        .eq("id", disc.id);
+      if (error) throw error;
+
+      setDiscounts(prev => prev.map(d => (d.id === disc.id ? { ...d, is_active: next } : d)));
+      triggerToast(`${disc.code} is now ${next ? "active" : "paused"}.`);
+    } catch (err) {
+      triggerToast(`Could not update ${disc.code}. ${errorMessage(err, "")}`.trim());
+    }
+  };
+
+  /**
+   * Delete a code for real.
+   *
+   * The old handler only dropped the row from React state and toasted
+   * "Deregistered" — the code stayed in the table and stayed redeemable at
+   * checkout, and it reappeared on the next refresh.
+   */
+  const handleDeleteDiscount = async (disc: Row) => {
+    if (!confirm(`Permanently delete the code ${disc.code}? Shoppers will no longer be able to redeem it.`)) {
+      return;
+    }
+    try {
+      const { error } = await getBrowserSupabase().from("discounts").delete().eq("id", disc.id);
+      if (error) throw error;
+
+      setDiscounts(prev => prev.filter(d => d.id !== disc.id));
+      triggerToast(`Deleted discount ${disc.code}.`);
+    } catch (err) {
+      triggerToast(`Could not delete ${disc.code}. ${errorMessage(err, "")}`.trim());
     }
   };
 
@@ -1000,6 +1198,404 @@ function AdminDashboardContent() {
       triggerToast("Inquiry logged entry removed successfully.");
     } catch (err) {
       triggerToast("Failed to remove inquiry entry.");
+    }
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     CUSTOMER DOSSIER
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /**
+   * Save the operator's note against a client.
+   *
+   * customers.note has existed since migration 04 and the admin FOR ALL policy
+   * since 10 — the column was rendered read-only purely because nothing ever
+   * wrote it.
+   */
+  const handleSaveCustomerNote = async (customerId: string) => {
+    if (savingNote) return;
+    setSavingNote(true);
+    const note = editingNoteVal.trim();
+
+    try {
+      const { error } = await getBrowserSupabase()
+        .from("customers")
+        .update({ note, updated_at: new Date().toISOString() })
+        .eq("id", customerId);
+
+      if (error) throw error;
+
+      setCustomers(prev => prev.map(c => (c.id === customerId ? { ...c, note } : c)));
+      setSelectedCustomer(prev => (prev && prev.id === customerId ? { ...prev, note } : prev));
+      setEditingNoteCustomerId(null);
+      setEditingNoteVal("");
+      triggerToast("Client memorandum saved.");
+    } catch (err) {
+      triggerToast(`Could not save the memorandum. ${errorMessage(err, "")}`.trim());
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  /**
+   * Close the dossier, abandoning any unsaved note draft that belongs to it.
+   *
+   * The drawer and the inline cell editor share one draft so a note saved in
+   * either place lands in both. Without this, closing the drawer mid-edit left
+   * that client's row in the table sitting in edit mode holding the orphaned
+   * draft.
+   */
+  const closeCustomerDossier = () => {
+    if (selectedCustomer && editingNoteCustomerId === selectedCustomer.id) {
+      setEditingNoteCustomerId(null);
+      setEditingNoteVal("");
+    }
+    setSelectedCustomer(null);
+  };
+
+  /** Every order this client has placed, newest first. */
+  const getCustomerOrders = (customer: Row) =>
+    orders
+      .filter(o => o.customer_id === customer.id || o.email === customer.email)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     STOCK TRANSFERS
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  const addTransferLine = () => {
+    const productId = parseInt(transferProductId, 10);
+    const qty = parseInt(transferQty, 10);
+    const product = products.find(p => p.id === productId);
+
+    if (!product) {
+      triggerToast("Choose a fragrance to add to the manifest.");
+      return;
+    }
+    if (!transferSize) {
+      triggerToast("Choose a size for this line.");
+      return;
+    }
+    if (!Number.isFinite(qty) || qty < 1) {
+      triggerToast("Quantity must be at least 1.");
+      return;
+    }
+
+    // Merge rather than duplicate: two lines for the same flacon and size read
+    // as an error on a packing slip.
+    setTransferLines(prev => {
+      const at = prev.findIndex(l => l.product_id === productId && l.size === transferSize);
+      if (at !== -1) {
+        const next = [...prev];
+        next[at] = { ...next[at], quantity: next[at].quantity + qty };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          product_id: productId,
+          name: product.name,
+          brand: product.brand,
+          size: transferSize,
+          quantity: qty,
+        },
+      ];
+    });
+
+    setTransferQty("1");
+  };
+
+  const resetTransferForm = () => {
+    setShowAddTransfer(false);
+    setTransferOrigin("Main Warehouse");
+    setTransferDestination("");
+    setTransferLines([]);
+    setTransferProductId("");
+    setTransferSize("");
+    setTransferQty("1");
+  };
+
+  /**
+   * Record a stock movement.
+   *
+   * transfers.id is a VARCHAR primary key with no default, so the reference is
+   * minted here. The date prefix keeps the list sorting sensibly by eye, and
+   * the random tail keeps two transfers raised in the same minute apart.
+   */
+  const handleCreateTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (transferSubmitting) return;
+
+    if (!transferOrigin.trim() || !transferDestination.trim()) {
+      triggerToast("An origin and a destination are both required.");
+      return;
+    }
+    if (transferOrigin.trim() === transferDestination.trim()) {
+      triggerToast("Origin and destination must differ.");
+      return;
+    }
+    if (transferLines.length === 0) {
+      triggerToast("Add at least one line to the manifest.");
+      return;
+    }
+
+    setTransferSubmitting(true);
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const tail = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const newTransfer = {
+      id: `XFER-${stamp}-${tail}`,
+      origin: transferOrigin.trim(),
+      destination: transferDestination.trim(),
+      status: "pending",
+      items: transferLines,
+    };
+
+    try {
+      const { data, error } = await getBrowserSupabase()
+        .from("transfers")
+        .insert(newTransfer)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTransfers(prev => [data, ...prev]);
+      triggerToast(`Raised stock transfer ${newTransfer.id}.`);
+      resetTransferForm();
+    } catch (err) {
+      triggerToast(`Could not raise the transfer. ${errorMessage(err, "")}`.trim());
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
+
+  /**
+   * Move a transfer along its lifecycle: pending → in_transit → completed,
+   * or cancelled from either.
+   *
+   * Deliberately does NOT touch inventory. public.inventory is keyed on
+   * (product_id, size) with no location column, so stock is a single global
+   * pool — moving a case between the warehouse and a boutique does not change
+   * how many bottles the business holds. Decrementing anything here would
+   * invent a shortage. The transfer is a logistics record; if per-location
+   * stock is ever wanted, inventory needs a location key first.
+   */
+  const handleTransferStatus = async (xfer: Row, nextStatus: string) => {
+    try {
+      const { error } = await getBrowserSupabase()
+        .from("transfers")
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq("id", xfer.id);
+
+      if (error) throw error;
+
+      setTransfers(prev =>
+        prev.map(t => (t.id === xfer.id ? { ...t, status: nextStatus } : t))
+      );
+      triggerToast(`Transfer ${xfer.id} is now ${nextStatus.replace(/_/g, " ")}.`);
+    } catch (err) {
+      triggerToast(`Could not update the transfer. ${errorMessage(err, "")}`.trim());
+    }
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     COLLECTION EDITOR
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  const openCollectionEditor = (col: Row) => {
+    setEditingCollection(col);
+    setEditColTitle(String(col.title || ""));
+    setEditColDescription(String(col.description || ""));
+    setEditColCover(String(col.cover_image || ""));
+    setEditColType(String(col.type || "manual"));
+    // The composer only ever writes a single tag rule, so the editor shows the
+    // first one rather than pretending to handle a rule list it cannot build.
+    setEditColRuleTag(
+      Array.isArray(col.rules) && col.rules.length > 0 ? String(col.rules[0]?.value || "") : ""
+    );
+  };
+
+  const handleEditCollectionCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setEditColUploading(true);
+    try {
+      const db = getBrowserSupabase();
+      const path = `covers/${Date.now()}-${file.name.replace(/\s+/g, "-")}`;
+      const { error } = await db.storage.from("collection-covers").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (error) throw error;
+
+      const { data } = db.storage.from("collection-covers").getPublicUrl(path);
+      setEditColCover(data.publicUrl);
+      triggerToast("Cover image uploaded.");
+    } catch (err) {
+      triggerToast(`Cover upload failed. ${errorMessage(err, "")}`.trim());
+    } finally {
+      setEditColUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  /**
+   * Save an edited collection.
+   *
+   * Switching a collection to automated, or changing its tag, re-derives the
+   * membership immediately — the mapping rows are what the storefront reads,
+   * so leaving them stale would show the old products under the new rule.
+   */
+  const handleUpdateCollection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCollection || editColSaving) return;
+
+    const title = editColTitle.trim();
+    if (!title) {
+      triggerToast("A collection needs a title.");
+      return;
+    }
+
+    const tag = editColRuleTag.trim().toLowerCase();
+    if (editColType === "automated" && !tag) {
+      triggerToast("An automated collection needs a tag to match on.");
+      return;
+    }
+
+    setEditColSaving(true);
+    const rules = editColType === "automated" ? [{ field: "tag", relation: "equals", value: tag }] : [];
+
+    try {
+      const db = getBrowserSupabase();
+      const { error } = await db
+        .from("collections")
+        .update({
+          title,
+          description: editColDescription.trim(),
+          cover_image: editColCover || "/campaign-gold.png",
+          type: editColType,
+          rules,
+        })
+        .eq("id", editingCollection.id);
+
+      if (error) throw error;
+
+      if (editColType === "automated") {
+        await db.from("product_collections").delete().eq("collection_id", editingCollection.id);
+        const matched = products.filter(p => Array.isArray(p.tags) && p.tags.includes(tag));
+        if (matched.length > 0) {
+          const { error: mapError } = await db
+            .from("product_collections")
+            .insert(matched.map(p => ({ product_id: p.id, collection_id: editingCollection.id })));
+          if (mapError) throw mapError;
+        }
+        const { data: pcData } = await db.from("product_collections").select("*");
+        setProductCollections(pcData || []);
+      }
+
+      setCollections(prev =>
+        prev.map(c =>
+          c.id === editingCollection.id
+            ? {
+                ...c,
+                title,
+                description: editColDescription.trim(),
+                cover_image: editColCover || "/campaign-gold.png",
+                type: editColType,
+                rules,
+              }
+            : c
+        )
+      );
+
+      triggerToast(`Updated collection: ${title}`);
+      setEditingCollection(null);
+    } catch (err) {
+      triggerToast(`Could not save the collection. ${errorMessage(err, "")}`.trim());
+    } finally {
+      setEditColSaving(false);
+    }
+  };
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     INQUIRY DESK
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /**
+   * Both inquiry writes go through /api/admin/inquiry-reply, which re-verifies
+   * the admin, sends the mail with the server-held Resend key, and only then
+   * marks the row answered.
+   */
+  const postInquiryUpdate = async (payload: Row) => {
+    const res = await fetch("/api/admin/inquiry-reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.error || "The request was refused.");
+    }
+    return json as Row;
+  };
+
+  const handleSetInquiryStatus = async (inq: Row, status: "new" | "answered") => {
+    try {
+      const json = await postInquiryUpdate({ inquiryId: inq.id, status });
+      setInquiries(prev =>
+        prev.map(i =>
+          i.id === inq.id
+            ? { ...i, status, answered_at: json.answeredAt ?? (status === "answered" ? new Date().toISOString() : null) }
+            : i
+        )
+      );
+      triggerToast(status === "answered" ? "Marked as answered." : "Reopened as a new inquiry.");
+    } catch (err) {
+      triggerToast(errorMessage(err, "Could not update the inquiry."));
+    }
+  };
+
+  const handleSendInquiryReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyingInquiry || replySubmitting) return;
+
+    const reply = replyText.trim();
+    if (reply.length < 2) {
+      triggerToast("Write a reply before sending.");
+      return;
+    }
+
+    setReplySubmitting(true);
+    try {
+      const json = await postInquiryUpdate({ inquiryId: replyingInquiry.id, reply });
+      const inquiryId = replyingInquiry.id;
+
+      setInquiries(prev =>
+        prev.map(i =>
+          i.id === inquiryId
+            ? {
+                ...i,
+                status: json.status ?? "answered",
+                answered_at: json.answeredAt ?? new Date().toISOString(),
+                admin_reply: reply,
+                replied_by: json.repliedBy ?? null,
+              }
+            : i
+        )
+      );
+
+      triggerToast(
+        typeof json.warning === "string"
+          ? String(json.warning)
+          : `Reply sent to ${json.emailed}.`
+      );
+      setReplyingInquiry(null);
+      setReplyText("");
+    } catch (err) {
+      triggerToast(errorMessage(err, "The reply could not be sent."));
+    } finally {
+      setReplySubmitting(false);
     }
   };
 
@@ -1128,6 +1724,230 @@ function AdminDashboardContent() {
     document.body.removeChild(link);
 
     triggerToast(`Successfully generated and downloaded CSV report for period: ${startDate} to ${endDate}`);
+  };
+
+  /**
+   * Set the reporting window to a whole number of calendar months ending with
+   * the current one. `months = 1` is this month to date.
+   *
+   * Day 1 of (this month - n + 1) through today. Constructing the start from
+   * (year, month - n + 1, 1) lets Date normalise a negative month index across
+   * the year boundary, so "last 12 months" in January is not a special case.
+   */
+  const applyMonthPeriod = (months: number) => {
+    const now = new Date();
+    setStartDate(isoLocalDate(new Date(now.getFullYear(), now.getMonth() - (months - 1), 1)));
+    setEndDate(isoLocalDate(now));
+  };
+
+  /** The whole of the calendar month before this one. */
+  const applyPreviousMonth = () => {
+    const now = new Date();
+    setStartDate(isoLocalDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)));
+    // Day 0 of this month is the last day of the previous one.
+    setEndDate(isoLocalDate(new Date(now.getFullYear(), now.getMonth(), 0)));
+  };
+
+  /**
+   * Render the period's figures as a PDF.
+   *
+   * Done through the browser's own print pipeline rather than a PDF library:
+   * "Save as PDF" is a destination in every print dialog on every platform the
+   * owner uses, and it keeps a megabyte of renderer out of the admin bundle.
+   * The document is written into an off-screen iframe so the dashboard itself
+   * is not what gets printed, and so no popup blocker is involved.
+   */
+  const handleDownloadPDF = () => {
+    const {
+      periodOrders,
+      totalRevenue,
+      ordersCount,
+      aov,
+      totalItemsSold,
+      bestSellerName,
+      bestSellerBrand,
+      pendingOrdersCount,
+      pendingValue,
+      completedOrdersCount,
+      completedValue,
+    } = reportData;
+
+    if (periodOrders.length === 0) {
+      triggerToast("No orders in this period to report on.");
+      return;
+    }
+
+    const aed = (n: number) =>
+      `AED ${n.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const rows = periodOrders
+      .map(o => {
+        let clientName = String(o.email || "");
+        let place = "";
+        if (o.shipping_address) {
+          try {
+            const addr =
+              typeof o.shipping_address === "string"
+                ? JSON.parse(o.shipping_address)
+                : o.shipping_address;
+            clientName = addr.name || clientName;
+            place = [addr.city, addr.country].filter(Boolean).join(", ");
+          } catch {
+            /* An unparseable address just prints blank. */
+          }
+        }
+        const placed = o.created_at
+          ? new Date(o.created_at).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "—";
+
+        return `<tr>
+          <td class="mono">${escapeHtml(o.id)}</td>
+          <td>${escapeHtml(clientName)}<br><span class="muted">${escapeHtml(o.email)}</span></td>
+          <td>${escapeHtml(place || "—")}</td>
+          <td>${escapeHtml(orderStatusLabel(o.status))}</td>
+          <td class="num">${escapeHtml(aed(parseFloat(String(o.total_price || 0)) || 0))}</td>
+          <td>${escapeHtml(placed)}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const kpi = (label: string, value: string, note: string) => `
+      <div class="kpi">
+        <span class="kpi-label">${escapeHtml(label)}</span>
+        <span class="kpi-value">${escapeHtml(value)}</span>
+        <span class="kpi-note">${escapeHtml(note)}</span>
+      </div>`;
+
+    const generatedOn = new Date().toLocaleString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const doc = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Gharib Executive Report ${escapeHtml(startDate)} to ${escapeHtml(endDate)}</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Helvetica, Arial, sans-serif; color:#1C120C; font-size:10px; }
+  .wordmark { font-family: Georgia, 'Times New Roman', serif; font-size:20px; letter-spacing:.28em;
+              text-transform:uppercase; margin:0 0 4px; }
+  header { border-bottom:1.5px solid #1C120C; padding-bottom:12px; margin-bottom:18px; }
+  .eyebrow { font-size:7.5px; letter-spacing:.28em; text-transform:uppercase; color:#7C6E65; margin:0 0 10px; }
+  h1 { font-family: Georgia,'Times New Roman',serif; font-size:15px; font-weight:normal;
+       letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
+  .period { font-size:9.5px; color:#5C4E46; margin:0; }
+  .kpis { display:flex; gap:10px; margin-bottom:20px; }
+  .kpi { flex:1; border:1px solid #E5DFD3; border-top:2px solid #8C6239; padding:10px 11px; }
+  .kpi-label { display:block; font-size:6.5px; letter-spacing:.2em; text-transform:uppercase;
+               color:#7C6E65; margin-bottom:6px; }
+  .kpi-value { display:block; font-size:14px; font-weight:bold; color:#8C6239; margin-bottom:4px; }
+  .kpi-note { display:block; font-size:7px; letter-spacing:.08em; text-transform:uppercase; color:#7C6E65; }
+  h2 { font-size:8px; letter-spacing:.25em; text-transform:uppercase; margin:0 0 8px;
+       padding-bottom:6px; border-bottom:1px solid #E5DFD3; }
+  table { width:100%; border-collapse:collapse; }
+  thead { display:table-header-group; }
+  th { text-align:left; font-size:6.5px; letter-spacing:.18em; text-transform:uppercase;
+       color:#7C6E65; background:#F3EFE9; padding:7px 6px; border-bottom:1px solid #E5DFD3; }
+  td { padding:7px 6px; border-bottom:1px solid #EFEAE0; font-size:8.5px; vertical-align:top; }
+  tr { page-break-inside: avoid; }
+  .num { text-align:right; white-space:nowrap; font-weight:bold; color:#8C6239; }
+  .mono { font-family:'SF Mono',Menlo,Consolas,monospace; font-weight:bold; color:#8C6239; }
+  .muted { color:#9A8E84; font-size:7.5px; }
+  tfoot td { border-top:1.5px solid #1C120C; border-bottom:none; font-weight:bold;
+             font-size:9.5px; padding-top:9px; }
+  .split { display:flex; gap:10px; margin-bottom:20px; }
+  .split > div { flex:1; border:1px solid #E5DFD3; padding:10px 11px; }
+  .split .kpi-value { font-size:12px; }
+  footer { margin-top:22px; padding-top:10px; border-top:1px solid #E5DFD3;
+           font-size:7px; letter-spacing:.12em; text-transform:uppercase; color:#9A8E84;
+           display:flex; justify-content:space-between; }
+</style></head>
+<body>
+  <header>
+    <p class="wordmark">Gharib</p>
+    <p class="eyebrow">Financial &amp; Performance Metrics</p>
+    <h1>Executive Report</h1>
+    <p class="period">${escapeHtml(longDate(startDate))} &nbsp;—&nbsp; ${escapeHtml(longDate(endDate))}</p>
+  </header>
+
+  <div class="kpis">
+    ${kpi("Period gross revenue", aed(totalRevenue), `${ordersCount} transactions`)}
+    ${kpi("Average order value", aed(aov), "Per transaction")}
+    ${kpi("Bottles sold", `${totalItemsSold}`, "Units decanted")}
+    ${kpi("Best seller", bestSellerName, `House of ${bestSellerBrand}`)}
+  </div>
+
+  <div class="split">
+    <div>
+      <span class="kpi-label">Open / in progress</span>
+      <span class="kpi-value">${escapeHtml(aed(pendingValue))}</span>
+      <span class="kpi-note">${escapeHtml(String(pendingOrdersCount))} orders awaiting completion</span>
+    </div>
+    <div>
+      <span class="kpi-label">Completed</span>
+      <span class="kpi-value">${escapeHtml(aed(completedValue))}</span>
+      <span class="kpi-note">${escapeHtml(String(completedOrdersCount))} orders delivered</span>
+    </div>
+  </div>
+
+  <h2>Transaction ledger</h2>
+  <table>
+    <thead><tr>
+      <th>Order</th><th>Client</th><th>Destination</th><th>Status</th>
+      <th style="text-align:right">Total</th><th>Placed</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td colspan="4">Total — ${escapeHtml(String(ordersCount))} orders</td>
+      <td class="num">${escapeHtml(aed(totalRevenue))}</td>
+      <td></td>
+    </tr></tfoot>
+  </table>
+
+  <footer>
+    <span>Gharib Perfumes — Dubai, UAE</span>
+    <span>Generated ${escapeHtml(generatedOn)}</span>
+  </footer>
+</body></html>`;
+
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
+
+    // srcdoc + onload rather than document.write: the load event is the signal
+    // that the stylesheet has been applied, and printing before that yields an
+    // unstyled page.
+    frame.onload = () => {
+      const view = frame.contentWindow;
+      if (!view) {
+        frame.remove();
+        triggerToast("Could not open the print view.");
+        return;
+      }
+      // The frame must outlive print() — Chrome and Safari return from it
+      // immediately while the dialog is still open, so removing it there would
+      // cancel the job. afterprint fires for both "save" and "cancel".
+      const cleanup = () => window.setTimeout(() => frame.remove(), 500);
+      view.addEventListener("afterprint", cleanup, { once: true });
+      view.focus();
+      view.print();
+      // Firefox blocks on print() and may never fire afterprint on the frame.
+      window.setTimeout(() => {
+        if (document.body.contains(frame)) frame.remove();
+      }, 60000);
+    };
+
+    frame.srcdoc = doc;
+    document.body.appendChild(frame);
+    triggerToast(`Prepared the PDF for ${startDate} to ${endDate}. Choose "Save as PDF".`);
   };
 
   // Filter items based on active search
@@ -1468,7 +2288,11 @@ function AdminDashboardContent() {
                         <td className="p-4 pr-6 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => setSelectedOrder(order)}
+                              onClick={() => {
+                                setSelectedOrder(order);
+                                setDrawerTrackingNumber(String(order.tracking_number || ""));
+                                setDrawerTrackingUrl(String(order.tracking_url || ""));
+                              }}
                               className="bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.08] text-[8px] tracking-[0.2em] font-black uppercase px-3 py-1.5 transition-all cursor-pointer"
                             >
                               VIEW INVOICE
@@ -1543,6 +2367,17 @@ function AdminDashboardContent() {
                           <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/30 uppercase block mb-1">CLIENT BILLING</span>
                           <span className="text-[#EAE3DB] font-bold block">{selectedOrder.shipping_address?.name}</span>
                           <span className="lowercase text-[8px] text-[#EAE3DB]/50 block">{selectedOrder.email}</span>
+                          {/* Cash on delivery is arranged by phone, so the courier desk needs it one tap away. */}
+                          {selectedOrder.phone ? (
+                            <a
+                              href={`tel:${String(selectedOrder.phone).replace(/[^\d+]/g, "")}`}
+                              className="text-[8px] text-amber-500/80 hover:text-amber-400 block mt-1"
+                            >
+                              {selectedOrder.phone}
+                            </a>
+                          ) : (
+                            <span className="text-[8px] text-[#EAE3DB]/25 block mt-1">PHONE NOT CAPTURED</span>
+                          )}
                         </div>
                         <div className="text-right">
                           <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/30 uppercase block mb-1">SHIPPING LINE</span>
@@ -1551,20 +2386,26 @@ function AdminDashboardContent() {
                         </div>
                       </div>
 
-                      {/* Items Mock details */}
+                      {/* Line items exactly as the order recorded them — this is the packing list. */}
                       <div>
                         <span className="text-[7.5px] tracking-widest text-[#EAE3DB]/30 uppercase block mb-3">ITEMIZED DECANTS</span>
-                        <div className="flex justify-between items-center py-2 border-b border-white/[0.03]">
-                          <span>Bespoke Extrait signature decant (100ml)</span>
-                          <div className="flex flex-col items-end">
-                            <span className="font-sans text-[#EAE3DB]/80 font-bold">{parseFloat(selectedOrder.total_price).toLocaleString()} AED</span>
-                            {selectedOrder.currency && selectedOrder.currency !== "AED" && selectedOrder.converted_total && (
-                              <span className="text-[8px] text-[#EAE3DB]/40 tracking-wider mt-0.5 uppercase">
-                                ({selectedOrder.converted_total})
-                              </span>
-                            )}
+                        {orderItems.filter(item => item.order_id === selectedOrder.id).length === 0 ? (
+                          <div className="flex justify-between items-center py-2 border-b border-white/[0.03]">
+                            <span className="text-[#EAE3DB]/40">No line items recorded for this order</span>
                           </div>
-                        </div>
+                        ) : (
+                          orderItems.filter(item => item.order_id === selectedOrder.id).map(item => (
+                            <div key={item.id} className="flex justify-between items-center py-2 border-b border-white/[0.03]">
+                              <span>
+                                {products.find(p => p.id === item.product_id)?.name || `Product #${item.product_id}`}
+                                <span className="text-[8px] text-[#EAE3DB]/40"> ({item.size}) × {item.quantity}</span>
+                              </span>
+                              <span className="font-sans text-[#EAE3DB]/80 font-bold">
+                                {((parseFloat(item.unit_price) || 0) * (Number(item.quantity) || 0)).toLocaleString()} AED
+                              </span>
+                            </div>
+                          ))
+                        )}
                         {selectedOrder.packing_charges !== undefined && parseFloat(selectedOrder.packing_charges) > 0 && (
                           <div className="flex justify-between items-center py-2 border-b border-white/[0.03]">
                             <span className="text-[#EAE3DB]/60">Packing Charges</span>
@@ -1573,9 +2414,16 @@ function AdminDashboardContent() {
                         )}
                         <div className="flex justify-between items-center py-2.5 border-b border-white/[0.03]">
                           <span className="font-bold text-[#EAE3DB]">Grand Total</span>
-                          <span className="font-sans text-amber-200 font-black">
-                            {(parseFloat(selectedOrder.total_price) + (parseFloat(selectedOrder.packing_charges) || 0)).toLocaleString()} AED
-                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-sans text-amber-200 font-black">
+                              {(parseFloat(selectedOrder.total_price) + (parseFloat(selectedOrder.packing_charges) || 0)).toLocaleString()} AED
+                            </span>
+                            {selectedOrder.currency && selectedOrder.currency !== "AED" && selectedOrder.converted_total && (
+                              <span className="text-[8px] text-[#EAE3DB]/40 tracking-wider mt-0.5 uppercase">
+                                ({selectedOrder.converted_total})
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1587,10 +2435,10 @@ function AdminDashboardContent() {
                           </label>
                           <input 
                             type="text" 
-                            defaultValue={selectedOrder.tracking_number || ""}
+                            value={drawerTrackingNumber}
+                            onChange={(e) => setDrawerTrackingNumber(e.target.value)}
                             placeholder="e.g. DHL-DXB-99882"
                             className="bg-black border border-white/[0.08] text-white text-[9px] tracking-widest px-3 py-2 outline-none w-full font-bold uppercase"
-                            id="drawer-tracking-input"
                           />
                         </div>
 
@@ -1600,45 +2448,43 @@ function AdminDashboardContent() {
                           </label>
                           <input 
                             type="text" 
-                            defaultValue={selectedOrder.tracking_url || ""}
+                            value={drawerTrackingUrl}
+                            onChange={(e) => setDrawerTrackingUrl(e.target.value)}
                             placeholder="e.g. https://www.dhl.com/..."
                             className="bg-black border border-white/[0.08] text-white text-[9px] tracking-widest px-3 py-2 outline-none w-full font-medium"
-                            id="drawer-tracking-url-input"
                           />
                         </div>
 
                         <button 
                           onClick={async () => {
-                            const inputNum = document.getElementById("drawer-tracking-input") as HTMLInputElement;
-                            const inputUrl = document.getElementById("drawer-tracking-url-input") as HTMLInputElement;
-                            if (inputNum && inputUrl) {
-                              const trackingNumber = inputNum.value.trim();
-                              const trackingUrl = inputUrl.value.trim();
-                              
-                              try {
-                                await getBrowserSupabase()
-                                  .from("orders")
-                                  .update({ 
-                                    tracking_number: trackingNumber || null,
-                                    tracking_url: trackingUrl || null 
-                                  })
-                                  .eq("id", selectedOrder.id);
-                                  
-                                setOrders(prev => prev.map(o => o.id === selectedOrder.id 
-                                  ? { ...o, tracking_number: trackingNumber || null, tracking_url: trackingUrl || null } 
-                                  : o
-                                ));
-                                
-                                setSelectedOrder({ 
-                                  ...selectedOrder, 
-                                  tracking_number: trackingNumber || null, 
-                                  tracking_url: trackingUrl || null 
-                                });
-                                
-                                triggerToast(`Tracking credentials saved for order ${selectedOrder.id}`);
-                              } catch (err) {
-                                triggerToast("Failed to write tracking updates to database.");
-                              }
+                            const trackingNumber = drawerTrackingNumber.trim();
+                            const trackingUrl = drawerTrackingUrl.trim();
+
+                            try {
+                              const { error } = await getBrowserSupabase()
+                                .from("orders")
+                                .update({
+                                  tracking_number: trackingNumber || null,
+                                  tracking_url: trackingUrl || null
+                                })
+                                .eq("id", selectedOrder.id);
+
+                              if (error) throw error;
+
+                              setOrders(prev => prev.map(o => o.id === selectedOrder.id
+                                ? { ...o, tracking_number: trackingNumber || null, tracking_url: trackingUrl || null }
+                                : o
+                              ));
+
+                              setSelectedOrder({
+                                ...selectedOrder,
+                                tracking_number: trackingNumber || null,
+                                tracking_url: trackingUrl || null
+                              });
+
+                              triggerToast(`Tracking credentials saved for order ${selectedOrder.id}`);
+                            } catch {
+                              triggerToast("Failed to write tracking updates to database.");
                             }
                           }}
                           className="w-full bg-amber-600 text-white hover:bg-amber-500 text-[8.5px] tracking-[0.2em] uppercase font-black py-3 mt-1 cursor-pointer transition-all"
@@ -2616,54 +3462,307 @@ function AdminDashboardContent() {
             TAB: STOCK TRANSFERS
             ======================================================== */}
         {currentTab === "transfers" && (
-          <div className="bg-white border border-[#E5DFD3] p-6 shadow-[0_4px_20px_rgba(140,98,57,0.02)] max-w-3xl">
-            <div className="mb-6 flex justify-between items-center">
+          <div className="flex flex-col gap-6 max-w-4xl">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
                   LOGISTICS BACKPLANE
                 </span>
-                <h3 className="text-[12px] font-serif-luxury text-[#1C120C] uppercase tracking-wider">
+                <h2 className="text-xl font-serif-luxury text-[#1C120C] uppercase tracking-wider">
                   STOCK TRANSFERS
-                </h3>
+                </h2>
               </div>
-              <span className="text-[7px] border border-amber-600/35 bg-amber-500/10 text-amber-800 px-2 py-0.5 font-black">
-                {transfers.length} RECORDED
-              </span>
+
+              <div className="flex items-center gap-3">
+                <span className="text-[7px] border border-amber-600/35 bg-amber-500/10 text-amber-800 px-2 py-1 font-black">
+                  {transfers.length} RECORDED
+                </span>
+                <button
+                  onClick={() => setShowAddTransfer(true)}
+                  className="bg-black hover:bg-amber-950 text-white text-[8.5px] tracking-[0.25em] font-black uppercase px-4 py-3 flex items-center gap-2 rounded-none transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  RAISE TRANSFER
+                </button>
+              </div>
             </div>
+
             <div className="flex flex-col gap-4">
               {transfers.length === 0 ? (
-                <div className="border border-dashed border-[#E5DFD3] p-8 text-center">
+                <div className="border border-dashed border-[#E5DFD3] p-8 text-center bg-white">
                   <span className="text-[9px] tracking-widest text-[#7C6E65] font-bold uppercase">
                     No stock transfers recorded yet.
                   </span>
                 </div>
               ) : (
                 transfers.map((xfer) => {
-                  const itemCount = Array.isArray(xfer.items) ? xfer.items.length : 0;
+                  const lines = Array.isArray(xfer.items) ? xfer.items : [];
                   const status = String(xfer.status || "pending");
                   const done = status === "completed";
+                  const cancelled = status === "cancelled";
+                  const units = lines.reduce(
+                    (sum: number, l: Row) => sum + (parseInt(String(l.quantity), 10) || 0),
+                    0
+                  );
+
                   return (
-                    <div key={String(xfer.id)} className="bg-[#FAF9F6] border border-[#E5DFD3] p-4 flex justify-between items-center">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] tracking-widest font-black text-amber-800 uppercase font-mono">
-                          {String(xfer.id)}
+                    <div
+                      key={String(xfer.id)}
+                      className="bg-white border border-[#E5DFD3] p-5 shadow-[0_4px_20px_rgba(140,98,57,0.02)]"
+                    >
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-4">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-[11px] tracking-widest font-black text-amber-800 uppercase font-mono">
+                            {String(xfer.id)}
+                          </span>
+                          <span className="text-[9px] text-[#2A1A0F] font-bold uppercase tracking-wider">
+                            {String(xfer.origin || "—")}
+                            <span className="text-[#7C6E65] mx-2">→</span>
+                            {String(xfer.destination || "—")}
+                          </span>
+                          <span className="text-[8px] text-[#7C6E65] font-bold uppercase tracking-wider">
+                            {lines.length} line{lines.length === 1 ? "" : "s"} · {units} unit{units === 1 ? "" : "s"}
+                            {xfer.created_at
+                              ? ` · raised ${new Date(xfer.created_at).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}`
+                              : ""}
+                          </span>
+                        </div>
+
+                        <span
+                          className={`text-[8px] border px-2.5 py-1 font-black uppercase tracking-widest shrink-0 ${
+                            done
+                              ? "border-green-600/35 bg-green-500/10 text-green-700"
+                              : cancelled
+                                ? "border-[#b91c1c]/30 bg-[#b91c1c]/5 text-[#b91c1c]"
+                                : "border-amber-600/35 bg-amber-500/10 text-amber-800"
+                          }`}
+                        >
+                          {status.replace(/_/g, " ")}
                         </span>
-                        <span className="text-[8.5px] text-[#7C6E65] font-bold uppercase">From: {String(xfer.origin || "—")}</span>
-                        <span className="text-[8.5px] text-[#2A1A0F] font-bold uppercase">To: {String(xfer.destination || "—")}</span>
-                        <span className="text-[8px] text-[#7C6E65] font-bold uppercase">{itemCount} line{itemCount === 1 ? "" : "s"}</span>
                       </div>
-                      <span className={`text-[8px] border px-2 py-1 font-bold uppercase ${
-                        done
-                          ? "border-green-600/35 bg-green-500/10 text-green-700"
-                          : "border-amber-600/35 bg-amber-500/10 text-amber-800"
-                      }`}>
-                        {status.replace(/_/g, " ")}
-                      </span>
+
+                      {/* Manifest */}
+                      {lines.length > 0 && (
+                        <div className="border-t border-dashed border-[#E5DFD3] pt-3 mb-4 flex flex-col gap-1.5">
+                          {lines.map((l: Row, idx: number) => (
+                            <div
+                              key={idx}
+                              className="flex justify-between gap-4 text-[9px] font-bold uppercase tracking-wider"
+                            >
+                              <span className="text-[#2A1A0F]">
+                                {l.brand} {l.name}
+                                <span className="text-[#7C6E65] ml-1.5">({l.size})</span>
+                              </span>
+                              <span className="text-amber-800 whitespace-nowrap">QTY {l.quantity}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Lifecycle actions */}
+                      {!done && !cancelled && (
+                        <div className="flex flex-wrap gap-2 border-t border-[#E5DFD3] pt-3.5">
+                          {status === "pending" && (
+                            <button
+                              onClick={() => handleTransferStatus(xfer, "in_transit")}
+                              className="bg-amber-600 hover:bg-amber-500 text-white text-[7.5px] tracking-[0.2em] font-black uppercase px-3.5 py-2 cursor-pointer transition-all"
+                            >
+                              MARK IN TRANSIT
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleTransferStatus(xfer, "completed")}
+                            className="bg-green-800 hover:bg-green-700 text-white text-[7.5px] tracking-[0.2em] font-black uppercase px-3.5 py-2 cursor-pointer transition-all"
+                          >
+                            MARK COMPLETED
+                          </button>
+                          <button
+                            onClick={() => handleTransferStatus(xfer, "cancelled")}
+                            className="border border-[#b91c1c]/25 hover:border-[#b91c1c]/50 text-[#b91c1c] hover:bg-[#b91c1c]/5 text-[7.5px] tracking-[0.2em] font-black uppercase px-3.5 py-2 cursor-pointer transition-all"
+                          >
+                            CANCEL
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })
               )}
             </div>
+
+            {/* ── RAISE TRANSFER MODAL ──────────────────────────────────── */}
+            <AnimatePresence>
+              {showAddTransfer && (
+                <div
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) resetTransferForm();
+                  }}
+                  className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[560px] max-h-[88vh] overflow-y-auto p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative"
+                  >
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase">
+                        RAISE STOCK TRANSFER
+                      </h4>
+                      <button
+                        onClick={resetTransferForm}
+                        className="text-[#EAE3DB]/40 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleCreateTransfer} className="flex flex-col gap-5">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                            ORIGIN LOCATION
+                          </label>
+                          <input
+                            type="text"
+                            value={transferOrigin}
+                            onChange={(e) => setTransferOrigin(e.target.value)}
+                            placeholder="e.g. Main Warehouse"
+                            required
+                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-wider text-white placeholder-[#EAE3DB]/20"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                            DESTINATION
+                          </label>
+                          <input
+                            type="text"
+                            value={transferDestination}
+                            onChange={(e) => setTransferDestination(e.target.value)}
+                            placeholder="e.g. Dubai Mall Boutique"
+                            required
+                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-wider text-white placeholder-[#EAE3DB]/20"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Manifest composer */}
+                      <div className="border-t border-white/[0.06] pt-5">
+                        <span className="text-[7.5px] tracking-[0.25em] text-amber-500 font-black uppercase block mb-3">
+                          MANIFEST LINES
+                        </span>
+
+                        <div className="flex flex-col gap-3 mb-4">
+                          <select
+                            value={transferProductId}
+                            onChange={(e) => {
+                              setTransferProductId(e.target.value);
+                              const p = products.find(pr => String(pr.id) === e.target.value);
+                              setTransferSize(Array.isArray(p?.sizes) && p.sizes.length > 0 ? p.sizes[0] : "");
+                            }}
+                            className="bg-[#090503] border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-wider text-white cursor-pointer"
+                          >
+                            <option value="">SELECT A FRAGRANCE…</option>
+                            {products.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.brand} — {p.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <div className="grid grid-cols-[1fr_100px_auto] gap-3">
+                            <select
+                              value={transferSize}
+                              onChange={(e) => setTransferSize(e.target.value)}
+                              disabled={!transferProductId}
+                              className="bg-[#090503] border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-wider text-white cursor-pointer disabled:opacity-40"
+                            >
+                              <option value="">SIZE…</option>
+                              {(products.find(p => String(p.id) === transferProductId)?.sizes || []).map(
+                                (s: string) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                )
+                              )}
+                            </select>
+
+                            <input
+                              type="number"
+                              min="1"
+                              value={transferQty}
+                              onChange={(e) => setTransferQty(e.target.value)}
+                              placeholder="QTY"
+                              className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[10px] tracking-wider text-white placeholder-[#EAE3DB]/20"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={addTransferLine}
+                              className="border border-amber-600/40 hover:bg-amber-600 hover:text-white text-amber-400 text-[8px] tracking-[0.2em] font-black uppercase px-4 cursor-pointer transition-all"
+                            >
+                              ADD
+                            </button>
+                          </div>
+                        </div>
+
+                        {transferLines.length === 0 ? (
+                          <div className="border border-dashed border-white/[0.08] p-5 text-center">
+                            <span className="text-[8px] tracking-widest text-[#EAE3DB]/30 font-black uppercase">
+                              No lines on this manifest yet.
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {transferLines.map((l, idx) => (
+                              <div
+                                key={`${l.product_id}-${l.size}`}
+                                className="bg-white/[0.02] border border-white/[0.05] px-3.5 py-2.5 flex justify-between items-center gap-3"
+                              >
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[#EAE3DB] min-w-0 truncate">
+                                  {l.brand} {l.name}
+                                  <span className="text-[#EAE3DB]/40 ml-1.5">({l.size})</span>
+                                </span>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <span className="text-[9px] font-bold text-amber-400 whitespace-nowrap">
+                                    QTY {l.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setTransferLines(prev => prev.filter((_, i) => i !== idx))
+                                    }
+                                    className="text-[#EAE3DB]/30 hover:text-red-400 cursor-pointer transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={transferSubmitting}
+                        className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-[9px] font-black tracking-[0.25em] py-4 w-full mt-1 uppercase cursor-pointer transition-all"
+                      >
+                        {transferSubmitting ? "RAISING…" : "RAISE TRANSFER"}
+                      </button>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -2847,20 +3946,21 @@ function AdminDashboardContent() {
                     <th className="p-4">TELEPHONE</th>
                     <th className="p-4 text-right">LIFETIME CLV INVESTMENT</th>
                     <th className="p-4 text-center">ORDER TICKETS</th>
-                    <th className="p-4 pr-6">OPERATOR MEMORANDUM NOTES</th>
+                    <th className="p-4">OPERATOR MEMORANDUM NOTES</th>
+                    <th className="p-4 pr-6 text-center">DOSSIER</th>
                   </tr>
                 </thead>
                 <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
                   {filteredCustomers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
+                      <td colSpan={7} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
                         NO CLIENT PROFILES ALIGN WITH FILTER
                       </td>
                     </tr>
                   ) : (
                     filteredCustomers.map((c) => (
                       <tr key={c.id} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
-                        
+
                         <td className="p-4 pl-6 font-bold text-amber-400">
                           {c.first_name} {c.last_name}
                           {c.is_admin && (
@@ -2870,7 +3970,7 @@ function AdminDashboardContent() {
 
                         <td className="p-4 lowercase font-bold">{c.email}</td>
                         <td className="p-4 text-[#EAE3DB]/60">{c.phone || "No phone linked"}</td>
-                        
+
                         <td className="p-4 text-right text-amber-200 font-bold font-sans">
                           ${parseFloat(c.total_spent).toFixed(2)}
                         </td>
@@ -2879,8 +3979,61 @@ function AdminDashboardContent() {
                           {c.orders_count} ORDERS
                         </td>
 
-                        <td className="p-4 pr-6 text-[#EAE3DB]/60 normal-case italic font-sans text-[11px] max-w-[250px] truncate">
-                          {c.note}
+                        {/* Memorandum — editable in place */}
+                        <td className="p-4 max-w-[280px]">
+                          {editingNoteCustomerId === c.id ? (
+                            <div className="flex flex-col gap-2">
+                              <textarea
+                                value={editingNoteVal}
+                                onChange={(e) => setEditingNoteVal(e.target.value)}
+                                rows={3}
+                                autoFocus
+                                placeholder="Preferences, allergies, concierge instructions…"
+                                className="bg-white/5 border border-amber-600/35 focus:border-amber-500 px-3 py-2 outline-none w-full normal-case font-sans tracking-normal text-[11px] text-[#EAE3DB] placeholder-[#EAE3DB]/25 resize-y"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleSaveCustomerNote(c.id)}
+                                  disabled={savingNote}
+                                  className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-[7.5px] tracking-[0.2em] font-black uppercase px-3 py-1.5 cursor-pointer transition-all"
+                                >
+                                  {savingNote ? "SAVING…" : "SAVE"}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingNoteCustomerId(null);
+                                    setEditingNoteVal("");
+                                  }}
+                                  className="border border-white/[0.08] hover:border-white/20 text-[#EAE3DB]/50 text-[7.5px] tracking-[0.2em] font-black uppercase px-3 py-1.5 cursor-pointer transition-all"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingNoteCustomerId(c.id);
+                                setEditingNoteVal(String(c.note || ""));
+                              }}
+                              title="Click to edit this memorandum"
+                              className="group/note text-left w-full flex items-start gap-2 cursor-pointer"
+                            >
+                              <span className="text-[#EAE3DB]/60 group-hover/note:text-[#EAE3DB]/90 normal-case italic font-sans text-[11px] tracking-normal line-clamp-2 transition-colors">
+                                {c.note || "No memorandum recorded."}
+                              </span>
+                              <Edit2 className="w-3 h-3 text-[#EAE3DB]/20 group-hover/note:text-amber-500 shrink-0 mt-0.5 transition-colors" />
+                            </button>
+                          )}
+                        </td>
+
+                        <td className="p-4 pr-6 text-center">
+                          <button
+                            onClick={() => setSelectedCustomer(c)}
+                            className="border border-white/[0.08] hover:border-amber-500 hover:text-amber-400 text-[#EAE3DB]/60 text-[7.5px] tracking-[0.2em] font-black uppercase px-3 py-1.5 cursor-pointer transition-all"
+                          >
+                            VIEW
+                          </button>
                         </td>
 
                       </tr>
@@ -2889,6 +4042,151 @@ function AdminDashboardContent() {
                 </tbody>
               </table>
             </div>
+
+            {/* ── CLIENT DOSSIER DRAWER ─────────────────────────────────── */}
+            <AnimatePresence>
+              {selectedCustomer && (
+                <div
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) closeCustomerDossier();
+                  }}
+                  className="fixed inset-0 bg-black/85 z-50 flex justify-end"
+                >
+                  <motion.div
+                    initial={{ x: "100%" }}
+                    animate={{ x: 0 }}
+                    exit={{ x: "100%" }}
+                    transition={{ type: "tween", duration: 0.3 }}
+                    className="bg-[#090503] border-l border-amber-600/25 w-full max-w-[560px] h-full overflow-y-auto p-8"
+                  >
+                    <div className="flex items-start justify-between mb-8">
+                      <div>
+                        <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1.5">
+                          CLIENT DOSSIER
+                        </span>
+                        <h3 className="text-lg font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
+                          {selectedCustomer.first_name} {selectedCustomer.last_name}
+                        </h3>
+                        <span className="text-[9px] text-amber-500/70 lowercase font-bold tracking-normal">
+                          {selectedCustomer.email}
+                        </span>
+                      </div>
+                      <button
+                        onClick={closeCustomerDossier}
+                        className="text-[#EAE3DB]/40 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Standing figures */}
+                    <div className="grid grid-cols-3 gap-3 mb-8">
+                      {[
+                        {
+                          label: "LIFETIME VALUE",
+                          value: `${parseFloat(String(selectedCustomer.total_spent || 0)).toFixed(2)}`,
+                          suffix: "AED",
+                        },
+                        {
+                          label: "ORDERS",
+                          value: String(getCustomerOrders(selectedCustomer).length),
+                          suffix: "PLACED",
+                        },
+                        {
+                          label: "TELEPHONE",
+                          value: selectedCustomer.phone || "—",
+                          suffix: "ON FILE",
+                        },
+                      ].map((stat) => (
+                        <div key={stat.label} className="bg-white/[0.02] border border-white/[0.05] p-3.5">
+                          <span className="text-[6.5px] tracking-[0.2em] text-[#EAE3DB]/35 uppercase font-black block mb-2">
+                            {stat.label}
+                          </span>
+                          <span className="text-[13px] text-amber-200 font-bold font-sans block truncate">
+                            {stat.value}
+                          </span>
+                          <span className="text-[6.5px] tracking-[0.18em] text-[#EAE3DB]/30 uppercase font-black">
+                            {stat.suffix}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Memorandum, editable here too */}
+                    <div className="mb-8">
+                      <span className="text-[8px] tracking-[0.25em] text-amber-500 uppercase font-black block mb-3 border-b border-white/[0.05] pb-2.5">
+                        OPERATOR MEMORANDUM
+                      </span>
+                      <textarea
+                        value={
+                          editingNoteCustomerId === selectedCustomer.id
+                            ? editingNoteVal
+                            : String(selectedCustomer.note || "")
+                        }
+                        onChange={(e) => {
+                          setEditingNoteCustomerId(selectedCustomer.id);
+                          setEditingNoteVal(e.target.value);
+                        }}
+                        rows={4}
+                        placeholder="Preferences, allergies, concierge instructions…"
+                        className="bg-white/[0.03] border border-white/[0.08] focus:border-amber-500 px-4 py-3 outline-none w-full font-sans text-[12px] leading-relaxed text-[#EAE3DB] placeholder-[#EAE3DB]/25 resize-y"
+                      />
+                      <button
+                        onClick={() => handleSaveCustomerNote(selectedCustomer.id)}
+                        disabled={savingNote || editingNoteCustomerId !== selectedCustomer.id}
+                        className="mt-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[8px] tracking-[0.25em] font-black uppercase px-5 py-2.5 cursor-pointer transition-all"
+                      >
+                        {savingNote ? "SAVING…" : "SAVE MEMORANDUM"}
+                      </button>
+                    </div>
+
+                    {/* Order history */}
+                    <div>
+                      <span className="text-[8px] tracking-[0.25em] text-amber-500 uppercase font-black block mb-3 border-b border-white/[0.05] pb-2.5">
+                        ORDER HISTORY
+                      </span>
+                      <div className="flex flex-col gap-2.5">
+                        {getCustomerOrders(selectedCustomer).length === 0 ? (
+                          <p className="text-[9px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase py-4">
+                            No orders recorded for this client.
+                          </p>
+                        ) : (
+                          getCustomerOrders(selectedCustomer).map((o) => (
+                            <div
+                              key={o.id}
+                              className="bg-white/[0.02] border border-white/[0.05] p-3.5 flex justify-between items-center gap-4"
+                            >
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <span className="text-[10px] font-mono font-black text-amber-400 tracking-wider">
+                                  {o.id}
+                                </span>
+                                <span className="text-[8px] text-[#EAE3DB]/40 font-bold uppercase tracking-wider">
+                                  {o.created_at
+                                    ? new Date(o.created_at).toLocaleDateString("en-GB", {
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                      })
+                                    : "Unknown date"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className="text-[7px] border border-amber-600/35 bg-amber-500/10 text-amber-300 px-2 py-1 font-black tracking-widest uppercase">
+                                  {orderStatusLabel(o.status)}
+                                </span>
+                                <span className="text-[11px] text-amber-200 font-bold font-sans whitespace-nowrap">
+                                  {parseFloat(String(o.total_price || 0)).toLocaleString()} AED
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -2907,18 +4205,30 @@ function AdminDashboardContent() {
                 </h2>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative w-full md:w-72">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7C6E65]/50">
-                  <Search className="w-4 h-4" />
-                </span>
-                <input 
-                  type="text" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Filter by Client name or email..."
-                  className="bg-white border border-[#D8CFBF] focus:border-amber-600 pl-10 pr-4 py-2.5 text-[9px] tracking-widest text-[#1C120C] outline-none placeholder-[#A59B90] w-full font-bold uppercase"
-                />
+              <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+                {/* Manual run of the hourly recovery job (migration 45). */}
+                <button
+                  onClick={sendCartRecovery}
+                  disabled={sendingRecovery}
+                  className="bg-black hover:bg-amber-950 disabled:opacity-50 text-white text-[9px] font-black tracking-[0.25em] uppercase px-5 py-3 transition-all duration-300 rounded-none flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {sendingRecovery ? "SENDING…" : "SEND DUE REMINDERS"}
+                </button>
+
+                {/* Search Bar */}
+                <div className="relative w-full md:w-72">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7C6E65]/50">
+                    <Search className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Filter by Client name or email..."
+                    className="bg-white border border-[#D8CFBF] focus:border-amber-600 pl-10 pr-4 py-2.5 text-[9px] tracking-widest text-[#1C120C] outline-none placeholder-[#A59B90] w-full font-bold uppercase"
+                  />
+                </div>
               </div>
             </div>
 
@@ -3010,10 +4320,25 @@ function AdminDashboardContent() {
                           {ac.created_at ? new Date(ac.created_at).toLocaleString() : "Unknown"}
                         </td>
 
+                        {/* Reminders sent, from migration 45. A cart shows a
+                            stage only once the job has actually mailed it. */}
                         <td className="p-4 pr-6 text-center">
-                          <span className="text-[8px] font-black tracking-[0.2em] uppercase text-[#7C6E65]">
-                            {ac.converted ? "RECOVERED" : "OPEN"}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-[8px] font-black tracking-[0.2em] uppercase text-[#7C6E65]">
+                              {ac.converted
+                                ? "RECOVERED"
+                                : ac.recovery_opted_out
+                                  ? "OPTED OUT"
+                                  : Number(ac.recovery_stage) > 0
+                                    ? `${ac.recovery_stage} OF 3 SENT`
+                                    : "NO REMINDER YET"}
+                            </span>
+                            {ac.last_recovery_at && (
+                              <span className="text-[7.5px] font-sans text-[#7C6E65]/60 tracking-wider normal-case">
+                                {new Date(ac.last_recovery_at).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                       </tr>
@@ -3066,14 +4391,51 @@ function AdminDashboardContent() {
                   </div>
                 </div>
 
-                <button
-                  onClick={handleDownloadCSV}
-                  className="bg-black hover:bg-amber-950 text-white text-[9px] font-black tracking-[0.25em] uppercase px-5 py-3.5 transition-all duration-300 rounded-none shadow-[0_4px_15px_rgba(0,0,0,0.15)] flex items-center gap-2 cursor-pointer h-[38px] items-center"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  EXPORT EXCEL CSV
-                </button>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={handleDownloadPDF}
+                    className="bg-amber-700 hover:bg-amber-600 text-white text-[9px] font-black tracking-[0.25em] uppercase px-5 py-3.5 transition-all duration-300 rounded-none shadow-[0_4px_15px_rgba(140,98,57,0.25)] flex items-center gap-2 cursor-pointer h-[38px]"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    EXPORT PDF
+                  </button>
+
+                  <button
+                    onClick={handleDownloadCSV}
+                    className="bg-black hover:bg-amber-950 text-white text-[9px] font-black tracking-[0.25em] uppercase px-5 py-3.5 transition-all duration-300 rounded-none shadow-[0_4px_15px_rgba(0,0,0,0.15)] flex items-center gap-2 cursor-pointer h-[38px]"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    EXPORT CSV
+                  </button>
+                </div>
               </div>
+            </div>
+
+            {/* Calendar-month shortcuts. The date inputs above stay the source
+                of truth — these only move them. */}
+            <div className="flex flex-wrap items-center gap-2.5 -mt-2">
+              <span className="text-[7.5px] tracking-[0.28em] text-[#7C6E65] uppercase font-black mr-1">
+                QUICK PERIOD
+              </span>
+              {[
+                { label: "THIS MONTH", run: () => applyMonthPeriod(1) },
+                { label: "LAST MONTH", run: applyPreviousMonth },
+                { label: "LAST 3 MONTHS", run: () => applyMonthPeriod(3) },
+                { label: "LAST 6 MONTHS", run: () => applyMonthPeriod(6) },
+                { label: "LAST 12 MONTHS", run: () => applyMonthPeriod(12) },
+                {
+                  label: "YEAR TO DATE",
+                  run: () => applyMonthPeriod(new Date().getMonth() + 1),
+                },
+              ].map(preset => (
+                <button
+                  key={preset.label}
+                  onClick={preset.run}
+                  className="border border-[#D8CFBF] bg-white hover:border-amber-600 hover:text-amber-800 text-[7.5px] tracking-[0.2em] font-black uppercase text-[#5C4E46] px-3 py-2 transition-all cursor-pointer"
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
 
             {/* KPI Cards Grid */}
@@ -3314,43 +4676,109 @@ function AdminDashboardContent() {
                   <tr className="border-b border-white/[0.04] text-[8.5px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black bg-white/[0.01]">
                     <th className="p-4 pl-6">PROMO CODE</th>
                     <th className="p-4">DEDUCTION RATIO</th>
-                    <th className="p-4 text-center">MIN PURCHASE REQUIREMENT</th>
-                    <th className="p-4 text-center">USAGE TICKET METRICS</th>
-                    <th className="p-4 text-center">STATUS BADGE</th>
-                    <th className="p-4 pr-6 text-center">DISMISS</th>
+                    <th className="p-4 text-center">MIN PURCHASE</th>
+                    <th className="p-4 text-center">REDEMPTIONS</th>
+                    <th className="p-4 text-center">EXPIRES</th>
+                    <th className="p-4 text-center">STATUS</th>
+                    <th className="p-4 pr-6 text-center">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
-                  {discounts.map((disc) => (
-                    <tr key={disc.id} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
-                      <td className="p-4 pl-6 text-amber-400 font-black">{disc.code}</td>
-                      <td className="p-4">
-                        {disc.type === "percentage" ? `${disc.value}% OFF` : `$${disc.value} OFF`}
-                      </td>
-                      <td className="p-4 text-center text-[#EAE3DB]/50 font-sans">
-                        ${parseFloat(disc.min_requirement).toFixed(2)}
-                      </td>
-                      <td className="p-4 text-center text-amber-100 font-sans">
-                        {disc.usage_count} REDEMPTIONS
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className={`text-[7px] tracking-widest px-2.5 py-1 border font-black ${
-                          disc.is_active ? "border-green-800/40 bg-green-950/15 text-green-400" : "border-neutral-700/40 bg-neutral-800/15 text-neutral-400"
-                        }`}>{disc.is_active ? "PROMO ACTIVE" : "EXPIRED"}</span>
-                      </td>
-                      <td className="p-4 pr-6 text-center">
-                        <button
-                          onClick={() => {
-                            setDiscounts(prev => prev.filter(d => d.id !== disc.id));
-                            triggerToast(`Deregistered discount ${disc.code}.`);
-                          }}
-                          className="text-[#EAE3DB]/30 hover:text-red-400 transition-colors p-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                  {discounts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
+                        NO PROMOTIONAL CODES REGISTERED
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    discounts.map((disc) => {
+                      const limit = disc.usage_limit == null ? null : Number(disc.usage_limit);
+                      const used = Number(disc.usage_count) || 0;
+                      const exhausted = limit !== null && used >= limit;
+                      const expired = disc.ends_at ? new Date(disc.ends_at) < new Date() : false;
+                      // What a shopper would actually experience, which is not
+                      // the is_active flag alone — place_order() also refuses a
+                      // code that is past its date or at its cap.
+                      const live = disc.is_active && !expired && !exhausted;
+
+                      return (
+                        <tr key={disc.id} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
+                          <td className="p-4 pl-6 text-amber-400 font-black">{disc.code}</td>
+                          <td className="p-4">
+                            {disc.type === "percentage" ? `${disc.value}% OFF` : `AED ${disc.value} OFF`}
+                          </td>
+                          <td className="p-4 text-center text-[#EAE3DB]/50 font-sans">
+                            {parseFloat(String(disc.min_requirement || 0)) > 0
+                              ? `AED ${parseFloat(String(disc.min_requirement)).toFixed(2)}`
+                              : "—"}
+                          </td>
+                          <td className="p-4 text-center font-sans">
+                            <span className={exhausted ? "text-red-400 font-bold" : "text-amber-100"}>
+                              {used}
+                              {limit !== null ? ` / ${limit}` : ""}
+                            </span>
+                            {exhausted && (
+                              <span className="block text-[6.5px] tracking-widest text-red-400/70 font-black mt-0.5">
+                                CAP REACHED
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center font-sans text-[9px]">
+                            {disc.ends_at ? (
+                              <span className={expired ? "text-red-400 font-bold" : "text-[#EAE3DB]/60"}>
+                                {new Date(disc.ends_at).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            ) : (
+                              <span className="text-[#EAE3DB]/30">NO EXPIRY</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span
+                              className={`text-[7px] tracking-widest px-2.5 py-1 border font-black ${
+                                live
+                                  ? "border-green-800/40 bg-green-950/15 text-green-400"
+                                  : "border-neutral-700/40 bg-neutral-800/15 text-neutral-400"
+                              }`}
+                            >
+                              {live
+                                ? "REDEEMABLE"
+                                : !disc.is_active
+                                  ? "PAUSED"
+                                  : expired
+                                    ? "EXPIRED"
+                                    : "EXHAUSTED"}
+                            </span>
+                          </td>
+                          <td className="p-4 pr-6">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleToggleDiscount(disc)}
+                                title={disc.is_active ? "Pause this code" : "Reactivate this code"}
+                                className={`text-[7px] tracking-[0.2em] font-black uppercase px-2.5 py-1.5 border cursor-pointer transition-all ${
+                                  disc.is_active
+                                    ? "border-white/[0.08] text-[#EAE3DB]/50 hover:border-amber-500 hover:text-amber-400"
+                                    : "border-green-800/40 text-green-400 hover:bg-green-950/30"
+                                }`}
+                              >
+                                {disc.is_active ? "PAUSE" : "ACTIVATE"}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDiscount(disc)}
+                                title="Delete this code permanently"
+                                className="text-[#EAE3DB]/30 hover:text-red-400 transition-colors p-1 cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -3419,8 +4847,8 @@ function AdminDashboardContent() {
 
                       <div className="flex flex-col gap-1.5">
                         <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">MINIMUM BASKET INVESTMENT (AED)</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={discMinReq}
                           onChange={(e) => setDiscMinReq(e.target.value)}
                           placeholder="e.g. 100.00"
@@ -3428,11 +4856,46 @@ function AdminDashboardContent() {
                         />
                       </div>
 
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">
+                            EXPIRY DATE (OPTIONAL)
+                          </label>
+                          <input
+                            type="date"
+                            value={discEndsAt}
+                            onChange={(e) => setDiscEndsAt(e.target.value)}
+                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-white cursor-pointer"
+                          />
+                          <span className="text-[6.5px] tracking-widest text-[#EAE3DB]/25 font-bold uppercase">
+                            Valid to the end of that day
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">
+                            REDEMPTION CAP (OPTIONAL)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={discUsageLimit}
+                            onChange={(e) => setDiscUsageLimit(e.target.value)}
+                            placeholder="Unlimited"
+                            className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full placeholder-[#EAE3DB]/20"
+                          />
+                          <span className="text-[6.5px] tracking-widest text-[#EAE3DB]/25 font-bold uppercase">
+                            Total uses across all clients
+                          </span>
+                        </div>
+                      </div>
+
                       <button
                         type="submit"
-                        className="bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-black tracking-[0.25em] py-4 w-full mt-4"
+                        disabled={discSubmitting}
+                        className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-[9px] font-black tracking-[0.25em] py-4 w-full mt-4 cursor-pointer transition-all"
                       >
-                        GENERATE ACTIVE PROMO KEY
+                        {discSubmitting ? "REGISTERING…" : "GENERATE ACTIVE PROMO KEY"}
                       </button>
 
                     </form>
@@ -4138,7 +5601,16 @@ function AdminDashboardContent() {
                           MANAGE PRODUCTS
                         </button>
                       )}
-                      
+
+                      <button
+                        onClick={() => openCollectionEditor(col)}
+                        className="border border-amber-600/30 hover:border-amber-500 hover:bg-amber-950/20 text-amber-400 text-[7.5px] tracking-[0.2em] font-black uppercase py-2.5 px-3 transition-all cursor-pointer flex items-center gap-1.5 justify-center flex-1"
+                        title="Edit this collection"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        EDIT
+                      </button>
+
                       <button
                         onClick={async () => {
                           if (confirm(`Are you sure you want to deregister this collection?`)) {
@@ -4162,6 +5634,194 @@ function AdminDashboardContent() {
                 );
               })}
             </div>
+
+            {/* ── EDIT COLLECTION MODAL ─────────────────────────────────── */}
+            <AnimatePresence>
+              {editingCollection && (
+                <div
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) setEditingCollection(null);
+                  }}
+                  className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[520px] max-h-[88vh] overflow-y-auto p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative"
+                  >
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase">
+                          EDIT COLLECTION
+                        </h4>
+                        <span className="text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase font-mono">
+                          {String(editingCollection.id)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setEditingCollection(null)}
+                        className="text-[#EAE3DB]/40 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleUpdateCollection} className="flex flex-col gap-5">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                          COLLECTION TITLE
+                        </label>
+                        <input
+                          type="text"
+                          value={editColTitle}
+                          onChange={(e) => setEditColTitle(e.target.value)}
+                          required
+                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-[11px] tracking-wider text-white"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                          DESCRIPTION
+                        </label>
+                        <textarea
+                          value={editColDescription}
+                          onChange={(e) => setEditColDescription(e.target.value)}
+                          rows={3}
+                          placeholder="A curated luxury selection."
+                          className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 w-full font-sans text-[12px] leading-relaxed text-[#EAE3DB] placeholder-[#EAE3DB]/25 resize-y"
+                        />
+                      </div>
+
+                      {/* Cover */}
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                          COVER IMAGE
+                        </label>
+                        <div className="flex gap-3 items-start">
+                          <div className="w-24 h-24 bg-amber-950/10 border border-white/[0.06] overflow-hidden shrink-0">
+                            <img
+                              src={editColCover || "/campaign-gold.png"}
+                              alt="Collection cover"
+                              className="w-full h-full object-cover"
+                              onError={(e: Row) => {
+                                e.target.src = "/campaign-gold.png";
+                              }}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2 flex-1">
+                            <label
+                              className={`border border-dashed border-white/[0.12] hover:border-amber-500 text-center py-3 text-[7.5px] tracking-[0.2em] font-black uppercase transition-all ${
+                                editColUploading
+                                  ? "opacity-50 cursor-wait text-[#EAE3DB]/40"
+                                  : "cursor-pointer text-[#EAE3DB]/50 hover:text-amber-400"
+                              }`}
+                            >
+                              {editColUploading ? "UPLOADING…" : "UPLOAD NEW COVER"}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleEditCollectionCover}
+                                disabled={editColUploading}
+                                className="hidden"
+                              />
+                            </label>
+                            <input
+                              type="text"
+                              value={editColCover}
+                              onChange={(e) => setEditColCover(e.target.value)}
+                              placeholder="/campaign-gold.png"
+                              className="bg-white/5 border border-white/[0.08] px-3 py-2 outline-none focus:border-amber-500 w-full font-sans text-[10px] text-[#EAE3DB]/70 placeholder-[#EAE3DB]/20"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Curation mode */}
+                      <div className="flex flex-col gap-2 border-t border-white/[0.06] pt-5">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                          CURATION MODE
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            { id: "manual", label: "MANUAL", note: "Hand-picked flacons" },
+                            { id: "automated", label: "AUTOMATED", note: "Matched by tag" },
+                          ].map((mode) => (
+                            <button
+                              key={mode.id}
+                              type="button"
+                              onClick={() => setEditColType(mode.id)}
+                              className={`border p-3 text-left transition-all cursor-pointer ${
+                                editColType === mode.id
+                                  ? "border-amber-500 bg-amber-950/25"
+                                  : "border-white/[0.08] hover:border-white/20"
+                              }`}
+                            >
+                              <span
+                                className={`text-[9px] tracking-[0.2em] font-black uppercase block mb-1 ${
+                                  editColType === mode.id ? "text-amber-400" : "text-[#EAE3DB]/60"
+                                }`}
+                              >
+                                {mode.label}
+                              </span>
+                              <span className="text-[7px] tracking-wider text-[#EAE3DB]/35 font-bold uppercase">
+                                {mode.note}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {editColType === "automated" && (
+                          <div className="flex flex-col gap-1.5 mt-2">
+                            <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                              MATCH PRODUCTS TAGGED
+                            </label>
+                            <input
+                              type="text"
+                              value={editColRuleTag}
+                              onChange={(e) => setEditColRuleTag(e.target.value)}
+                              placeholder="e.g. oud"
+                              className="bg-white/5 border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold w-full text-[10px] tracking-widest text-white placeholder-[#EAE3DB]/20 lowercase"
+                            />
+                            <span className="text-[7px] tracking-wider text-amber-500/60 font-bold uppercase mt-1">
+                              {
+                                products.filter(
+                                  (p) =>
+                                    Array.isArray(p.tags) &&
+                                    p.tags.includes(editColRuleTag.trim().toLowerCase())
+                                ).length
+                              }{" "}
+                              fragrance(s) currently carry this tag — membership is rewritten on save
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-3 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingCollection(null)}
+                          className="border border-white/[0.08] hover:border-white/20 text-[#EAE3DB]/50 text-[9px] font-black tracking-[0.25em] py-4 flex-1 uppercase cursor-pointer transition-all"
+                        >
+                          CANCEL
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={editColSaving || editColUploading}
+                          className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-[9px] font-black tracking-[0.25em] py-4 flex-[2] uppercase cursor-pointer transition-all"
+                        >
+                          {editColSaving ? "SAVING…" : "SAVE COLLECTION"}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
 
             {/* ADD COLLECTION DRAWER MODAL */}
             <AnimatePresence>
@@ -4508,18 +6168,49 @@ function AdminDashboardContent() {
                 </h2>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative w-full md:w-72">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#EAE3DB]/30">
-                  <Search className="w-4 h-4" />
-                </span>
-                <input 
-                  type="text" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Filter inquiries by name, email..."
-                  className="bg-white/[0.02] border border-white/[0.08] focus:border-amber-500/50 rounded-none pl-10 pr-4 py-2.5 text-[9px] tracking-widest text-[#EAE3DB] outline-none placeholder-[#EAE3DB]/20 w-full font-bold uppercase"
-                />
+              <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+                {/* Answered / unanswered filter */}
+                <div className="flex border border-white/[0.08]">
+                  {([
+                    { id: "all", label: "ALL" },
+                    { id: "new", label: "UNANSWERED" },
+                    { id: "answered", label: "ANSWERED" },
+                  ] as const).map((f) => {
+                    const count =
+                      f.id === "all"
+                        ? inquiries.length
+                        : inquiries.filter(
+                            (i) => (i.status === "answered" ? "answered" : "new") === f.id
+                          ).length;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setInquiryStatusFilter(f.id)}
+                        className={`text-[7.5px] tracking-[0.2em] font-black uppercase px-3.5 py-2.5 transition-all cursor-pointer ${
+                          inquiryStatusFilter === f.id
+                            ? "bg-amber-600 text-white"
+                            : "text-[#EAE3DB]/50 hover:text-amber-400"
+                        }`}
+                      >
+                        {f.label} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative w-full md:w-64">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#EAE3DB]/30">
+                    <Search className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Filter inquiries by name, email..."
+                    className="bg-white/[0.02] border border-white/[0.08] focus:border-amber-500/50 rounded-none pl-10 pr-4 py-2.5 text-[9px] tracking-widest text-[#EAE3DB] outline-none placeholder-[#EAE3DB]/20 w-full font-bold uppercase"
+                  />
+                </div>
               </div>
             </div>
 
@@ -4532,68 +6223,230 @@ function AdminDashboardContent() {
                     <th className="p-4">CUSTOMER DETAILS</th>
                     <th className="p-4">SUBJECT / INQUIRY</th>
                     <th className="p-4">MESSAGE</th>
+                    <th className="p-4 text-center">STATUS</th>
                     <th className="p-4 pr-6 text-center">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
                   {(() => {
-                    const filteredInquiries = inquiries.filter(inq => 
-                      inq.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                      inq.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      inq.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      inq.message.toLowerCase().includes(searchTerm.toLowerCase())
-                    );
-                    
+                    const term = searchTerm.toLowerCase();
+                    const filteredInquiries = inquiries
+                      .filter(inq => {
+                        // Rows written before migration 48 have no status at
+                        // all; those read as unanswered rather than vanishing
+                        // from both filters.
+                        const status = inq.status === "answered" ? "answered" : "new";
+                        return inquiryStatusFilter === "all" || status === inquiryStatusFilter;
+                      })
+                      .filter(inq =>
+                        (inq.name || "").toLowerCase().includes(term) ||
+                        (inq.email || "").toLowerCase().includes(term) ||
+                        (inq.subject || "").toLowerCase().includes(term) ||
+                        (inq.message || "").toLowerCase().includes(term)
+                      );
+
                     if (filteredInquiries.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={5} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
+                          <td colSpan={6} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
                             NO CUSTOMER MESSAGES FOUND
                           </td>
                         </tr>
                       );
                     }
-                    
-                    return filteredInquiries.map((inq) => (
-                      <tr key={inq.id} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
-                        <td className="p-4 pl-6 text-[#EAE3DB]/50">
-                          {new Date(inq.created_at).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit"
-                          })}
-                        </td>
-                        <td className="p-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-[#EAE3DB]">{inq.name}</span>
-                            <span className="text-[8.5px] text-amber-500 lowercase tracking-normal font-medium">{inq.email}</span>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <span className="border border-amber-600/35 bg-amber-950/20 text-amber-400 text-[7px] tracking-widest font-black uppercase px-2 py-0.5 inline-block">
-                            {inq.subject}
-                          </span>
-                        </td>
-                        <td className="p-4 max-w-sm normal-case font-medium tracking-normal text-[11px] leading-relaxed text-[#EAE3DB]/70">
-                          {inq.message}
-                        </td>
-                        <td className="p-4 pr-6 text-center">
-                          <button
-                            onClick={() => handleDeleteInquiry(inq.id)}
-                            className="text-red-400/80 hover:text-red-400 text-[8px] tracking-widest font-bold uppercase transition-all bg-red-950/10 border border-red-500/10 hover:border-red-500/25 px-2.5 py-1.5 cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            REMOVE
-                          </button>
-                        </td>
-                       </tr>
-                     ));
+
+                    return filteredInquiries.map((inq) => {
+                      const answered = inq.status === "answered";
+                      return (
+                        <tr
+                          key={inq.id}
+                          className={`border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors ${
+                            answered ? "opacity-60" : ""
+                          }`}
+                        >
+                          <td className="p-4 pl-6 text-[#EAE3DB]/50">
+                            {new Date(inq.created_at).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })}
+                          </td>
+                          <td className="p-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-[#EAE3DB]">{inq.name}</span>
+                              <span className="text-[8.5px] text-amber-500 lowercase tracking-normal font-medium">{inq.email}</span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className="border border-amber-600/35 bg-amber-950/20 text-amber-400 text-[7px] tracking-widest font-black uppercase px-2 py-0.5 inline-block">
+                              {inq.subject}
+                            </span>
+                          </td>
+                          <td className="p-4 max-w-sm normal-case font-medium tracking-normal text-[11px] leading-relaxed text-[#EAE3DB]/70">
+                            {inq.message}
+                            {inq.admin_reply && (
+                              <div className="mt-2.5 border-l-2 border-amber-600/40 pl-3 py-1">
+                                <span className="text-[7px] tracking-[0.2em] text-amber-500/70 font-black uppercase block mb-1">
+                                  REPLIED{inq.replied_by ? ` BY ${inq.replied_by}` : ""}
+                                </span>
+                                <span className="text-[10.5px] text-[#EAE3DB]/50 italic">
+                                  {inq.admin_reply}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="p-4 text-center">
+                            <span
+                              className={`inline-block text-[7px] tracking-widest px-2.5 py-1 border font-black uppercase whitespace-nowrap ${
+                                answered
+                                  ? "border-green-800/40 bg-green-950/15 text-green-400"
+                                  : "border-amber-600/35 bg-amber-500/10 text-amber-400"
+                              }`}
+                            >
+                              {answered ? "ANSWERED" : "AWAITING REPLY"}
+                            </span>
+                            {answered && inq.answered_at && (
+                              <span className="block text-[7px] text-[#EAE3DB]/30 font-bold mt-1.5 normal-case tracking-normal font-sans">
+                                {new Date(inq.answered_at).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="p-4 pr-6">
+                            <div className="flex flex-col items-stretch gap-1.5 min-w-[110px]">
+                              <button
+                                onClick={() => {
+                                  setReplyingInquiry(inq);
+                                  setReplyText("");
+                                }}
+                                className="text-amber-400 hover:text-white hover:bg-amber-600 text-[8px] tracking-widest font-bold uppercase transition-all bg-amber-950/20 border border-amber-600/30 px-2.5 py-1.5 cursor-pointer inline-flex items-center gap-1.5 justify-center"
+                              >
+                                <Send className="w-3 h-3" />
+                                REPLY
+                              </button>
+
+                              <button
+                                onClick={() => handleSetInquiryStatus(inq, answered ? "new" : "answered")}
+                                className="text-[#EAE3DB]/50 hover:text-[#EAE3DB] text-[8px] tracking-widest font-bold uppercase transition-all border border-white/[0.08] hover:border-white/20 px-2.5 py-1.5 cursor-pointer"
+                              >
+                                {answered ? "REOPEN" : "MARK ANSWERED"}
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteInquiry(inq.id)}
+                                className="text-red-400/80 hover:text-red-400 text-[8px] tracking-widest font-bold uppercase transition-all bg-red-950/10 border border-red-500/10 hover:border-red-500/25 px-2.5 py-1.5 cursor-pointer inline-flex items-center gap-1 justify-center"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                REMOVE
+                              </button>
+                            </div>
+                          </td>
+                         </tr>
+                       );
+                     });
                    })()}
                  </tbody>
                </table>
              </div>
+
+            {/* ── REPLY MODAL ───────────────────────────────────────────── */}
+            <AnimatePresence>
+              {replyingInquiry && (
+                <div
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget && !replySubmitting) setReplyingInquiry(null);
+                  }}
+                  className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="bg-[#090503] border border-amber-600/35 w-full max-w-[560px] max-h-[88vh] overflow-y-auto p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative"
+                  >
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+
+                    <div className="flex items-start justify-between mb-6">
+                      <div>
+                        <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase mb-1">
+                          REPLY TO ENQUIRY
+                        </h4>
+                        <span className="text-[9px] text-[#EAE3DB]/50 font-bold">
+                          {replyingInquiry.name}
+                          <span className="text-amber-500/70 lowercase ml-1.5 tracking-normal">
+                            {replyingInquiry.email}
+                          </span>
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setReplyingInquiry(null)}
+                        disabled={replySubmitting}
+                        className="text-[#EAE3DB]/40 hover:text-white cursor-pointer disabled:opacity-30"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* What they wrote */}
+                    <div className="bg-white/[0.02] border border-white/[0.05] p-4 mb-5">
+                      <span className="text-[7px] tracking-[0.25em] text-[#EAE3DB]/35 font-black uppercase block mb-2">
+                        {replyingInquiry.subject}
+                      </span>
+                      <p className="text-[11.5px] leading-relaxed text-[#EAE3DB]/70 font-sans">
+                        {replyingInquiry.message}
+                      </p>
+                    </div>
+
+                    <form onSubmit={handleSendInquiryReply} className="flex flex-col gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black uppercase">
+                          YOUR REPLY
+                        </label>
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          rows={7}
+                          autoFocus
+                          maxLength={5000}
+                          placeholder="Write the reply the client will receive by email…"
+                          className="bg-white/[0.03] border border-white/[0.08] focus:border-amber-500 px-4 py-3 outline-none w-full font-sans text-[12px] leading-relaxed text-[#EAE3DB] placeholder-[#EAE3DB]/25 resize-y"
+                        />
+                        <span className="text-[7px] tracking-wider text-[#EAE3DB]/25 font-bold uppercase">
+                          Sent from the house address · marked answered once delivered
+                        </span>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setReplyingInquiry(null)}
+                          disabled={replySubmitting}
+                          className="border border-white/[0.08] hover:border-white/20 text-[#EAE3DB]/50 text-[9px] font-black tracking-[0.25em] py-4 flex-1 uppercase cursor-pointer transition-all disabled:opacity-40"
+                        >
+                          CANCEL
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={replySubmitting || !replyText.trim()}
+                          className="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[9px] font-black tracking-[0.25em] py-4 flex-[2] uppercase cursor-pointer transition-all inline-flex items-center justify-center gap-2"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          {replySubmitting ? "SENDING…" : "SEND REPLY"}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
            </div>
          )}
 

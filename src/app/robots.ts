@@ -11,6 +11,8 @@ export default function robots(): MetadataRoute.Robots {
         "/api",
         "/checkout",
         "/customer",
+        // Every URL under /recover carries one shopper's recovery token.
+        "/recover",
         "/signin",
         "/wishlist",
         "/reset-password",

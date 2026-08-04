@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSessionSupabase, isSupabaseConfigured } from "../../lib/supabase-server";
 import { getPaymentProvider } from "../../lib/payments";
 import { isMissingFunction, MIGRATIONS_PENDING_MESSAGE } from "../../lib/rpc-errors";
-import { sendEmail } from "../../lib/email/send";
-import { orderConfirmationEmail, type OrderLine } from "../../lib/email/templates";
+import { checkRateLimit, clientKey } from "../../lib/rate-limit";
+import { isBot, readJsonBody } from "../../lib/request-guard";
+import { getOwnerNotificationAddress, sendEmail } from "../../lib/email/send";
+import {
+  newOrderOwnerEmail,
+  orderConfirmationEmail,
+  type OrderLine,
+  type OwnerOrderEmailData,
+  type ShippingAddress,
+} from "../../lib/email/templates";
 
 /**
  * The only order-placement path. Delegates to the place_order() SECURITY
@@ -25,7 +33,17 @@ type CheckoutBody = {
   currency?: string;
   exchangeRate?: number;
   paymentMethod?: string;
+  company?: unknown;
 };
+
+/** Orders per IP, and per email address, before the route stops accepting them. */
+const MAX_ORDERS_PER_IP = 5;
+const ORDERS_PER_IP_WINDOW_SECONDS = 600;
+const MAX_ORDERS_PER_EMAIL = 3;
+const ORDERS_PER_EMAIL_WINDOW_SECONDS = 3600;
+
+const TOO_MANY_ORDERS =
+  "We have received several orders from you already. Please wait a few minutes before placing another, or write to us and a client advisor will help.";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_email: "Please enter a valid email address.",
@@ -68,11 +86,39 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: CheckoutBody;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  const parsed = await readJsonBody<CheckoutBody>(request);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: "Invalid request." }, { status: parsed.status });
+  }
+  const body = parsed.body;
+
+  const email = String(body.email ?? "").trim();
+
+  // Honeypot. Answered exactly like an ordinary validation failure so a bot
+  // cannot tell which field gave it away.
+  if (isBot(body.company)) {
+    return NextResponse.json({ error: ERROR_MESSAGES.invalid_items }, { status: 422 });
+  }
+
+  // Throttle before any database work: placing orders decrements stock and
+  // redeems discount codes, so a flood is expensive in more than CPU.
+  const supabase = await createSessionSupabase();
+  const allowed =
+    (await checkRateLimit(
+      supabase,
+      `checkout:ip:${clientKey(request)}`,
+      MAX_ORDERS_PER_IP,
+      ORDERS_PER_IP_WINDOW_SECONDS
+    )) &&
+    (!email ||
+      (await checkRateLimit(
+        supabase,
+        `checkout:email:${email.toLowerCase()}`,
+        MAX_ORDERS_PER_EMAIL,
+        ORDERS_PER_EMAIL_WINDOW_SECONDS
+      )));
+  if (!allowed) {
+    return NextResponse.json({ error: TOO_MANY_ORDERS }, { status: 429 });
   }
 
   const provider = getPaymentProvider(body.paymentMethod || "cod");
@@ -102,9 +148,8 @@ export async function POST(request: NextRequest) {
   // mark an order paid.
   const payment = await provider.begin();
 
-  const supabase = await createSessionSupabase();
   const { data, error } = await supabase.rpc("place_order", {
-    p_email: String(body.email ?? "").trim(),
+    p_email: email,
     p_first_name: String(body.firstName ?? "").slice(0, 255),
     p_last_name: String(body.lastName ?? "").slice(0, 255),
     p_phone: String(body.phone ?? "").slice(0, 50),
@@ -127,7 +172,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: mapped.error }, { status: mapped.status });
   }
 
-  // Confirmation email. Deliberately after the order is committed and never
+  // Notification email. Deliberately after the order is committed and never
   // allowed to fail the request — the order exists whether or not mail works.
   const result = data as {
     order_id?: string;
@@ -139,25 +184,39 @@ export async function POST(request: NextRequest) {
 
   if (result?.order_id) {
     try {
-      await sendOrderConfirmation(supabase, result, items, String(body.email ?? "").trim(), {
+      await sendOrderEmails(supabase, result, items, {
+        email,
+        phone: String(body.phone ?? "").trim(),
         firstName: String(body.firstName ?? "").trim(),
         lastName: String(body.lastName ?? "").trim(),
+        // The owner's alert is the dispatch note for a cash-on-delivery order,
+        // so it needs somewhere to deliver to, not just who ordered.
+        shipping: (body.shipping ?? null) as ShippingAddress | null,
       });
     } catch (err) {
-      console.error(`[order ${result.order_id}] confirmation email failed:`, err);
+      console.error(`[order ${result.order_id}] notification emails failed:`, err);
     }
   }
 
   return NextResponse.json({ ok: true, ...data });
 }
 
-/** Looks up product names for the placed lines and sends the confirmation. */
-async function sendOrderConfirmation(
+/**
+ * Looks up product names for the placed lines, confirms to the customer and
+ * notifies the maison. Each send is isolated: one failing must not cost the
+ * other, and neither may fail the order.
+ */
+async function sendOrderEmails(
   supabase: Awaited<ReturnType<typeof createSessionSupabase>>,
   result: { order_id?: string; subtotal?: number; shipping_fee?: number; discount_amount?: number; total?: number },
   items: { product_id: number; size: string; quantity: number }[],
-  email: string,
-  name: { firstName: string; lastName: string }
+  customer: {
+    email: string;
+    phone: string;
+    firstName: string;
+    lastName: string;
+    shipping: ShippingAddress | null;
+  }
 ) {
   const ids = [...new Set(items.map((i) => i.product_id))];
   const { data: products } = await supabase
@@ -180,18 +239,48 @@ async function sendOrderConfirmation(
     unitPriceAed: parseFloat(String(byId.get(i.product_id)?.price ?? 0)) || 0,
   }));
 
-  const message = orderConfirmationEmail({
+  const order = {
     orderId: String(result.order_id),
-    customerName: [name.firstName, name.lastName].filter(Boolean).join(" ") || null,
+    customerName: [customer.firstName, customer.lastName].filter(Boolean).join(" ") || null,
     lines,
     subtotalAed: Number(result.subtotal) || 0,
     shippingFeeAed: Number(result.shipping_fee) || 0,
     discountAed: Number(result.discount_amount) || 0,
     totalAed: Number(result.total) || 0,
-  });
+  };
 
-  const sent = await sendEmail({ to: email, ...message });
-  if (!sent.ok) {
-    console.error(`[order ${result.order_id}] confirmation not sent: ${sent.reason}`);
+  try {
+    const sent = await sendEmail({ to: customer.email, ...orderConfirmationEmail(order) });
+    if (!sent.ok) {
+      console.error(`[order ${order.orderId}] confirmation not sent: ${sent.reason}`);
+    }
+  } catch (err) {
+    console.error(`[order ${order.orderId}] confirmation email failed:`, err);
+  }
+
+  // Owner notification: COD orders are picked and delivered by hand, so the
+  // maison learning about them only by opening the admin is how one gets missed.
+  // It carries the phone number because the first step is usually a call.
+  const owner = getOwnerNotificationAddress();
+  if (!owner) return;
+
+  // The keys here MUST be `phone` and `shipping` — those are what
+  // OwnerOrderEmailData declares and what newOrderOwnerEmail reads. An earlier
+  // version sent `customerPhone`, which type-checked (both fields are optional,
+  // and excess-property checking does not fire on a variable) and silently
+  // dropped the number from every alert.
+  const ownerData: OwnerOrderEmailData = {
+    ...order,
+    customerEmail: customer.email,
+    phone: customer.phone || null,
+    shipping: customer.shipping,
+  };
+  try {
+    const sent = await sendEmail({ to: owner, ...newOrderOwnerEmail(ownerData) });
+    if (!sent.ok) {
+      console.error(`[order ${order.orderId}] owner notification not sent: ${sent.reason}`);
+    }
+  } catch (err) {
+    console.error(`[order ${order.orderId}] owner notification failed:`, err);
   }
 }

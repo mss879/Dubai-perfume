@@ -18,13 +18,16 @@ import {
 } from "lucide-react";
 import BrandsDropdown from "./components/BrandsDropdown";
 import Footer from "./components/Footer";
+import { FREE_SHIPPING_NOTE, FREE_SHIPPING_THRESHOLD_AED } from "./lib/shipping";
 
 /* Hairline used across the maison header — matches --line in globals.css */
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
-/* Rotating announcement bar copy (row 1 of the sticky maison header) */
+/* Rotating announcement bar copy (row 1 of the sticky maison header). The
+   delivery line comes from lib/shipping so it can never promise more than
+   checkout charges. */
 const ANNOUNCEMENTS = [
-  "Complimentary delivery on every UAE order",
+  FREE_SHIPPING_NOTE,
   "Two discovery samples with every order",
   "100% authentic Dubai fragrances",
 ];
@@ -1502,6 +1505,19 @@ export default function HomeClient({
             >
               Contact
             </Link>
+
+            {/* The fragrance finder, last in the row. The homepage keeps its own
+                nav, so this has to be added here as well as in AppHeader. */}
+            <Link
+              href="/discover"
+              onMouseEnter={() => {
+                setIsBrandsMenuOpen(false);
+                closeMegaMenuNow();
+              }}
+              className={navLink}
+            >
+              Scent finder
+            </Link>
           </nav>
 
           {/* Shop mega menu — always the white maison panel */}
@@ -1822,6 +1838,15 @@ export default function HomeClient({
                     className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
                   >
                     Contact
+                  </Link>
+                </li>
+                <li className="border-b" style={{ borderColor: HAIRLINE }}>
+                  <Link
+                    href="/discover"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
+                  >
+                    Scent finder
                   </Link>
                 </li>
                 <li className="border-b" style={{ borderColor: HAIRLINE }}>
@@ -2577,11 +2602,12 @@ export default function HomeClient({
               ══════════════════════════════════════════════════════════════ */}
           <section className="maison maison-section w-full border-t" style={{ borderColor: HAIRLINE }}>
             <div className="maison-container">
-              <div className="grid grid-cols-1 md:grid-cols-3">
+              {/* Two columns since the third service was withdrawn by the owner. */}
+              <div className="grid grid-cols-1 md:grid-cols-2">
                 {[
                   {
-                    title: "Complimentary delivery",
-                    copy: "Express shipping across the UAE at no cost, tracked worldwide dispatch on every order.",
+                    title: FREE_SHIPPING_NOTE,
+                    copy: "Express shipping across the UAE, with tracked worldwide dispatch on every order.",
                     icon: (
                       <>
                         <path d="M2 6h12v11H2z" />
@@ -2598,18 +2624,6 @@ export default function HomeClient({
                       <>
                         <path d="M12 2.5 4.5 5.3v5.9c0 4.6 3.2 8.3 7.5 10 4.3-1.7 7.5-5.4 7.5-10V5.3L12 2.5Z" />
                         <path d="m8.6 12.2 2.4 2.4 4.4-4.6" />
-                      </>
-                    ),
-                  },
-                  {
-                    title: "Gift wrapping",
-                    copy: "Hand-wrapped boxes, ribbon and a written card, prepared at no additional charge.",
-                    icon: (
-                      <>
-                        <path d="M3.5 8.5h17V21h-17z" />
-                        <path d="M3.5 12.6h17M12 8.5V21" />
-                        <path d="M12 8.5S10.7 3.4 8.2 3.4a2.5 2.5 0 0 0 0 5.1H12Z" />
-                        <path d="M12 8.5s1.3-5.1 3.8-5.1a2.5 2.5 0 0 1 0 5.1H12Z" />
                       </>
                     ),
                   },
@@ -2834,9 +2848,11 @@ export default function HomeClient({
                     </span>
                   </div>
 
+                  {/* The threshold runs through `formatCurrency` like every other
+                      figure on this panel, so it follows the display currency. */}
                   <p className="text-[12px] font-light leading-relaxed text-[#646464]">
-                    Complimentary delivery and hand-finished gift wrapping are included with
-                    every order. Taxes calculated at checkout.
+                    Payment is collected on delivery. Complimentary delivery on orders over{" "}
+                    {formatCurrency(FREE_SHIPPING_THRESHOLD_AED)}.
                   </p>
 
                   <Link href="/checkout" className="maison-btn w-full">

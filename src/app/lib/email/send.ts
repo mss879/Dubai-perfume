@@ -15,13 +15,33 @@ import { Resend } from "resend";
  *                         delivery is rejected.
  * Optional:
  *   RESEND_REPLY_TO     – where customer replies should land
+ *   ORDER_NOTIFICATION_EMAIL
+ *                       – the inbox that is alerted when an order arrives.
+ *                         Falls back to RESEND_REPLY_TO, then to the address
+ *                         in RESEND_FROM_EMAIL.
  */
 
 const apiKey = process.env.RESEND_API_KEY || "";
 const fromAddress = process.env.RESEND_FROM_EMAIL || "";
 const replyTo = process.env.RESEND_REPLY_TO || "";
+const ownerAddress = process.env.ORDER_NOTIFICATION_EMAIL || "";
 
 export const isEmailConfigured = Boolean(apiKey && fromAddress);
+
+/** "Gharib <orders@example.com>" → "orders@example.com". */
+function bareAddress(value: string): string {
+  const angled = value.match(/<([^>]+)>/);
+  return (angled ? angled[1] : value).trim();
+}
+
+/**
+ * Where operational alerts go. A cash-on-delivery order nobody is told about
+ * simply sits there, so this falls back through the addresses the store has
+ * already been given rather than resolving to nothing.
+ */
+export function getOwnerNotificationAddress(): string {
+  return bareAddress(ownerAddress || replyTo || fromAddress);
+}
 
 let client: Resend | null = null;
 function getClient(): Resend | null {

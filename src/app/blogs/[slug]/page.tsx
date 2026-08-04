@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
 import { SITE_URL, SITE_NAME } from "../../lib/site";
+import { jsonLdScript } from "../../lib/html";
 import { getAllPosts, getPostBySlug, getMentionedProducts } from "../posts";
 import ArticleToc from "./ArticleToc";
 import ShareRow from "./ShareRow";
@@ -104,12 +105,12 @@ export default async function BlogDetailPage({
       {/* Schema.org Structured Data Injection */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(articleSchema) }}
       />
       {faqSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(faqSchema) }}
         />
       )}
 

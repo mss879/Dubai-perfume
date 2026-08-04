@@ -2,9 +2,9 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getBrowserSupabase } from "../lib/supabase-browser";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
+import { FREE_SHIPPING_THRESHOLD_AED, SHIPPING_FEE_AED } from "../lib/shipping";
 
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
@@ -18,8 +18,7 @@ const CONTACT_FAQS: FaqRow[] = [
   },
   {
     question: "Do you deliver across the United Arab Emirates?",
-    answer:
-      "Yes. Delivery is complimentary on every UAE order, and each parcel is dispatched from our Al Quoz boutique.",
+    answer: `Yes. Delivery is complimentary on orders over AED ${FREE_SHIPPING_THRESHOLD_AED}, and AED ${SHIPPING_FEE_AED} below that. Each parcel is dispatched from our Al Quoz boutique.`,
   },
   {
     question: "Are the fragrances authentic?",
@@ -156,18 +155,28 @@ export default function ContactClient() {
     setIsSending(true);
 
     try {
-      const { error } = await getBrowserSupabase()
-        .from("contact_inquiries")
-        .insert({
+      // Submitted through the server rather than straight to PostgREST. Every
+      // check above runs in the browser, so a spammer posting directly at the
+      // table skipped all of them — /api/contact re-validates and rate limits
+      // where it cannot be bypassed. Migration 44 closes the direct write.
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           name: formData.name.trim(),
           email: formData.email.trim().toLowerCase(),
           subject: formData.subject,
           message: formData.message.trim(),
-          created_at: new Date().toISOString()
-        });
+          company: honeypot,
+        }),
+      });
 
-      if (error) {
-        throw new Error(error.message || "Failed to transmit inquiry.");
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string }
+        | null;
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "Failed to transmit inquiry.");
       }
 
       // Record successful submit time for rate limiting
@@ -228,11 +237,12 @@ export default function ContactClient() {
                   <form onSubmit={handleSubmit} className="mt-10 flex flex-col gap-7 text-left">
                     {/* Honeypot field (hidden from users, bot trap) */}
                     <div className="absolute opacity-0 pointer-events-none w-0 h-0 overflow-hidden" aria-hidden="true">
-                      <label htmlFor="website">Website Address (Do not fill)</label>
+                      <label htmlFor="company">Company (Do not fill)</label>
                       <input
                         type="text"
-                        id="website"
-                        name="website"
+                        id="company"
+                        name="company"
+                        autoComplete="off"
                         value={honeypot}
                         onChange={(e) => setHoneypot(e.target.value)}
                         tabIndex={-1}

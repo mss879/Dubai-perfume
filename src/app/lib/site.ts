@@ -24,5 +24,27 @@ export const SITE_PHONE_HREF = "tel:+97143808888";
  */
 export const TRADE_LICENCE = process.env.NEXT_PUBLIC_TRADE_LICENCE || "";
 
+/**
+ * WhatsApp and social handles.
+ *
+ * Same principle as the trade licence: these are the maison's own accounts and
+ * are not invented here. Each renders only when its variable is set, so an
+ * unset handle shows nothing rather than a link to a profile that isn't yours.
+ *
+ * WhatsApp wants digits only, including country code and no "+" — e.g.
+ * 971501234567 for a Dubai mobile.
+ */
+export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
+export const INSTAGRAM_URL = process.env.NEXT_PUBLIC_INSTAGRAM_URL || "";
+export const TIKTOK_URL = process.env.NEXT_PUBLIC_TIKTOK_URL || "";
+export const FACEBOOK_URL = process.env.NEXT_PUBLIC_FACEBOOK_URL || "";
+
+/** A wa.me link, optionally pre-filled. Empty when no number is configured. */
+export function whatsappLink(message?: string): string {
+  if (!WHATSAPP_NUMBER) return "";
+  const base = `https://wa.me/${WHATSAPP_NUMBER}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+}
+
 // `isSupabaseConfigured` lives in lib/supabase-server.ts — a second copy here
 // meant two things could disagree about whether the store has a database.

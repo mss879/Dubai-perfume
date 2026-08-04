@@ -19,16 +19,19 @@ import BrandsDropdown, { type BrandItem } from "./BrandsDropdown";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 import { useCart } from "../lib/cart";
 import { toTitleCase } from "../lib/catalogue";
+import { FREE_SHIPPING_NOTE } from "../lib/shipping";
 
 export interface AppHeaderProps {
-  activePage?: "home" | "brands" | "shop" | "blogs" | "contact" | "wishlist";
+  activePage?: "home" | "brands" | "shop" | "discover" | "blogs" | "contact" | "wishlist";
 }
 
 /* Hairline used across the header — matches --line in globals.css */
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
+/* The delivery line comes from lib/shipping so the bar can never promise more
+   than checkout charges. */
 const ANNOUNCEMENTS = [
-  "Complimentary delivery on every UAE order",
+  FREE_SHIPPING_NOTE,
   "Two discovery samples with every order",
   "100% authentic Dubai fragrances",
 ];
@@ -41,6 +44,9 @@ const NAV_ITEMS: { key: NavKey; label: string; href: string }[] = [
   { key: "shop", label: "Shop", href: "/shop" },
   { key: "blogs", label: "Blogs", href: "/blogs" },
   { key: "contact", label: "Contact", href: "/contact" },
+  // The fragrance finder, last. Two words so it sits level with the rest of the
+  // row rather than dominating it.
+  { key: "discover", label: "Scent finder", href: "/discover" },
 ];
 
 /* Title-case a stored brand name ("AL HARAMAIN" → "Al Haramain") */
