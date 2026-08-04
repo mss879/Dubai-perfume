@@ -11,11 +11,32 @@ import {
   BarChart3, Plus, Trash2, Edit2, Search, ArrowUpRight, ArrowDownRight, 
   Check, X, AlertCircle, ShieldAlert, Loader2, Sparkles, Filter
 } from "lucide-react";
-import { clientSafeSupabase } from "../lib/supabase";
+import { getBrowserSupabase } from "../../lib/supabase-browser";
+import {
+  ASSIGNABLE_ORDER_STATUSES,
+  ORDER_STATUS_LABELS,
+  isCompletedOrder,
+  isOpenOrder,
+  orderStatusLabel,
+} from "../../lib/orders";
 import { 
   Bold, Italic, Underline, List, ListOrdered, 
   AlignLeft, AlignCenter, AlignRight, Code, Eye 
 } from "lucide-react";
+
+/**
+ * Admin rows arrive from PostgREST without generated types, and the panel reads
+ * dozens of shapes across a dozen tables. Rather than sprinkling `any` through
+ * the file, the looseness is named once here and used everywhere.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = Record<string, any>;
+
+/** Narrows an unknown thrown value to a displayable message. */
+function errorMessage(err: unknown, fallback = "Unknown error"): string {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
 
 interface RichTextEditorProps {
   value: string;
@@ -29,13 +50,21 @@ function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
   const [htmlValue, setHtmlValue] = useState(value);
 
   // Sync external value changes to contentEditable
+  // Mirroring the incoming value into state belongs in render, not an effect
+  // (an effect here re-rendered the whole editor on every keystroke).
+  const [lastValue, setLastValue] = useState(value);
+  if (lastValue !== value) {
+    setLastValue(value);
+    setHtmlValue(value);
+  }
+
+  // Writing into the contentEditable IS an external-system sync, so it stays.
   useEffect(() => {
     if (editorRef.current && !isHtmlMode) {
       if (editorRef.current.innerHTML !== value) {
         editorRef.current.innerHTML = value;
       }
     }
-    setHtmlValue(value);
   }, [value, isHtmlMode]);
 
   const handleInput = () => {
@@ -207,16 +236,23 @@ function AdminDashboardContent() {
   const currentTab = searchParams.get("tab") || "dashboard";
 
   // Data states
-  const [products, setProducts] = useState<any[]>([]);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [discounts, setDiscounts] = useState<any[]>([]);
-  const [campaigns, setCampaigns] = useState<any[]>([]);
-  const [trackingLogs, setTrackingLogs] = useState<any[]>([]);
-  const [abandonedCarts, setAbandonedCarts] = useState<any[]>([]);
-  const [orderItems, setOrderItems] = useState<any[]>([]);
-  const [inquiries, setInquiries] = useState<any[]>([]);
+  const [products, setProducts] = useState<Row[]>([]);
+  const [orders, setOrders] = useState<Row[]>([]);
+  const [inventory, setInventory] = useState<Row[]>([]);
+  const [customers, setCustomers] = useState<Row[]>([]);
+  const [discounts, setDiscounts] = useState<Row[]>([]);
+  const [campaigns, setCampaigns] = useState<Row[]>([]);
+  const [trackingLogs, setTrackingLogs] = useState<Row[]>([]);
+  const [abandonedCarts, setAbandonedCarts] = useState<Row[]>([]);
+  const [orderItems, setOrderItems] = useState<Row[]>([]);
+  const [inquiries, setInquiries] = useState<Row[]>([]);
+  // Tables the panel renders but never used to query — these tabs were static markup.
+  const [transfers, setTransfers] = useState<Row[]>([]);
+  const [giftCards, setGiftCards] = useState<Row[]>([]);
+  const [markets, setMarkets] = useState<Row[]>([]);
+  const [analyticsEvents, setAnalyticsEvents] = useState<Row[]>([]);
+  const [cmsPages, setCmsPages] = useState<Row[]>([]);
+  const [blogPosts, setBlogPosts] = useState<Row[]>([]);
   const [startDate, setStartDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30); // Default to last 30 days
@@ -232,18 +268,22 @@ function AdminDashboardContent() {
   const [searchTerm, setSearchTerm] = useState("");
   
   // Collections states
-  const [collections, setCollections] = useState<any[]>([]);
-  const [productCollections, setProductCollections] = useState<any[]>([]);
+  const [collections, setCollections] = useState<Row[]>([]);
+  const [productCollections, setProductCollections] = useState<Row[]>([]);
   const [showAddCollection, setShowAddCollection] = useState(false);
-  const [selectedManageCollection, setSelectedManageCollection] = useState<any | null>(null);
+  const [selectedManageCollection, setSelectedManageCollection] = useState<Row | null>(null);
   const [manageSearchTerm, setManageSearchTerm] = useState("");
 
   // Clean search filter when product mapping modal is closed
-  useEffect(() => {
+  // Clear the filter when the managed collection closes — adjusted during
+  // render rather than in an effect, so there is no extra render pass.
+  const [lastManagedCollection, setLastManagedCollection] = useState(selectedManageCollection);
+  if (lastManagedCollection !== selectedManageCollection) {
+    setLastManagedCollection(selectedManageCollection);
     if (!selectedManageCollection) {
       setManageSearchTerm("");
     }
-  }, [selectedManageCollection]);
+  }
   
   // New Collection Form States
   const [newCollectionTitle, setNewCollectionTitle] = useState("");
@@ -253,14 +293,21 @@ function AdminDashboardContent() {
   const [newCollectionRuleTag, setNewCollectionRuleTag] = useState("");
 
   // Drawer/Modal forms states
-  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Row | null>(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Row | null>(null);
   const [showAddDiscount, setShowAddDiscount] = useState(false);
   const [showAddGiftCard, setShowAddGiftCard] = useState(false);
   const [showFulfillmentModal, setShowFulfillmentModal] = useState(false);
   const [fulfillmentOrderId, setFulfillmentOrderId] = useState<string | null>(null);
   const [packingChargesInput, setPackingChargesInput] = useState("");
+
+  // "Out for delivery" prompts for the courier tracking number, which is sent
+  // to the customer in the dispatch email.
+  const [showDispatchModal, setShowDispatchModal] = useState(false);
+  const [dispatchOrderId, setDispatchOrderId] = useState<string | null>(null);
+  const [trackingNumberInput, setTrackingNumberInput] = useState("");
+  const [dispatchSubmitting, setDispatchSubmitting] = useState(false);
   
   // New Scent Product Form
   const [newProductName, setNewProductName] = useState("");
@@ -305,31 +352,42 @@ function AdminDashboardContent() {
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        const { data: pData } = await clientSafeSupabase.from("products").select("*");
-        const { data: oData } = await clientSafeSupabase.from("orders").select("*");
-        const { data: iData } = await clientSafeSupabase.from("inventory").select("*");
-        const { data: cData } = await clientSafeSupabase.from("customers").select("*");
-        const { data: dData } = await clientSafeSupabase.from("discounts").select("*");
-        const { data: camData } = await clientSafeSupabase.from("marketing_campaigns").select("*");
-        const { data: tData } = await clientSafeSupabase.from("order_tracking").select("*");
-        const { data: abData } = await clientSafeSupabase.from("abandoned_carts").select("*");
-        const { data: oiData } = await clientSafeSupabase.from("order_items").select("*");
-        const { data: colData } = await clientSafeSupabase.from("collections").select("*");
-        const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
-        const { data: inqData } = await clientSafeSupabase.from("contact_inquiries").select("*");
+        // One parallel round of reads instead of 18 sequential round-trips.
+        // Every table the panel renders is loaded here — the transfers, gift
+        // card, markets, analytics and CMS tabs used to display hardcoded
+        // markup instead of querying at all.
+        const db = getBrowserSupabase();
+        const table = (name: string) => db.from(name).select("*");
+        const [
+          pRes, oRes, iRes, cRes, dRes, camRes, tRes, abRes, oiRes, colRes,
+          pcRes, inqRes, trRes, gcRes, mkRes, aeRes, cmsRes, bpRes,
+        ] = await Promise.all([
+          table("products"), table("orders"), table("inventory"), table("customers"),
+          table("discounts"), table("marketing_campaigns"), table("order_tracking"),
+          table("abandoned_carts"), table("order_items"), table("collections"),
+          table("product_collections"), table("contact_inquiries"), table("transfers"),
+          table("gift_cards"), table("markets"), table("analytics_events"),
+          table("cms_pages"), table("blog_posts"),
+        ]);
 
-        setProducts(pData || []);
-        setOrders(oData || []);
-        setInventory(iData || []);
-        setCustomers(cData || []);
-        setDiscounts(dData || []);
-        setCampaigns(camData || []);
-        setTrackingLogs(tData || []);
-        setAbandonedCarts(abData || []);
-        setOrderItems(oiData || []);
-        setCollections(colData || []);
-        setProductCollections(pcData || []);
-        setInquiries(inqData || []);
+        setProducts(pRes.data || []);
+        setOrders(oRes.data || []);
+        setInventory(iRes.data || []);
+        setCustomers(cRes.data || []);
+        setDiscounts(dRes.data || []);
+        setCampaigns(camRes.data || []);
+        setTrackingLogs(tRes.data || []);
+        setAbandonedCarts(abRes.data || []);
+        setOrderItems(oiRes.data || []);
+        setCollections(colRes.data || []);
+        setProductCollections(pcRes.data || []);
+        setInquiries(inqRes.data || []);
+        setTransfers(trRes.data || []);
+        setGiftCards(gcRes.data || []);
+        setMarkets(mkRes.data || []);
+        setAnalyticsEvents(aeRes.data || []);
+        setCmsPages(cmsRes.data || []);
+        setBlogPosts(bpRes.data || []);
       } catch (err) {
         console.error("Dashboard seed retrieval failure", err);
       } finally {
@@ -407,7 +465,7 @@ function AdminDashboardContent() {
           }
         }
         const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-        const { data, error } = await clientSafeSupabase.storage
+        const { data, error } = await getBrowserSupabase().storage
           .from("product-images")
           .upload(fileName, file);
 
@@ -416,7 +474,7 @@ function AdminDashboardContent() {
           continue;
         }
 
-        const { data: urlData } = clientSafeSupabase.storage
+        const { data: urlData } = getBrowserSupabase().storage
           .from("product-images")
           .getPublicUrl(fileName);
         const publicUrl = urlData?.publicUrl;
@@ -427,9 +485,9 @@ function AdminDashboardContent() {
         } else {
           triggerToast("Failed to retrieve public URL from Supabase.");
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("Supabase storage upload error:", err);
-        triggerToast(`Upload error: ${err.message || "Unknown error"}`);
+        triggerToast(`Upload error: ${errorMessage(err, "Unknown error")}`);
       }
     }
   };
@@ -490,7 +548,7 @@ function AdminDashboardContent() {
     };
 
     try {
-      await clientSafeSupabase.from("products").insert(newPerfume);
+      await getBrowserSupabase().from("products").insert(newPerfume);
       
       // Update inventory listings for this new product
       const newInventoryRows = sizes.map(size => ({
@@ -499,7 +557,7 @@ function AdminDashboardContent() {
         stock_level: 50,
         low_stock_threshold: 10
       }));
-      await clientSafeSupabase.from("inventory").insert(newInventoryRows);
+      await getBrowserSupabase().from("inventory").insert(newInventoryRows);
 
       // Add custom collection mappings
       if (newProductSelectedCollections.length > 0) {
@@ -507,14 +565,14 @@ function AdminDashboardContent() {
           product_id: nextId,
           collection_id: colId
         }));
-        await clientSafeSupabase.from("product_collections").insert(mappingRows);
+        await getBrowserSupabase().from("product_collections").insert(mappingRows);
       }
 
       setProducts(prev => [newPerfume, ...prev]);
       setInventory(prev => [...newInventoryRows, ...prev]);
 
       // Refetch mapping states since local storage/trigger mapped matching smart collections automatically!
-      const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
+      const { data: pcData } = await getBrowserSupabase().from("product_collections").select("*");
       setProductCollections(pcData || []);
 
       triggerToast(`Successfully registered ${newProductName} under brand ${newProductBrand}.`);
@@ -566,7 +624,7 @@ function AdminDashboardContent() {
     setShowAddProduct(true);
   };
 
-  const handleStartEditProduct = (prod: any) => {
+  const handleStartEditProduct = (prod: Row) => {
     setEditingProduct(prod);
     setNewProductBrand(prod.brand);
     setNewProductName(prod.name);
@@ -591,8 +649,8 @@ function AdminDashboardContent() {
     
     // Find collection mappings for this product
     const productMappings = productCollections
-      .filter((pc: any) => pc.product_id === prod.id)
-      .map((pc: any) => pc.collection_id);
+      .filter((pc: Row) => pc.product_id === prod.id)
+      .map((pc: Row) => pc.collection_id);
     setNewProductSelectedCollections(productMappings);
     
     // If product has image_urls array, load it; otherwise fallback to single image_url
@@ -602,6 +660,12 @@ function AdminDashboardContent() {
   };
 
   const handleUpdateProduct = async () => {
+    // Guards every `editingProduct.id` read below. Without this the handler
+    // threw a TypeError if it was ever reached with no product loaded.
+    if (!editingProduct) {
+      triggerToast("No product is open for editing.");
+      return;
+    }
     if (!newProductName || !newProductPrice) {
       triggerToast("Missing required perfume attributes.");
       return;
@@ -637,7 +701,7 @@ function AdminDashboardContent() {
 
     try {
       // 1. Update products table in Supabase
-      const { error: prodErr } = await clientSafeSupabase
+      const { error: prodErr } = await getBrowserSupabase()
         .from("products")
         .update(updatedPerfume)
         .eq("id", editingProduct.id);
@@ -645,23 +709,23 @@ function AdminDashboardContent() {
       if (prodErr) throw prodErr;
 
       // 2. Update inventory records
-      await clientSafeSupabase.from("inventory").delete().eq("product_id", editingProduct.id);
+      await getBrowserSupabase().from("inventory").delete().eq("product_id", editingProduct.id);
       const newInventoryRows = sizes.map(size => ({
         product_id: editingProduct.id,
         size: size,
         stock_level: 50,
         low_stock_threshold: 10
       }));
-      await clientSafeSupabase.from("inventory").insert(newInventoryRows);
+      await getBrowserSupabase().from("inventory").insert(newInventoryRows);
 
       // 3. Update collection mappings
-      await clientSafeSupabase.from("product_collections").delete().eq("product_id", editingProduct.id);
+      await getBrowserSupabase().from("product_collections").delete().eq("product_id", editingProduct.id);
       if (newProductSelectedCollections.length > 0) {
         const mappingRows = newProductSelectedCollections.map(colId => ({
           product_id: editingProduct.id,
           collection_id: colId
         }));
-        await clientSafeSupabase.from("product_collections").insert(mappingRows);
+        await getBrowserSupabase().from("product_collections").insert(mappingRows);
       }
 
       // Update local states
@@ -672,7 +736,7 @@ function AdminDashboardContent() {
       ]);
 
       // Refetch mapping states
-      const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
+      const { data: pcData } = await getBrowserSupabase().from("product_collections").select("*");
       setProductCollections(pcData || []);
 
       triggerToast(`Successfully updated ${newProductName}.`);
@@ -693,15 +757,15 @@ function AdminDashboardContent() {
       setNewProductTopNotes("");
       setNewProductHeartNotes("");
       setNewProductBaseNotes("");
-    } catch (err: any) {
+    } catch (err) {
       console.error("Update failed:", err);
-      triggerToast(`Failed to update product: ${err.message || "Database write error"}`);
+      triggerToast(`Failed to update product: ${errorMessage(err, "Database write error")}`);
     }
   };
 
   const getProductsInCollection = (collectionId: string) => {
-    const mappings = productCollections.filter((pc: any) => pc.collection_id === collectionId);
-    return products.filter((p: any) => mappings.some((m: any) => m.product_id === p.id));
+    const mappings = productCollections.filter((pc: Row) => pc.collection_id === collectionId);
+    return products.filter((p: Row) => mappings.some((m: Row) => m.product_id === p.id));
   };
 
   const handleCreateCollection = async (e: React.FormEvent) => {
@@ -726,11 +790,11 @@ function AdminDashboardContent() {
     };
 
     try {
-      await clientSafeSupabase.from("collections").insert(newCol);
+      await getBrowserSupabase().from("collections").insert(newCol);
       setCollections(prev => [...prev, newCol]);
       
       // Sync mappings state immediately
-      const { data: pcData } = await clientSafeSupabase.from("product_collections").select("*");
+      const { data: pcData } = await getBrowserSupabase().from("product_collections").select("*");
       setProductCollections(pcData || []);
 
       triggerToast(`Successfully created ${newCollectionType} collection: ${newCollectionTitle}`);
@@ -771,7 +835,7 @@ function AdminDashboardContent() {
     };
 
     try {
-      await clientSafeSupabase.from("collections").insert(newCol);
+      await getBrowserSupabase().from("collections").insert(newCol);
       setCollections(prev => [...prev, newCol]);
       
       // Auto-select this collection
@@ -806,7 +870,7 @@ function AdminDashboardContent() {
     };
 
     try {
-      await clientSafeSupabase.from("discounts").insert(newPromo);
+      await getBrowserSupabase().from("discounts").insert(newPromo);
       setDiscounts(prev => [newPromo, ...prev]);
       triggerToast(`Registered discount code ${newPromo.code} successfully.`);
       setShowAddDiscount(false);
@@ -819,13 +883,14 @@ function AdminDashboardContent() {
   };
 
   // Generate Gift Card Action
+  // Gift card issuing is deferred — this does not persist anything yet.
   const handleCreateGiftCard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!giftCode || !giftBalance) {
       triggerToast("Specify card code and allocation balance.");
       return;
     }
-    triggerToast(`Gift Card [${giftCode.toUpperCase()}] allocated with $${parseFloat(giftBalance).toFixed(2)} for ${giftCustomer || "Anonymous"}.`);
+    triggerToast(`Gift Card [${giftCode.toUpperCase()}] allocated with AED ${parseFloat(giftBalance).toFixed(2)} for ${giftCustomer || "Anonymous"}.`);
     setShowAddGiftCard(false);
     setGiftCode("");
     setGiftBalance("");
@@ -841,7 +906,7 @@ function AdminDashboardContent() {
     }
 
     try {
-      await clientSafeSupabase
+      await getBrowserSupabase()
         .from("inventory")
         .update({ stock_level: numVal })
         .match({ product_id: prodId, size: size });
@@ -861,63 +926,70 @@ function AdminDashboardContent() {
   };
 
   // Change Order Status Action
-  const handleUpdateOrderStatus = async (orderId: string, nextStatus: string, packingChargesVal?: number) => {
+  /**
+   * Status changes go through /api/admin/order-status, which re-verifies the
+   * admin server-side, writes the status and timeline entry, and emails the
+   * customer on "out for delivery" and "delivered". The status is no longer
+   * written straight from the browser, so the notification can never be
+   * skipped by whoever changed it.
+   */
+  const handleUpdateOrderStatus = async (
+    orderId: string,
+    nextStatus: string,
+    packingChargesVal?: number,
+    trackingNumberVal?: string
+  ) => {
     try {
-      const updateData: any = { status: nextStatus };
-      if (packingChargesVal !== undefined) {
-        updateData.packing_charges = packingChargesVal;
+      const res = await fetch("/api/admin/order-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          status: nextStatus,
+          ...(trackingNumberVal ? { trackingNumber: trackingNumberVal } : {}),
+          ...(packingChargesVal !== undefined ? { packingCharges: packingChargesVal } : {}),
+        }),
+      });
+      const payload = await res.json();
+
+      if (!res.ok) {
+        triggerToast(payload?.error || "Status update failed.");
+        return;
       }
 
-      await clientSafeSupabase
-        .from("orders")
-        .update(updateData)
-        .eq("id", orderId);
+      const patch: Row = { status: nextStatus };
+      if (packingChargesVal !== undefined) patch.packing_charges = packingChargesVal;
+      if (payload.trackingNumber) patch.tracking_number = payload.trackingNumber;
 
-      setOrders(prev => prev.map(o => o.id === orderId ? { 
-        ...o, 
-        status: nextStatus, 
-        packing_charges: packingChargesVal !== undefined ? packingChargesVal : o.packing_charges 
-      } : o));
-      
+      setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, ...patch } : o)));
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ 
-          ...selectedOrder, 
-          status: nextStatus, 
-          packing_charges: packingChargesVal !== undefined ? packingChargesVal : selectedOrder.packing_charges 
-        });
+        setSelectedOrder({ ...selectedOrder, ...patch });
+      }
+      if (payload.timeline) {
+        setTrackingLogs(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            order_id: orderId,
+            ...payload.timeline,
+            updated_at: new Date().toISOString(),
+          },
+        ]);
       }
 
-      // Add a visual tracking log for this update
-      const newLog = {
-        id: trackingLogs.length + 1,
-        order_id: orderId,
-        status: nextStatus === "accepted" ? "Accepted" : 
-                nextStatus === "fulfilled" ? "Fulfilled" : 
-                nextStatus === "out_for_delivery" ? "Out for Delivery" : 
-                nextStatus === "delivered" ? "Delivered" : "Order Placed",
-        location: nextStatus === "delivered" ? "Client Residence" :
-                  nextStatus === "out_for_delivery" ? "Local Carrier Hub" : 
-                  nextStatus === "fulfilled" ? "Dubai Distribution Port" : "Dubai Headquarters",
-        description: nextStatus === "accepted" ? "Order has been reviewed and accepted by the administrative team." :
-                     nextStatus === "fulfilled" ? "Your fragrance package has been carefully blended, packaged, and fulfilled by our scent curators." :
-                     nextStatus === "out_for_delivery" ? "Your shipment is out for delivery with our express carrier." :
-                     nextStatus === "delivered" ? "Your exclusive perfume package has been successfully delivered." : 
-                     "Your exclusive order selection has been received.",
-        updated_at: new Date().toISOString()
-      };
-
-      await clientSafeSupabase.from("order_tracking").insert(newLog);
-      setTrackingLogs(prev => [...prev, newLog]);
-
-      triggerToast(`Order ${orderId} upgraded to ${nextStatus}.`);
-    } catch (err) {
+      triggerToast(
+        payload.emailed
+          ? `Order ${orderId} set to ${nextStatus} — customer notified at ${payload.emailed}.`
+          : `Order ${orderId} set to ${nextStatus}.`
+      );
+    } catch {
       triggerToast("Status synchronization failed.");
     }
   };
 
   const handleDeleteInquiry = async (inqId: string) => {
     try {
-      const { error } = await clientSafeSupabase
+      const { error } = await getBrowserSupabase()
         .from("contact_inquiries")
         .delete()
         .eq("id", inqId);
@@ -956,8 +1028,10 @@ function AdminDashboardContent() {
     const aov = ordersCount > 0 ? totalRevenue / ordersCount : 0;
 
     // Filter statuses
-    const pendingOrders = periodOrders.filter(o => o.status === "pending" || o.status === "accepted");
-    const completedOrders = periodOrders.filter(o => o.status === "delivered" || o.status === "fulfilled" || o.status === "shipped");
+    // Shared helpers so no status falls between the two buckets — previously
+    // "out_for_delivery" and "processing" counted as neither.
+    const pendingOrders = periodOrders.filter(o => isOpenOrder(o.status));
+    const completedOrders = periodOrders.filter(o => isCompletedOrder(o.status));
     
     const pendingValue = pendingOrders.reduce((sum, o) => sum + (parseFloat(String(o.total_price)) || 0), 0);
     const completedValue = completedOrders.reduce((sum, o) => sum + (parseFloat(String(o.total_price)) || 0), 0);
@@ -1409,17 +1483,23 @@ function AdminDashboardContent() {
                                   setFulfillmentOrderId(order.id);
                                   setPackingChargesInput("");
                                   setShowFulfillmentModal(true);
+                                } else if (nextStatus === "out_for_delivery") {
+                                  // A courier reference is required before the
+                                  // customer is told the parcel is on its way.
+                                  setDispatchOrderId(order.id);
+                                  setTrackingNumberInput(String(order.tracking_number || ""));
+                                  setShowDispatchModal(true);
                                 } else {
                                   handleUpdateOrderStatus(order.id, nextStatus);
                                 }
                               }}
                               className="bg-black border border-white/[0.08] text-[#EAE3DB] text-[8px] tracking-widest font-black uppercase px-2 py-1 outline-none cursor-pointer"
                             >
-                              <option value="pending">PENDING (ORDER PLACED)</option>
-                              <option value="accepted">ACCEPTED</option>
-                              <option value="fulfilled">FULFILLED</option>
-                              <option value="out_for_delivery">OUT FOR DELIVERY</option>
-                              <option value="delivered">DELIVERED</option>
+                              {ASSIGNABLE_ORDER_STATUSES.map((status) => (
+                                <option key={status} value={status}>
+                                  {ORDER_STATUS_LABELS[status].toUpperCase()}
+                                </option>
+                              ))}
                             </select>
                           </div>
                         </td>
@@ -1536,7 +1616,7 @@ function AdminDashboardContent() {
                               const trackingUrl = inputUrl.value.trim();
                               
                               try {
-                                await clientSafeSupabase
+                                await getBrowserSupabase()
                                   .from("orders")
                                   .update({ 
                                     tracking_number: trackingNumber || null,
@@ -1645,6 +1725,96 @@ function AdminDashboardContent() {
               )}
             </AnimatePresence>
 
+            {/* OUT FOR DELIVERY — TRACKING NUMBER MODAL */}
+            <AnimatePresence>
+              {showDispatchModal && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="bg-[#090503] border border-amber-600/30 w-full max-w-[420px] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative"
+                  >
+                    <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                    <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+
+                    <div className="flex items-center justify-between mb-6">
+                      <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-500 uppercase">
+                        DISPATCH — {dispatchOrderId}
+                      </h4>
+                      <button
+                        onClick={() => setShowDispatchModal(false)}
+                        className="text-[#EAE3DB]/40 hover:text-white"
+                        aria-label="Close"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const tracking = trackingNumberInput.trim();
+                        if (!tracking || !dispatchOrderId) return;
+                        setDispatchSubmitting(true);
+                        await handleUpdateOrderStatus(
+                          dispatchOrderId,
+                          "out_for_delivery",
+                          undefined,
+                          tracking
+                        );
+                        setDispatchSubmitting(false);
+                        setShowDispatchModal(false);
+                        setTrackingNumberInput("");
+                      }}
+                      className="flex flex-col gap-6 text-[10px] tracking-wider font-semibold uppercase"
+                    >
+                      <p className="text-[#EAE3DB]/80 tracking-widest leading-relaxed normal-case">
+                        Enter the courier tracking number. The customer is emailed that their
+                        order is out for delivery, with this reference included.
+                      </p>
+
+                      <div className="flex flex-col gap-2">
+                        <label
+                          htmlFor="dispatch-tracking"
+                          className="text-[7.5px] tracking-widest text-amber-500 font-black uppercase"
+                        >
+                          TRACKING NUMBER
+                        </label>
+                        <input
+                          id="dispatch-tracking"
+                          type="text"
+                          required
+                          value={trackingNumberInput}
+                          onChange={(e) => setTrackingNumberInput(e.target.value)}
+                          placeholder="e.g. ARX-4471902-AE"
+                          className="bg-black border border-white/[0.08] text-white text-[9px] tracking-widest px-3 py-2.5 outline-none w-full font-bold uppercase"
+                          autoFocus
+                        />
+                      </div>
+
+                      <div className="flex gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setShowDispatchModal(false)}
+                          className="w-1/2 border border-white/10 text-white hover:bg-white/5 text-[8.5px] tracking-[0.2em] uppercase font-black py-3.5 transition-all cursor-pointer"
+                        >
+                          CANCEL
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={dispatchSubmitting || !trackingNumberInput.trim()}
+                          className="w-1/2 bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50 text-[8.5px] tracking-[0.2em] uppercase font-black py-3.5 transition-all cursor-pointer"
+                        >
+                          {dispatchSubmitting ? "SENDING…" : "DISPATCH & NOTIFY"}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
           </div>
         )}
 
@@ -1720,7 +1890,7 @@ function AdminDashboardContent() {
                               <img 
                                 src={p.image_url} 
                                 className="w-full h-full object-contain"
-                                onError={(e: any) => {
+                                onError={(e: Row) => {
                                   e.target.src = "/catalog_initio_oud.png";
                                 }}
                                 alt={p.name} 
@@ -1779,9 +1949,9 @@ function AdminDashboardContent() {
                              <button
                                onClick={async () => {
                                  try {
-                                   await clientSafeSupabase.from("products").delete().eq("id", p.id);
-                                   await clientSafeSupabase.from("inventory").delete().eq("product_id", p.id);
-                                   await clientSafeSupabase.from("product_collections").delete().eq("product_id", p.id);
+                                   await getBrowserSupabase().from("products").delete().eq("id", p.id);
+                                   await getBrowserSupabase().from("inventory").delete().eq("product_id", p.id);
+                                   await getBrowserSupabase().from("product_collections").delete().eq("product_id", p.id);
                                    setProducts(prev => prev.filter(prod => prod.id !== p.id));
                                    triggerToast(`Deregistered perfume ${p.name} from global catalogue.`);
                                  } catch (err) {
@@ -2456,29 +2626,43 @@ function AdminDashboardContent() {
                   STOCK TRANSFERS
                 </h3>
               </div>
-              <span className="text-[7px] border border-amber-600/35 bg-amber-500/10 text-amber-800 px-2 py-0.5 font-black">INTER-DEPOT</span>
+              <span className="text-[7px] border border-amber-600/35 bg-amber-500/10 text-amber-800 px-2 py-0.5 font-black">
+                {transfers.length} RECORDED
+              </span>
             </div>
-
             <div className="flex flex-col gap-4">
-              
-              <div className="bg-[#FAF9F6] border border-[#E5DFD3] p-4 flex justify-between items-center">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] tracking-widest font-black text-amber-800 uppercase font-mono">XFER-00129</span>
-                  <span className="text-[8.5px] text-[#7C6E65] font-bold uppercase">From: Dubai Freezone Warehouse</span>
-                  <span className="text-[8.5px] text-[#2A1A0F] font-bold uppercase">To: Jumeirah Luxury Scent Boutique</span>
+              {transfers.length === 0 ? (
+                <div className="border border-dashed border-[#E5DFD3] p-8 text-center">
+                  <span className="text-[9px] tracking-widest text-[#7C6E65] font-bold uppercase">
+                    No stock transfers recorded yet.
+                  </span>
                 </div>
-                <span className="text-[8px] border border-green-600/35 bg-green-500/10 text-green-700 px-2 py-1 font-bold">COMPLETED</span>
-              </div>
-
-              <div className="bg-[#FAF9F6] border border-[#E5DFD3] p-4 flex justify-between items-center">
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] tracking-widest font-black text-amber-800 uppercase font-mono">XFER-00130</span>
-                  <span className="text-[8.5px] text-[#7C6E65] font-bold uppercase">From: Jebel Ali Depot</span>
-                  <span className="text-[8.5px] text-[#2A1A0F] font-bold uppercase">To: Dubai Mall Scent Pavilion</span>
-                </div>
-                <span className="text-[8px] border border-blue-600/35 bg-blue-500/10 text-blue-700 px-2 py-1 font-bold">DISPATCHING</span>
-              </div>
-
+              ) : (
+                transfers.map((xfer) => {
+                  const itemCount = Array.isArray(xfer.items) ? xfer.items.length : 0;
+                  const status = String(xfer.status || "pending");
+                  const done = status === "completed";
+                  return (
+                    <div key={String(xfer.id)} className="bg-[#FAF9F6] border border-[#E5DFD3] p-4 flex justify-between items-center">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] tracking-widest font-black text-amber-800 uppercase font-mono">
+                          {String(xfer.id)}
+                        </span>
+                        <span className="text-[8.5px] text-[#7C6E65] font-bold uppercase">From: {String(xfer.origin || "—")}</span>
+                        <span className="text-[8.5px] text-[#2A1A0F] font-bold uppercase">To: {String(xfer.destination || "—")}</span>
+                        <span className="text-[8px] text-[#7C6E65] font-bold uppercase">{itemCount} line{itemCount === 1 ? "" : "s"}</span>
+                      </div>
+                      <span className={`text-[8px] border px-2 py-1 font-bold uppercase ${
+                        done
+                          ? "border-green-600/35 bg-green-500/10 text-green-700"
+                          : "border-amber-600/35 bg-amber-500/10 text-amber-800"
+                      }`}>
+                        {status.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
@@ -2507,49 +2691,45 @@ function AdminDashboardContent() {
               </button>
             </div>
 
-            {/* Gift Card Display Matrix */}
+            {/* Gift Card Display Matrix — read from public.gift_cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              
-              <div className="bg-[#0e0703] border border-amber-600/35 p-6 relative group overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
-                
-                <div className="flex justify-between items-start mb-6">
-                  <span className="text-[8px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black">ACTIVE VIP ASSET</span>
-                  <Gift className="w-5 h-5 text-amber-500" />
+              {giftCards.length === 0 ? (
+                <div className="col-span-full border border-dashed border-white/[0.08] p-8 text-center">
+                  <span className="text-[9px] tracking-widest text-[#EAE3DB]/40 font-bold uppercase">
+                    No gift cards issued yet.
+                  </span>
                 </div>
-                
-                <h4 className="text-[14px] tracking-[0.25em] font-bold text-[#EAE3DB] mb-2 uppercase">
-                  VIP-GOLDEN-GIFT-500
-                </h4>
-                
-                <span className="text-2xl font-serif-luxury text-amber-200 tracking-wider font-semibold block mb-4">
-                  $500.00
-                </span>
-                
-                <div className="border-t border-white/[0.04] pt-4 text-[8.5px] tracking-wider text-[#EAE3DB]/40 font-bold uppercase">
-                  Holder: <span className="text-white">layla.hasan@dubai.ae</span>
-                </div>
-              </div>
-
-              <div className="bg-[#0e0703] border border-white/[0.04] p-6 relative group overflow-hidden">
-                <div className="flex justify-between items-start mb-6">
-                  <span className="text-[8px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black">ACTIVE VIP ASSET</span>
-                  <Gift className="w-5 h-5 text-amber-500/50" />
-                </div>
-                
-                <h4 className="text-[14px] tracking-[0.25em] font-bold text-[#EAE3DB] mb-2 uppercase">
-                  EID-SCENT-VAULT-200
-                </h4>
-                
-                <span className="text-2xl font-serif-luxury text-amber-200 tracking-wider font-semibold block mb-4">
-                  $200.00
-                </span>
-                
-                <div className="border-t border-white/[0.04] pt-4 text-[8.5px] tracking-wider text-[#EAE3DB]/40 font-bold uppercase">
-                  Holder: <span className="text-white">alex.mercer@gmail.com</span>
-                </div>
-              </div>
-
+              ) : (
+                giftCards.map((card) => {
+                  const balance = parseFloat(String(card.balance ?? 0)) || 0;
+                  const initial = parseFloat(String(card.initial_value ?? 0)) || 0;
+                  const active = card.is_active !== false;
+                  const expires = card.expires_at
+                    ? new Date(String(card.expires_at)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                    : "No expiry";
+                  return (
+                    <div key={String(card.code)} className="bg-[#0e0703] border border-amber-600/35 p-6 relative group overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+                      <div className="flex justify-between items-start mb-6">
+                        <span className="text-[8px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black">
+                          {active ? "ACTIVE ASSET" : "DEACTIVATED"}
+                        </span>
+                        <Gift className={`w-5 h-5 ${active ? "text-amber-500" : "text-[#EAE3DB]/25"}`} />
+                      </div>
+                      <h4 className="text-[14px] tracking-[0.25em] font-bold text-[#EAE3DB] mb-2 uppercase">
+                        {String(card.code)}
+                      </h4>
+                      <span className="text-2xl font-serif-luxury text-amber-200 tracking-wider font-semibold block mb-4">
+                        AED {balance.toFixed(2)}
+                      </span>
+                      <div className="border-t border-white/[0.04] pt-4 text-[8.5px] tracking-wider text-[#EAE3DB]/40 font-bold uppercase flex justify-between gap-3">
+                        <span>Issued: <span className="text-white">AED {initial.toFixed(2)}</span></span>
+                        <span>{expires}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             {/* ADD GIFT CARD MODAL */}
@@ -2589,7 +2769,7 @@ function AdminDashboardContent() {
                       </div>
 
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">INITIAL BALANCE ($)</label>
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">INITIAL BALANCE (AED)</label>
                         <input 
                           type="number" 
                           value={giftBalance}
@@ -2779,7 +2959,7 @@ function AdminDashboardContent() {
 
                         <td className="p-4 max-w-[280px]">
                           <div className="flex flex-col gap-1.5 font-sans normal-case text-[11px] text-[#5C4E46]">
-                            {Array.isArray(ac.cart_items) ? ac.cart_items.map((item: any, idx: number) => (
+                            {Array.isArray(ac.cart_items) ? ac.cart_items.map((item: Row, idx: number) => (
                               <div key={idx} className="flex justify-between gap-4 border-b border-dashed border-[#E5DFD3] pb-1 last:border-b-0">
                                 <span className="font-black text-[#1C120C] uppercase tracking-wider text-[9px]">
                                   {item.brand} {item.name} <span className="text-[8px] text-[#7C6E65]">({item.size})</span>
@@ -2831,13 +3011,9 @@ function AdminDashboardContent() {
                         </td>
 
                         <td className="p-4 pr-6 text-center">
-                          <button
-                            onClick={() => triggerToast(`Recovery curation proposal dispatched to ${ac.email}!`)}
-                            className="bg-amber-600 hover:bg-amber-500 text-white text-[8px] font-black tracking-[0.2em] uppercase px-3 py-2 cursor-pointer transition-all duration-300 rounded-none disabled:opacity-50"
-                            disabled={ac.converted}
-                          >
-                            SEND PROPOSAL
-                          </button>
+                          <span className="text-[8px] font-black tracking-[0.2em] uppercase text-[#7C6E65]">
+                            {ac.converted ? "RECOVERED" : "OPEN"}
+                          </span>
                         </td>
 
                       </tr>
@@ -3023,7 +3199,7 @@ function AdminDashboardContent() {
                                   ? "border-amber-600/35 bg-amber-500/10 text-amber-800"
                                   : "border-yellow-600/35 bg-yellow-500/10 text-yellow-800"
                               }`}>
-                                {o.status}
+                                {orderStatusLabel(o.status)}
                               </span>
                             </td>
 
@@ -3224,7 +3400,7 @@ function AdminDashboardContent() {
                             className="bg-[#090503] border border-white/[0.08] px-3.5 py-2.5 outline-none focus:border-amber-500 font-bold uppercase w-full text-white cursor-pointer"
                           >
                             <option value="percentage">PERCENTAGE (%)</option>
-                            <option value="fixed_amount">FIXED DEDUCTION ($)</option>
+                            <option value="fixed_amount">FIXED DEDUCTION (AED)</option>
                           </select>
                         </div>
 
@@ -3242,7 +3418,7 @@ function AdminDashboardContent() {
                       </div>
 
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">MINIMUM BASKET INVESTMENT ($)</label>
+                        <label className="text-[7.5px] tracking-widest text-[#EAE3DB]/40 font-black">MINIMUM BASKET INVESTMENT (AED)</label>
                         <input 
                           type="number" 
                           value={discMinReq}
@@ -3288,7 +3464,7 @@ function AdminDashboardContent() {
               
               <div className="flex items-center gap-3">
                 <span className="text-[10px] tracking-widest uppercase text-[#EAE3DB]/60 bg-white/[0.03] border border-white/[0.08] px-4 py-2 font-bold">
-                  Active Hero Items: <strong className="text-amber-400 font-extrabold">{products.filter((p: any) => p.is_hero).length}</strong>
+                  Active Hero Items: <strong className="text-amber-400 font-extrabold">{products.filter((p: Row) => p.is_hero).length}</strong>
                 </span>
               </div>
             </div>
@@ -3301,16 +3477,16 @@ function AdminDashboardContent() {
                 </h3>
               </div>
 
-              {products.filter((p: any) => p.is_hero).length === 0 ? (
+              {products.filter((p: Row) => p.is_hero).length === 0 ? (
                 <div className="bg-[#090503] border border-amber-900/20 p-8 text-center flex flex-col items-center">
                   <p className="text-xs text-[#EAE3DB]/60 uppercase tracking-widest mb-4">No hero products currently selected. Add products from the catalog below.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {products
-                    .filter((p: any) => p.is_hero)
-                    .sort((a: any, b: any) => (a.hero_order || 0) - (b.hero_order || 0))
-                    .map((item: any, idx: number) => (
+                    .filter((p: Row) => p.is_hero)
+                    .sort((a: Row, b: Row) => (a.hero_order || 0) - (b.hero_order || 0))
+                    .map((item: Row, idx: number) => (
                       <div 
                         key={item.id} 
                         className="bg-[#090503] border border-amber-500/20 p-5 flex flex-col justify-between relative group hover:border-amber-500/50 transition-all duration-300 shadow-lg"
@@ -3324,15 +3500,15 @@ function AdminDashboardContent() {
                         <button
                           onClick={async () => {
                             try {
-                              const { error } = await clientSafeSupabase
+                              const { error } = await getBrowserSupabase()
                                 .from("products")
                                 .update({ is_hero: false })
                                 .eq("id", item.id);
                               if (error) throw error;
                               setProducts(prev => prev.map(p => p.id === item.id ? { ...p, is_hero: false } : p));
                               triggerToast(`Removed "${item.name}" from homepage hero products.`);
-                            } catch (err: any) {
-                              triggerToast(`Failed to update hero status: ${err.message}`);
+                            } catch (err) {
+                              triggerToast(`Failed to update hero status: ${errorMessage(err)}`);
                             }
                           }}
                           className="absolute top-3 right-3 text-[#EAE3DB]/40 hover:text-red-400 text-xs font-bold transition-colors p-1"
@@ -3373,14 +3549,14 @@ function AdminDashboardContent() {
                             <button
                               disabled={idx === 0}
                               onClick={async () => {
-                                const heroList = products.filter((p: any) => p.is_hero).sort((a: any, b: any) => (a.hero_order || 0) - (b.hero_order || 0));
+                                const heroList = products.filter((p: Row) => p.is_hero).sort((a: Row, b: Row) => (a.hero_order || 0) - (b.hero_order || 0));
                                 if (idx <= 0) return;
                                 const prevItem = heroList[idx - 1];
                                 const currentOrder = item.hero_order || (idx + 1);
                                 const targetOrder = prevItem.hero_order || idx;
                                 
-                                await clientSafeSupabase.from("products").update({ hero_order: targetOrder }).eq("id", item.id);
-                                await clientSafeSupabase.from("products").update({ hero_order: currentOrder }).eq("id", prevItem.id);
+                                await getBrowserSupabase().from("products").update({ hero_order: targetOrder }).eq("id", item.id);
+                                await getBrowserSupabase().from("products").update({ hero_order: currentOrder }).eq("id", prevItem.id);
                                 
                                 setProducts(prev => prev.map(p => {
                                   if (p.id === item.id) return { ...p, hero_order: targetOrder };
@@ -3395,16 +3571,16 @@ function AdminDashboardContent() {
                               ←
                             </button>
                             <button
-                              disabled={idx === products.filter((p: any) => p.is_hero).length - 1}
+                              disabled={idx === products.filter((p: Row) => p.is_hero).length - 1}
                               onClick={async () => {
-                                const heroList = products.filter((p: any) => p.is_hero).sort((a: any, b: any) => (a.hero_order || 0) - (b.hero_order || 0));
+                                const heroList = products.filter((p: Row) => p.is_hero).sort((a: Row, b: Row) => (a.hero_order || 0) - (b.hero_order || 0));
                                 if (idx >= heroList.length - 1) return;
                                 const nextItem = heroList[idx + 1];
                                 const currentOrder = item.hero_order || (idx + 1);
                                 const targetOrder = nextItem.hero_order || (idx + 2);
 
-                                await clientSafeSupabase.from("products").update({ hero_order: targetOrder }).eq("id", item.id);
-                                await clientSafeSupabase.from("products").update({ hero_order: currentOrder }).eq("id", nextItem.id);
+                                await getBrowserSupabase().from("products").update({ hero_order: targetOrder }).eq("id", item.id);
+                                await getBrowserSupabase().from("products").update({ hero_order: currentOrder }).eq("id", nextItem.id);
 
                                 setProducts(prev => prev.map(p => {
                                   if (p.id === item.id) return { ...p, hero_order: targetOrder };
@@ -3469,12 +3645,12 @@ function AdminDashboardContent() {
                   </thead>
                   <tbody className="divide-y divide-white/[0.04]">
                     {products
-                      .filter((p: any) => 
+                      .filter((p: Row) => 
                         !searchTerm || 
                         p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         p.brand.toLowerCase().includes(searchTerm.toLowerCase())
                       )
-                      .map((prod: any) => {
+                      .map((prod: Row) => {
                         const isHero = !!prod.is_hero;
                         return (
                           <tr key={prod.id} className="hover:bg-white/[0.01] transition-colors text-xs text-[#EAE3DB]">
@@ -3515,11 +3691,11 @@ function AdminDashboardContent() {
                               <button
                                 onClick={async () => {
                                   const nextState = !isHero;
-                                  const maxOrder = Math.max(...products.filter((p: any) => p.is_hero).map((p: any) => p.hero_order || 0), 0);
+                                  const maxOrder = Math.max(...products.filter((p: Row) => p.is_hero).map((p: Row) => p.hero_order || 0), 0);
                                   const newOrder = nextState ? maxOrder + 1 : 0;
 
                                   try {
-                                    const { error } = await clientSafeSupabase
+                                    const { error } = await getBrowserSupabase()
                                       .from("products")
                                       .update({ is_hero: nextState, hero_order: newOrder })
                                       .eq("id", prod.id);
@@ -3528,8 +3704,8 @@ function AdminDashboardContent() {
 
                                     setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, is_hero: nextState, hero_order: newOrder } : p));
                                     triggerToast(nextState ? `Added "${prod.name}" to homepage hero icons.` : `Removed "${prod.name}" from homepage hero.`);
-                                  } catch (err: any) {
-                                    triggerToast(`Failed to update hero status: ${err.message}`);
+                                  } catch (err) {
+                                    triggerToast(`Failed to update hero status: ${errorMessage(err)}`);
                                   }
                                 }}
                                 className={`text-[9px] font-black tracking-widest px-3 py-1.5 uppercase transition-all ${
@@ -3566,61 +3742,77 @@ function AdminDashboardContent() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              
-              {/* Blog articles editorial */}
+              {/* Editorial articles — public.blog_posts */}
               <div className="bg-[#090503] border border-white/[0.04] p-6">
                 <div className="flex justify-between items-center mb-6 border-b border-white/[0.04] pb-4">
-                  <h4 className="text-[10px] tracking-[0.2em] text-amber-500 font-black uppercase">EDITORIAL BLOG ARTICLES</h4>
-                  <button className="text-[8px] border border-white/[0.08] hover:border-amber-500 hover:text-amber-400 px-3 py-1.5 font-bold uppercase">NEW BLOG DRAFT</button>
+                  <h4 className="text-[10px] tracking-[0.2em] text-amber-500 font-black uppercase">
+                    EDITORIAL BLOG ARTICLES
+                  </h4>
+                  <span className="text-[8px] text-[#EAE3DB]/40 font-bold uppercase">
+                    {blogPosts.length} total
+                  </span>
                 </div>
-
                 <div className="flex flex-col gap-4">
-                  <div className="bg-white/[0.01] border border-white/[0.03] p-4 flex justify-between items-start">
-                    <div>
-                      <span className="text-[8px] tracking-widest text-[#EAE3DB]/40 font-black block mb-1">CMS PUBLISHED</span>
-                      <h5 className="text-[11px] tracking-widest text-[#EAE3DB] font-bold uppercase mb-1">The Ritual of Scent layering</h5>
-                      <p className="text-[9px] text-[#EAE3DB]/60 lowercase max-w-[280px] truncate">Understanding noble agarwood formulations...</p>
-                    </div>
-                    <Edit2 className="w-4 h-4 text-[#EAE3DB]/30 hover:text-amber-500 cursor-pointer" />
-                  </div>
-
-                  <div className="bg-white/[0.01] border border-white/[0.03] p-4 flex justify-between items-start">
-                    <div>
-                      <span className="text-[8px] tracking-widest text-amber-500/70 font-black block mb-1">CMS DRAFT RESERV</span>
-                      <h5 className="text-[11px] tracking-widest text-[#EAE3DB] font-bold uppercase mb-1">Bespoke Amber Droplets from Grasse</h5>
-                      <p className="text-[9px] text-[#EAE3DB]/60 lowercase max-w-[280px] truncate">Unveiling our summer alchemy catalog...</p>
-                    </div>
-                    <Edit2 className="w-4 h-4 text-[#EAE3DB]/30 hover:text-amber-500 cursor-pointer" />
-                  </div>
+                  {blogPosts.length === 0 ? (
+                    <p className="text-[9px] tracking-widest text-[#EAE3DB]/40 font-bold uppercase py-4">
+                      No articles in the database yet.
+                    </p>
+                  ) : (
+                    blogPosts.map((post) => (
+                      <div key={String(post.id)} className="bg-white/[0.01] border border-white/[0.03] p-4 flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                          <span className="text-[8px] tracking-widest text-[#EAE3DB]/40 font-black block mb-1">
+                            {post.is_published ? "PUBLISHED" : "DRAFT"}
+                          </span>
+                          <h5 className="text-[11px] tracking-widest text-[#EAE3DB] font-bold uppercase mb-1 truncate">
+                            {String(post.title)}
+                          </h5>
+                          <span className="text-[8px] text-[#EAE3DB]/40 font-bold">/blogs/{String(post.slug)}</span>
+                        </div>
+                        <a
+                          href={`/blogs/${String(post.slug)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[8px] border border-white/[0.08] hover:border-amber-500 hover:text-amber-400 px-3 py-1.5 font-bold uppercase shrink-0"
+                        >
+                          VIEW
+                        </a>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* CMS pages */}
+              {/* Static pages — public.cms_pages */}
               <div className="bg-[#090503] border border-white/[0.04] p-6">
                 <div className="flex justify-between items-center mb-6 border-b border-white/[0.04] pb-4">
-                  <h4 className="text-[10px] tracking-[0.2em] text-amber-500 font-black uppercase">CORE STAT PAGES</h4>
-                  <button className="text-[8px] border border-white/[0.08] hover:border-amber-500 hover:text-amber-400 px-3 py-1.5 font-bold uppercase">NEW STAT PAGE</button>
+                  <h4 className="text-[10px] tracking-[0.2em] text-amber-500 font-black uppercase">
+                    STATIC CMS PAGES
+                  </h4>
+                  <span className="text-[8px] text-[#EAE3DB]/40 font-bold uppercase">
+                    {cmsPages.length} total
+                  </span>
                 </div>
-
                 <div className="flex flex-col gap-4">
-                  <div className="bg-white/[0.01] border border-white/[0.03] p-4 flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] tracking-widest text-[#EAE3DB] font-bold uppercase">About La Maison</span>
-                      <span className="text-[7.5px] text-green-400 font-bold block mt-1 tracking-widest">LIVE PAGE ACTIVE</span>
-                    </div>
-                    <Edit2 className="w-4 h-4 text-[#EAE3DB]/30 hover:text-amber-500 cursor-pointer" />
-                  </div>
-
-                  <div className="bg-white/[0.01] border border-white/[0.03] p-4 flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] tracking-widest text-[#EAE3DB] font-bold uppercase">Shipping & Scent Guarding Protocols</span>
-                      <span className="text-[7.5px] text-green-400 font-bold block mt-1 tracking-widest">LIVE PAGE ACTIVE</span>
-                    </div>
-                    <Edit2 className="w-4 h-4 text-[#EAE3DB]/30 hover:text-amber-500 cursor-pointer" />
-                  </div>
+                  {cmsPages.length === 0 ? (
+                    <p className="text-[9px] tracking-widest text-[#EAE3DB]/40 font-bold uppercase py-4">
+                      No CMS pages in the database yet.
+                    </p>
+                  ) : (
+                    cmsPages.map((page) => (
+                      <div key={String(page.id)} className="bg-white/[0.01] border border-white/[0.03] p-4">
+                        <span className="text-[8px] tracking-widest text-[#EAE3DB]/40 font-black block mb-1">
+                          {page.is_published ? "PUBLISHED" : "DRAFT"}
+                        </span>
+                        <h5 className="text-[11px] tracking-widest text-[#EAE3DB] font-bold uppercase mb-1">
+                          {String(page.title)}
+                        </h5>
+                        <span className="text-[8px] text-[#EAE3DB]/40 font-bold">/{String(page.slug)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-
             </div>
           </div>
         )}
@@ -3639,50 +3831,55 @@ function AdminDashboardContent() {
               </h2>
             </div>
 
-            {/* Markets table */}
+            {/* Markets table — read from public.markets */}
             <div className="bg-white/[0.015] border border-white/[0.04] overflow-x-auto">
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-white/[0.04] text-[8.5px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black bg-white/[0.01]">
                     <th className="p-4 pl-6">REGION DESIGNATION</th>
                     <th className="p-4">BASE CURRENCY</th>
-                    <th className="p-4 text-center">LOCALIZATION LANGUAGE</th>
-                    <th className="p-4 text-right">EXCHANGE CONVERSION SCALE</th>
+                    <th className="p-4 text-center">REGIONS COVERED</th>
+                    <th className="p-4 text-right">PRICE COEFFICIENT</th>
                     <th className="p-4 pr-6 text-center">MARKET STATUS</th>
                   </tr>
                 </thead>
                 <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
-                  
-                  <tr className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
-                    <td className="p-4 pl-6 font-bold text-amber-400">MIDDLE EAST GULF (UAE)</td>
-                    <td className="p-4">AED (United Arab Emirates Dirham)</td>
-                    <td className="p-4 text-center text-[#EAE3DB]/60">ARABIC / ENGLISH</td>
-                    <td className="p-4 text-right text-[#EAE3DB] font-bold font-sans">1.00 AED BASE</td>
-                    <td className="p-4 pr-6 text-center">
-                      <span className="text-[6.5px] border border-green-800/40 bg-green-950/15 text-green-400 px-2 py-0.5 font-black tracking-widest">ACTIVE MARKET</span>
-                    </td>
-                  </tr>
-
-                  <tr className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
-                    <td className="p-4 pl-6 font-bold text-[#EAE3DB]">UNITED STATES (USA)</td>
-                    <td className="p-4">USD (United States Dollar)</td>
-                    <td className="p-4 text-center text-[#EAE3DB]/60">ENGLISH</td>
-                    <td className="p-4 text-right text-amber-200 font-bold font-sans">0.27 USD SCALE</td>
-                    <td className="p-4 pr-6 text-center">
-                      <span className="text-[6.5px] border border-green-800/40 bg-green-950/15 text-green-400 px-2 py-0.5 font-black tracking-widest">ACTIVE MARKET</span>
-                    </td>
-                  </tr>
-
-                  <tr className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
-                    <td className="p-4 pl-6 font-bold text-[#EAE3DB]">EUROPE UNION (EU)</td>
-                    <td className="p-4">EUR (Euro)</td>
-                    <td className="p-4 text-center text-[#EAE3DB]/60">FRENCH / GERMAN</td>
-                    <td className="p-4 text-right text-amber-200 font-bold font-sans">0.25 EUR SCALE</td>
-                    <td className="p-4 pr-6 text-center">
-                      <span className="text-[6.5px] border border-green-800/40 bg-green-950/15 text-green-400 px-2 py-0.5 font-black tracking-widest">ACTIVE MARKET</span>
-                    </td>
-                  </tr>
-
+                  {markets.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-[9px] text-[#EAE3DB]/40 font-bold">
+                        No markets configured yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    markets.map((mkt) => {
+                      const regions = Array.isArray(mkt.regions) ? mkt.regions : [];
+                      const active = mkt.is_active !== false;
+                      const coeff = parseFloat(String(mkt.price_adjustment_coefficient ?? 1)) || 1;
+                      return (
+                        <tr key={String(mkt.id)} className="border-b border-white/[0.04]">
+                          <td className="p-4 pl-6 font-bold text-amber-400">{String(mkt.name || "—")}</td>
+                          <td className="p-4">
+                            {String(mkt.currency_code || "")} {mkt.currency_symbol ? `(${String(mkt.currency_symbol)})` : ""}
+                          </td>
+                          <td className="p-4 text-center text-[#EAE3DB]/60">
+                            {regions.length > 0 ? `${regions.length} REGION${regions.length === 1 ? "" : "S"}` : "—"}
+                          </td>
+                          <td className="p-4 text-right text-[#EAE3DB] font-bold font-sans">
+                            {coeff.toFixed(2)} × AED
+                          </td>
+                          <td className="p-4 pr-6 text-center">
+                            <span className={`text-[8px] border px-2.5 py-1 font-black ${
+                              active
+                                ? "border-green-600/35 bg-green-500/10 text-green-700"
+                                : "border-white/[0.08] bg-white/[0.02] text-[#EAE3DB]/40"
+                            }`}>
+                              {active ? "ACTIVE" : "DISABLED"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -3692,7 +3889,49 @@ function AdminDashboardContent() {
         {/* ========================================================
             TAB: ANALYTICS REPORTS
             ======================================================== */}
-        {currentTab === "analytics" && (
+        {currentTab === "analytics" && (() => {
+          // Derived from public.analytics_events and the live order book —
+          // these figures used to be hardcoded ("14,200 Operators").
+          const sessionsFor = (type: string) =>
+            new Set(
+              analyticsEvents
+                .filter((ev) => String(ev.event_type) === type)
+                .map((ev) => String(ev.session_id))
+            ).size;
+
+          const funnel = [
+            { label: "Storefront visits", count: sessionsFor("view") },
+            { label: "Added to bag", count: sessionsFor("cart_add") },
+            { label: "Reached checkout", count: sessionsFor("checkout") },
+            { label: "Completed purchases", count: orders.length || sessionsFor("purchase") },
+          ];
+          const top = funnel[0].count || 1;
+
+          // Olfactory share: real sold units where we have them, else the
+          // catalogue's own composition (labelled as such, never as sales).
+          const soldByGroup: Record<string, number> = {};
+          orderItems.forEach((item) => {
+            const prod = products.find((pr) => pr.id === item.product_id);
+            const group = String(prod?.olfactory_group || "").trim();
+            if (group) soldByGroup[group] = (soldByGroup[group] || 0) + (Number(item.quantity) || 0);
+          });
+          const usingSales = Object.keys(soldByGroup).length > 0;
+          const groupTally = usingSales ? soldByGroup : products.reduce((acc: Record<string, number>, pr) => {
+            const group = String(pr.olfactory_group || "").trim();
+            if (group) acc[group] = (acc[group] || 0) + 1;
+            return acc;
+          }, {});
+          const groupTotal = Object.values(groupTally).reduce((a, b) => a + b, 0) || 1;
+          const palette = ["#e6a86c", "#d97706", "#78350f", "#b45309", "#8C6239", "#5C4E46"];
+          const groups = Object.entries(groupTally)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([name, n], i) => ({ name, n, pct: (n / groupTotal) * 100, color: palette[i % palette.length] }));
+
+          const CIRC = 2 * Math.PI * 40;
+          let offset = 0;
+
+          return (
           <div className="flex flex-col gap-8">
             <div>
               <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
@@ -3704,87 +3943,88 @@ function AdminDashboardContent() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
               {/* Funnel conversion */}
               <div className="bg-white/[0.015] border border-white/[0.04] p-6">
-                <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-6">CURATED VISITATION FUNNEL SCALE</h4>
-                
-                <div className="flex flex-col gap-4 text-[10px] font-bold tracking-wider uppercase">
-                  
-                  <div>
-                    <div className="flex justify-between mb-1.5">
-                      <span>1. Storefront Visitors (100%)</span>
-                      <span className="text-[#EAE3DB]/50">14,200 Operators</span>
-                    </div>
-                    <div className="w-full h-3 bg-white/5 relative">
-                      <div className="absolute top-0 left-0 bottom-0 bg-amber-600 w-full" />
-                    </div>
+                <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-6">
+                  VISITATION FUNNEL
+                </h4>
+                {analyticsEvents.length === 0 && orders.length === 0 ? (
+                  <p className="text-[9px] tracking-widest text-[#EAE3DB]/40 font-bold uppercase py-6">
+                    No analytics events recorded yet.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-4 text-[10px] font-bold tracking-wider uppercase">
+                    {funnel.map((stage, i) => {
+                      const pct = Math.min(100, (stage.count / top) * 100);
+                      return (
+                        <div key={stage.label}>
+                          <div className={`flex justify-between mb-1.5 ${i === funnel.length - 1 ? "text-amber-400" : ""}`}>
+                            <span>{i + 1}. {stage.label} ({pct.toFixed(1)}%)</span>
+                            <span className="text-[#EAE3DB]/50">{stage.count.toLocaleString()}</span>
+                          </div>
+                          <div className="w-full h-3 bg-white/5 relative">
+                            <div
+                              className={`absolute top-0 left-0 bottom-0 ${i === funnel.length - 1 ? "bg-amber-500" : "bg-amber-600"}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-
-                  <div>
-                    <div className="flex justify-between mb-1.5">
-                      <span>2. Perfume Selection clicks (56%)</span>
-                      <span className="text-[#EAE3DB]/50">7,952 Operators</span>
-                    </div>
-                    <div className="w-full h-3 bg-white/5 relative">
-                      <div className="absolute top-0 left-0 bottom-0 bg-amber-600/70 w-[56%]" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between mb-1.5">
-                      <span>3. Added to curation bag (18%)</span>
-                      <span className="text-[#EAE3DB]/50">2,556 Operators</span>
-                    </div>
-                    <div className="w-full h-3 bg-white/5 relative">
-                      <div className="absolute top-0 left-0 bottom-0 bg-amber-600/50 w-[18%]" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between mb-1.5 text-amber-400">
-                      <span>4. Completed secure purchases (3.4%)</span>
-                      <span className="text-amber-200">482 Transactions</span>
-                    </div>
-                    <div className="w-full h-3 bg-white/5 relative">
-                      <div className="absolute top-0 left-0 bottom-0 bg-amber-500 w-[3.4%]" />
-                    </div>
-                  </div>
-
-                </div>
+                )}
               </div>
 
               {/* Scent profiles share */}
               <div className="bg-white/[0.015] border border-white/[0.04] p-6">
-                <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-6">OLFACTORY PREFERENCE DISTRIB</h4>
-                
-                <div className="flex items-center gap-8 py-2">
-                  <svg className="w-36 h-36" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="#e6a86c" strokeWidth="15" strokeDasharray="140 110" />
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="#d97706" strokeWidth="15" strokeDasharray="70 180" strokeDashoffset="140" />
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="#78350f" strokeWidth="15" strokeDasharray="40 210" strokeDashoffset="210" />
-                  </svg>
+                <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-2">
+                  OLFACTORY DISTRIBUTION
+                </h4>
+                <p className="text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase mb-6">
+                  {usingSales ? "By units sold" : "By catalogue composition — no sales recorded yet"}
+                </p>
 
-                  <div className="flex flex-col gap-3.5 text-[9px] tracking-widest font-black uppercase text-[#EAE3DB]/60">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-[#e6a86c]" />
-                      <span>Woody & Oud (55%)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-[#d97706]" />
-                      <span>Amber & Oriental (28%)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-[#78350f]" />
-                      <span>Fresh & Floral (17%)</span>
+                {groups.length === 0 ? (
+                  <p className="text-[9px] tracking-widest text-[#EAE3DB]/40 font-bold uppercase py-6">
+                    No olfactory data available.
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-8 py-2 flex-wrap">
+                    <svg className="w-36 h-36" viewBox="0 0 100 100">
+                      {groups.map((g) => {
+                        const len = (g.pct / 100) * CIRC;
+                        const dash = `${len} ${CIRC - len}`;
+                        const thisOffset = offset;
+                        offset += len;
+                        return (
+                          <circle
+                            key={g.name}
+                            cx="50" cy="50" r="40" fill="none"
+                            stroke={g.color} strokeWidth="15"
+                            strokeDasharray={dash}
+                            strokeDashoffset={-thisOffset}
+                            transform="rotate(-90 50 50)"
+                          />
+                        );
+                      })}
+                    </svg>
+
+                    <div className="flex flex-col gap-3.5 text-[9px] tracking-widest font-black uppercase text-[#EAE3DB]/60">
+                      {groups.map((g) => (
+                        <div key={g.name} className="flex items-center gap-2">
+                          <div className="w-3 h-3" style={{ backgroundColor: g.color }} />
+                          <span>{g.name} ({g.pct.toFixed(0)}%)</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ========================================================
             TAB: COLLECTIONS REGISTRY
@@ -3827,7 +4067,7 @@ function AdminDashboardContent() {
                           src={col.cover_image || "/campaign-gold.png"}
                           alt={col.title}
                           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                          onError={(e: any) => { e.target.src = "/campaign-gold.png"; }}
+                          onError={(e: Row) => { e.target.src = "/campaign-gold.png"; }}
                         />
                         <div className="absolute top-2 right-2 flex gap-1">
                           <span className={`text-[6.5px] font-black tracking-widest px-2 py-0.5 border ${
@@ -3851,9 +4091,9 @@ function AdminDashboardContent() {
                       {(col.type || "manual") === "automated" && col.rules && col.rules.length > 0 && (
                         <div className="bg-white/[0.02] border border-white/[0.04] p-2.5 mb-4 text-[7.5px] font-black tracking-wider uppercase flex flex-col gap-1">
                           <span className="text-amber-500/70">AUTOMATION LOGIC STATUS:</span>
-                          {col.rules.map((rule: any, idx: number) => (
+                          {col.rules.map((rule: Row, idx: number) => (
                             <span key={idx} className="text-[#EAE3DB]/80 block font-mono">
-                              • Product {rule.field} {rule.relation} '{rule.value}'
+                              • Product {rule.field} {rule.relation} &apos;{rule.value}&apos;
                             </span>
                           ))}
                         </div>
@@ -3903,7 +4143,7 @@ function AdminDashboardContent() {
                         onClick={async () => {
                           if (confirm(`Are you sure you want to deregister this collection?`)) {
                             try {
-                              await clientSafeSupabase.from("collections").delete().eq("id", col.id);
+                              await getBrowserSupabase().from("collections").delete().eq("id", col.id);
                               setCollections(prev => prev.filter(c => c.id !== col.id));
                               triggerToast(`Successfully removed collection: ${col.title}`);
                             } catch (err) {
@@ -4010,7 +4250,7 @@ function AdminDashboardContent() {
                                       const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
                                       const filePath = `covers/${fileName}`;
 
-                                      const { data, error } = await clientSafeSupabase.storage
+                                      const { data, error } = await getBrowserSupabase().storage
                                         .from('collection-covers')
                                         .upload(filePath, uploadFile);
 
@@ -4019,7 +4259,7 @@ function AdminDashboardContent() {
                                         return;
                                       }
 
-                                      const { data: { publicUrl } } = clientSafeSupabase.storage
+                                      const { data: { publicUrl } } = getBrowserSupabase().storage
                                         .from('collection-covers')
                                         .getPublicUrl(filePath);
 
@@ -4029,9 +4269,9 @@ function AdminDashboardContent() {
                                       } else {
                                         triggerToast("Failed to retrieve public URL from Supabase.");
                                       }
-                                    } catch (err: any) {
+                                    } catch (err) {
                                       console.error("Storage upload failed", err);
-                                      triggerToast(`Upload error: ${err.message || "Unknown error"}`);
+                                      triggerToast(`Upload error: ${errorMessage(err, "Unknown error")}`);
                                     }
                                   };
 
@@ -4184,7 +4424,7 @@ function AdminDashboardContent() {
                           )
                           .map(prod => {
                           const isAssigned = productCollections.some(
-                            (pc: any) => pc.product_id === prod.id && pc.collection_id === selectedManageCollection.id
+                            (pc: Row) => pc.product_id === prod.id && pc.collection_id === selectedManageCollection.id
                           );
                           return (
                             <div 
@@ -4192,17 +4432,17 @@ function AdminDashboardContent() {
                               onClick={async () => {
                                 try {
                                   if (isAssigned) {
-                                    await clientSafeSupabase
+                                    await getBrowserSupabase()
                                       .from("product_collections")
                                       .delete()
                                       .match({ product_id: prod.id, collection_id: selectedManageCollection.id });
                                     setProductCollections(prev => prev.filter(
-                                      (pc: any) => !(pc.product_id === prod.id && pc.collection_id === selectedManageCollection.id)
+                                      (pc: Row) => !(pc.product_id === prod.id && pc.collection_id === selectedManageCollection.id)
                                     ));
                                     triggerToast(`Deregistered ${prod.name} from collection.`);
                                   } else {
                                     const newMapping = { product_id: prod.id, collection_id: selectedManageCollection.id };
-                                    await clientSafeSupabase.from("product_collections").insert(newMapping);
+                                    await getBrowserSupabase().from("product_collections").insert(newMapping);
                                     setProductCollections(prev => [...prev, newMapping]);
                                     triggerToast(`Successfully assigned ${prod.name} to collection.`);
                                   }
@@ -4362,7 +4602,7 @@ function AdminDashboardContent() {
   );
 }
 
-export default function AdminPage() {
+export default function AdminDashboard() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#070301] flex items-center justify-center flex-col gap-4">

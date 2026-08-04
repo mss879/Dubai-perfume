@@ -1,13 +1,30 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Lock, Mail, Eye, EyeOff, Loader2, ShieldCheck, AlertCircle } from "lucide-react";
-import { clientSafeSupabase } from "../../lib/supabase";
+import { getBrowserSupabase } from "../../lib/supabase-browser";
 
-export default function AdminSignIn() {
+/**
+ * `customers.is_admin` is the only thing that grants access. Email substrings
+ * and `user_metadata.is_admin` are client-forgeable and are no longer trusted;
+ * the server re-checks the same column in src/app/lib/auth.ts before any admin
+ * markup is rendered, and RLS enforces it on every query.
+ */
+async function isVerifiedAdmin(userId: string): Promise<boolean> {
+  const { data, error } = await getBrowserSupabase()
+    .from("customers")
+    .select("is_admin")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) return false;
+  return Boolean((data as { is_admin?: boolean } | null)?.is_admin);
+}
+
+function AdminSignInForm({ redirectTo }: { redirectTo: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,16 +33,15 @@ export default function AdminSignIn() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if already signed in as admin, redirect directly if so
+    // Already signed in as a verified admin? Skip the form.
     const checkActiveAdmin = async () => {
-      const { data: { user } } = await clientSafeSupabase.auth.getUser();
-      const role = localStorage.getItem("userRole");
-      if (user && (user.user_metadata?.is_admin || role === "admin")) {
-        router.push("/admin");
+      const { data: { user } } = await getBrowserSupabase().auth.getUser();
+      if (user && (await isVerifiedAdmin(user.id))) {
+        router.replace(redirectTo);
       }
     };
     checkActiveAdmin();
-  }, [router]);
+  }, [router, redirectTo]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +49,8 @@ export default function AdminSignIn() {
     setLoading(true);
 
     try {
-      const { data, error } = await clientSafeSupabase.auth.signInWithPassword({
+      const supabase = getBrowserSupabase();
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: password
       });
@@ -44,43 +61,21 @@ export default function AdminSignIn() {
         return;
       }
 
-      // Assert admin status
       const user = data?.user;
-      let isAdmin = false;
-
-      if (user) {
-        // Query the customers table directly to verify is_admin
-        const { data: profile } = await clientSafeSupabase
-          .from("customers")
-          .select("is_admin")
-          .eq("id", user.id);
-        
-        const dbIsAdmin = profile && profile[0]?.is_admin;
-        isAdmin = dbIsAdmin || user.user_metadata?.is_admin || email.toLowerCase().includes("admin");
-
-        if (isAdmin && typeof window !== "undefined") {
-          localStorage.setItem("userEmail", email);
-          localStorage.setItem("userRole", "admin");
-          localStorage.setItem("userId", user.id);
-        }
-      }
+      const isAdmin = user ? await isVerifiedAdmin(user.id) : false;
 
       if (!isAdmin) {
         // Strict isolation: non-admins are blocked and immediately signed out
-        await clientSafeSupabase.auth.signOut();
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("userEmail");
-          localStorage.removeItem("userRole");
-          localStorage.removeItem("userId");
-        }
+        await supabase.auth.signOut();
         setErrorMsg("ACCESS DENIED: The credentials provided do not have administrator clearance.");
         setLoading(false);
         return;
       }
 
-      // Success, route to admin home panel
-      router.push("/admin");
-    } catch (err) {
+      // Success. refresh() lets the server layout observe the new session cookie.
+      router.replace(redirectTo);
+      router.refresh();
+    } catch {
       setErrorMsg("An error occurred during authentication. Please check network configurations.");
       setLoading(false);
     }
@@ -232,10 +227,34 @@ export default function AdminSignIn() {
           <svg className="w-3 h-3 text-amber-500/40" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
           </svg>
-          MILITARY SHIELD SECURE
+          ADMIN ACCESS RESTRICTED
         </div>
       </footer>
 
     </div>
   );
+}
+
+export default function AdminSignIn() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#070301] flex items-center justify-center">
+          <Loader2 className="w-6 h-6 text-amber-500 animate-spin" />
+        </div>
+      }
+    >
+      <AdminSignInGate />
+    </Suspense>
+  );
+}
+
+function AdminSignInGate() {
+  const searchParams = useSearchParams();
+  const requested = searchParams.get("redirect") || "/admin";
+  // Only allow same-origin admin paths back through, so ?redirect= cannot be
+  // used to bounce an authenticated admin to an attacker-controlled URL.
+  const redirectTo = requested.startsWith("/admin") ? requested : "/admin";
+
+  return <AdminSignInForm redirectTo={redirectTo} />;
 }

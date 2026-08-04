@@ -1,10 +1,19 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { clientSafeSupabase } from "../lib/supabase";
 import AppHeader from "../components/AppHeader";
+import Footer from "../components/Footer";
+import { createServerSupabase, isSupabaseConfigured } from "../lib/supabase-server";
+
+/* Never bake stale catalogue data into the build. */
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Maisons",
+  description:
+    "Every house we carry, with its complete line-up in one place — from the Rasasi Hawas signature range to Lattafa, Armaf, French Avenue, Afnan and Al Haramain.",
+  alternates: { canonical: "/collections" },
+};
 
 interface DbCollection {
   id: string;
@@ -45,54 +54,47 @@ const tileArt = (c: DbCollection): { src: string; fit: "cover" | "contain" } | n
   return null;
 };
 
-export default function CollectionsIndexPage() {
-  const [loading, setLoading] = useState(true);
-  const [brands, setBrands] = useState<DbCollection[]>([]);
-  const [curated, setCurated] = useState<DbCollection[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [lineCounts, setLineCounts] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [{ data: dbCollections, error: collectionsError }, { data: dbMappings }] =
-          await Promise.all([
-            clientSafeSupabase.from("collections").select(COLLECTION_FIELDS),
-            clientSafeSupabase.from("product_collections").select("collection_id, product_id")
-          ]);
-
-        if (collectionsError) throw collectionsError;
-
-        const all: DbCollection[] = Array.isArray(dbCollections) ? dbCollections : [];
-        const mappings: CollectionMapping[] = Array.isArray(dbMappings) ? dbMappings : [];
-
-        const tally: Record<string, number> = {};
-        mappings.forEach((m) => {
-          tally[m.collection_id] = (tally[m.collection_id] || 0) + 1;
-        });
-        setCounts(tally);
-
-        const linesPerBrand: Record<string, number> = {};
-        all
-          .filter((c) => c.kind === "line" && c.parent_id)
-          .forEach((c) => {
-            linesPerBrand[c.parent_id as string] = (linesPerBrand[c.parent_id as string] || 0) + 1;
-          });
-        setLineCounts(linesPerBrand);
-
-        setBrands(
-          all.filter((c) => c.kind === "brand").sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-        );
-        setCurated(all.filter((c) => !c.kind || c.kind === "curated"));
-      } catch (err) {
-        console.error("Error loading collections:", err);
-      } finally {
-        setLoading(false);
-      }
+async function fetchCollections(): Promise<{
+  collections: DbCollection[];
+  mappings: CollectionMapping[];
+}> {
+  if (!isSupabaseConfigured) return { collections: [], mappings: [] };
+  try {
+    const supabase = createServerSupabase();
+    const [collectionsRes, mappingsRes] = await Promise.all([
+      supabase.from("collections").select(COLLECTION_FIELDS),
+      supabase.from("product_collections").select("collection_id, product_id"),
+    ]);
+    if (collectionsRes.error) throw collectionsRes.error;
+    return {
+      collections: Array.isArray(collectionsRes.data) ? (collectionsRes.data as DbCollection[]) : [],
+      mappings: Array.isArray(mappingsRes.data) ? (mappingsRes.data as CollectionMapping[]) : [],
     };
-    load();
-  }, []);
+  } catch (err) {
+    console.error("Error loading collections:", err);
+    return { collections: [], mappings: [] };
+  }
+}
+
+export default async function CollectionsIndexPage() {
+  const { collections, mappings } = await fetchCollections();
+
+  const counts: Record<string, number> = {};
+  mappings.forEach((m) => {
+    counts[m.collection_id] = (counts[m.collection_id] || 0) + 1;
+  });
+
+  const lineCounts: Record<string, number> = {};
+  collections
+    .filter((c) => c.kind === "line" && c.parent_id)
+    .forEach((c) => {
+      lineCounts[c.parent_id as string] = (lineCounts[c.parent_id as string] || 0) + 1;
+    });
+
+  const brands = collections
+    .filter((c) => c.kind === "brand")
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  const curated = collections.filter((c) => !c.kind || c.kind === "curated");
 
   return (
     <div className="maison min-h-screen">
@@ -120,26 +122,7 @@ export default function CollectionsIndexPage() {
       {/* ═══ HOUSE TILES ═══ */}
       <section className="maison-section">
         <div className="maison-container">
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-16">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex flex-col items-center">
-                  <div
-                    className="w-full aspect-[4/5]"
-                    style={{ backgroundColor: "var(--surface-2)" }}
-                  />
-                  <div
-                    className="h-4 w-40 mt-7"
-                    style={{ backgroundColor: "var(--surface-2)" }}
-                  />
-                  <div
-                    className="h-3 w-28 mt-4"
-                    style={{ backgroundColor: "var(--surface-2)" }}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : brands.length === 0 ? (
+          {brands.length === 0 ? (
             <div className="text-center py-20">
               <h2 className="font-display text-[20px] uppercase tracking-[0.08em]">
                 No houses to show
@@ -211,7 +194,7 @@ export default function CollectionsIndexPage() {
       </section>
 
       {/* ═══ CURATED COLLECTIONS ═══ */}
-      {!loading && curated.length > 0 && (
+      {curated.length > 0 && (
         <>
           <div className="maison-container">
             <hr className="maison-rule" />
@@ -240,6 +223,9 @@ export default function CollectionsIndexPage() {
           </section>
         </>
       )}
+
+      {/* Main App Footer */}
+      <Footer />
     </div>
   );
 }

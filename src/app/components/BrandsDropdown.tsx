@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { toTitleCase } from "../lib/catalogue";
 
 /* A maison, exactly as the `collections` table stores it (kind = 'brand').
    Nothing here is invented locally — AppHeader reads the rows and passes them
@@ -25,18 +26,11 @@ interface BrandsDropdownProps {
    *  Optional so a caller that has not fetched yet renders an empty menu
    *  rather than crashing the page that contains it. */
   brands?: BrandItem[];
-  /** Legacy prop — the mega-menu is always the white maison panel. */
-  isDarkTheme?: boolean;
 }
 
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
 /* "AL HARAMAIN" → "Al Haramain" */
-const toTitleCase = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/(^|[\s-])([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toUpperCase());
-
 export default function BrandsDropdown({
   isOpen,
   onClose,
@@ -66,13 +60,14 @@ export default function BrandsDropdown({
             <div className={featuredTiles.length > 0 ? "col-span-12 lg:col-span-4" : "col-span-12"}>
               <p className="maison-eyebrow mb-7">Maisons</p>
 
-              <ul>
+              <ul role="menu" aria-label="Maisons">
                 {brands.map((brand) => (
-                  <li key={brand.id}>
+                  <li key={brand.id} role="none">
                     <Link
+                      role="menuitem"
                       href={`/collection/${brand.id}`}
                       onClick={onClose}
-                      className="inline-block py-2.5 text-[15px] font-[350] tracking-[0.02em] text-black leading-none decoration-1 underline-offset-[6px] transition-opacity duration-300 hover:underline"
+                      className="inline-block py-2.5 text-[15px] font-[350] tracking-[0.02em] text-black leading-none decoration-1 underline-offset-[6px] transition-opacity duration-300 hover:underline focus-visible:underline"
                     >
                       {toTitleCase(brand.title)}
                     </Link>

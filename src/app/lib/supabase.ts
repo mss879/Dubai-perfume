@@ -1,4 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * Dev-only localStorage stand-in for PostgREST. It mimics a schemaless HTTP API
+ * across ~15 tables, so rows genuinely have no static shape; the looseness is
+ * named once here instead of scattered as `any` through the file.
+ *
+ * This module refuses to load in production builds (see the guard at the foot
+ * of the file) — it exists only so the app runs without Supabase env vars.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = Record<string, any>;
+
+type Credentials = { email: string; password: string };
+type SignUpArgs = Credentials & { options?: { data?: Row } };
 
 // Check if credentials exist in the environment
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -9,7 +24,7 @@ const isRealSupabaseConfigured = supabaseUrl && supabaseAnonKey;
 // Real Client initialization
 export const supabase = isRealSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : (null as any);
+  : (null as unknown as SupabaseClient);
 
 // Mock Database Storage seeded with migrations mock data
 const SEED_PRODUCTS = [
@@ -133,7 +148,7 @@ const SEED_PRODUCT_COLLECTIONS = [
 ];
 
 // Seed browser storage if keys are absent
-const getLocalStorage = (key: string, defaultValue: any) => {
+const getLocalStorage = (key: string, defaultValue: unknown) => {
   if (typeof window === "undefined") return defaultValue;
   const stored = localStorage.getItem(key);
   if (!stored) {
@@ -143,7 +158,7 @@ const getLocalStorage = (key: string, defaultValue: any) => {
   return JSON.parse(stored);
 };
 
-const setLocalStorage = (key: string, value: any) => {
+const setLocalStorage = (key: string, value: unknown) => {
   if (typeof window !== "undefined") {
     localStorage.setItem(key, JSON.stringify(value));
   }
@@ -151,19 +166,19 @@ const setLocalStorage = (key: string, value: any) => {
 
 
 // Sync functions to mimic database triggers for automated collections
-const syncMockAutomatedCollections = (product: any) => {
+const syncMockAutomatedCollections = (product: Row) => {
   const collections = getLocalStorage("mock_collections", SEED_COLLECTIONS);
   let mappings = getLocalStorage("mock_product_collections", SEED_PRODUCT_COLLECTIONS);
   
   // 1. Remove this product's links to automated collections
-  const automatedCollectionIds = collections.filter((c: any) => (c.type || "manual") === "automated").map((c: any) => c.id);
-  mappings = mappings.filter((m: any) => !(m.product_id === product.id && automatedCollectionIds.includes(m.collection_id)));
+  const automatedCollectionIds = collections.filter((c: Row) => (c.type || "manual") === "automated").map((c: Row) => c.id);
+  mappings = mappings.filter((m: Row) => !(m.product_id === product.id && automatedCollectionIds.includes(m.collection_id)));
   
   // 2. For each automated collection, evaluate tags
-  collections.filter((c: any) => (c.type || "manual") === "automated").forEach((col: any) => {
+  collections.filter((c: Row) => (c.type || "manual") === "automated").forEach((col: Row) => {
     let matches = false;
     if (Array.isArray(col.rules)) {
-      col.rules.forEach((rule: any) => {
+      col.rules.forEach((rule: Row) => {
         if (rule.field === "tag" && rule.relation === "equals") {
           if (Array.isArray(product.tags) && product.tags.includes(rule.value)) {
             matches = true;
@@ -173,7 +188,7 @@ const syncMockAutomatedCollections = (product: any) => {
     }
     
     if (matches) {
-      if (!mappings.some((m: any) => m.product_id === product.id && m.collection_id === col.id)) {
+      if (!mappings.some((m: Row) => m.product_id === product.id && m.collection_id === col.id)) {
         mappings.push({ product_id: product.id, collection_id: col.id });
       }
     }
@@ -182,18 +197,18 @@ const syncMockAutomatedCollections = (product: any) => {
   setLocalStorage("mock_product_collections", mappings);
 };
 
-const syncMockProductsForCollection = (collection: any) => {
+const syncMockProductsForCollection = (collection: Row) => {
   if ((collection.type || "manual") !== "automated") return;
   const products = getLocalStorage("mock_products", SEED_PRODUCTS);
   let mappings = getLocalStorage("mock_product_collections", SEED_PRODUCT_COLLECTIONS);
   
   // Clear existing mappings for this collection
-  mappings = mappings.filter((m: any) => m.collection_id !== collection.id);
+  mappings = mappings.filter((m: Row) => m.collection_id !== collection.id);
   
-  products.forEach((prod: any) => {
+  products.forEach((prod: Row) => {
     let matches = false;
     if (Array.isArray(collection.rules)) {
-      collection.rules.forEach((rule: any) => {
+      collection.rules.forEach((rule: Row) => {
         if (rule.field === "tag" && rule.relation === "equals") {
           if (Array.isArray(prod.tags) && prod.tags.includes(rule.value)) {
             matches = true;
@@ -213,15 +228,15 @@ const syncMockProductsForCollection = (collection: any) => {
 class MockSupabaseClient {
   storage = {
     from: (bucket: string) => ({
-      upload: async (path: string, file: any) => ({ data: { path }, error: null }),
+      upload: async (path: string, file: unknown) => ({ data: { path }, error: null }),
       getPublicUrl: (path: string) => ({ data: { publicUrl: "" } })
     })
   };
 
   auth = {
-    signUp: async ({ email, password, options }: any) => {
+    signUp: async ({ email, password, options }: SignUpArgs) => {
       const customers = getLocalStorage("mock_customers", SEED_CUSTOMERS);
-      if (customers.some((c: any) => c.email === email)) {
+      if (customers.some((c: Row) => c.email === email)) {
         return { data: null, error: { message: "User already exists." } };
       }
       const newCustomer = {
@@ -244,19 +259,17 @@ class MockSupabaseClient {
       }
       return { data: { user: { id: newCustomer.id, email } }, error: null };
     },
-    signInWithPassword: async ({ email, password }: any) => {
+    signInWithPassword: async ({ email }: Credentials) => {
       const customers = getLocalStorage("mock_customers", SEED_CUSTOMERS);
-      const user = customers.find((c: any) => c.email === email);
+      const user = customers.find((c: Row) => c.email === email);
       if (!user) {
         return { data: null, error: { message: "Invalid email or password." } };
       }
-      // Simple custom validation: passwords ending in '123' or 'admin' or just allow for mocks
-      if (email.includes("admin") && password !== "admin123") {
-        return { data: null, error: { message: "Unauthorized admin password." } };
-      }
+      // Admin in this dev fixture comes from the seeded row's `is_admin`, never
+      // from the email string — the real app derives it the same way, and any
+      // email-substring rule here would only mislead someone reading this file.
       if (typeof window !== "undefined") {
         localStorage.setItem("userEmail", email);
-        localStorage.setItem("userRole", user.is_admin ? "admin" : "customer");
         localStorage.setItem("userId", user.id);
       }
       return { data: { user: { id: user.id, email, user_metadata: { is_admin: user.is_admin } } }, error: null };
@@ -285,7 +298,7 @@ class MockSupabaseClient {
         }
       };
     },
-    updateUser: async ({ password }: any) => {
+    updateUser: async ({ password }: { password: string }) => {
       // In mock mode, password update succeeds immediately
       return { data: { user: {} }, error: null };
     }
@@ -310,7 +323,7 @@ class MockSupabaseClient {
       }
     };
 
-    const setTableData = (data: any) => {
+    const setTableData = (data: Row) => {
       switch (table) {
         case "products": setLocalStorage("mock_products", data); break;
         case "collections": setLocalStorage("mock_collections", data); break;
@@ -333,7 +346,7 @@ class MockSupabaseClient {
       select: (fields?: string) => {
         return queryBuilder;
       },
-      insert: (rows: any) => {
+      insert: (rows: Row) => {
         const insertRows = Array.isArray(rows) ? rows : [rows];
         const updated = [...data, ...insertRows];
         setTableData(updated);
@@ -348,11 +361,11 @@ class MockSupabaseClient {
         
         return queryBuilder;
       },
-      upsert: (rows: any) => {
+      upsert: (rows: Row) => {
         const upsertRows = Array.isArray(rows) ? rows : [rows];
-        let updated = [...data];
-        upsertRows.forEach((row: any) => {
-          const idx = updated.findIndex((r: any) => r.id === row.id);
+        const updated = [...data];
+        upsertRows.forEach((row: Row) => {
+          const idx = updated.findIndex((r: Row) => r.id === row.id);
           if (idx > -1) {
             updated[idx] = { ...updated[idx], ...row };
           } else {
@@ -371,10 +384,10 @@ class MockSupabaseClient {
         
         return queryBuilder;
       },
-      update: (values: any) => {
+      update: (values: Row) => {
         return {
-          eq: (field: string, value: any) => {
-            const updated = data.map((row: any) => {
+          eq: (field: string, value: unknown) => {
+            const updated = data.map((row: Row) => {
               if (row[field] === value) {
                 return { ...row, ...values };
               }
@@ -388,44 +401,53 @@ class MockSupabaseClient {
       },
       delete: () => {
         const deleteBuilder = {
-          eq: (field: string, value: any) => {
-            const updated = data.filter((row: any) => row[field] !== value);
+          eq: (field: string, value: unknown) => {
+            const updated = data.filter((row: Row) => row[field] !== value);
             setTableData(updated);
             data = updated;
             return deleteBuilder;
           },
-          match: (criteria: any) => {
-            const updated = data.filter((row: any) => {
+          match: (criteria: Row) => {
+            const updated = data.filter((row: Row) => {
               return !Object.keys(criteria).every(key => row[key] == criteria[key]);
             });
             setTableData(updated);
             data = updated;
             return deleteBuilder;
           },
-          then: (onfulfilled: any) => {
+          then: (onfulfilled: (result: { data: Row[]; error: null }) => unknown) => {
             return Promise.resolve(onfulfilled({ data, error: null }));
           }
         };
         return deleteBuilder;
       },
-      eq: (field: string, value: any) => {
-        data = data.filter((row: any) => row[field] == value);
+      eq: (field: string, value: unknown) => {
+        data = data.filter((row: Row) => row[field] == value);
         return queryBuilder;
       },
-      match: (criteria: any) => {
-        data = data.filter((row: any) => {
+      match: (criteria: Row) => {
+        data = data.filter((row: Row) => {
           return Object.keys(criteria).every(key => row[key] == criteria[key]);
         });
         return queryBuilder;
       },
       // Promise resolve methods to allow `await supabase.from(...)` syntax
-      then: (onfulfilled: any) => {
+      then: (onfulfilled: (result: { data: Row[]; error: null }) => unknown) => {
         return Promise.resolve(onfulfilled({ data, error: null }));
       }
     };
 
     return queryBuilder;
   }
+}
+
+// The localStorage mock is a development sandbox only. A production build
+// without real Supabase credentials must fail loudly instead of silently
+// serving a fake store with no password verification.
+if (!isRealSupabaseConfigured && process.env.NODE_ENV === "production") {
+  throw new Error(
+    "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set in production."
+  );
 }
 
 // Global exported client interface, checking configuration or fallbacks

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,7 +16,9 @@ import {
   ChevronRight,
 } from "lucide-react";
 import BrandsDropdown, { type BrandItem } from "./BrandsDropdown";
-import { clientSafeSupabase } from "../lib/supabase";
+import { getBrowserSupabase } from "../lib/supabase-browser";
+import { useCart } from "../lib/cart";
+import { toTitleCase } from "../lib/catalogue";
 
 export interface AppHeaderProps {
   activePage?: "home" | "brands" | "shop" | "blogs" | "contact" | "wishlist";
@@ -41,11 +44,6 @@ const NAV_ITEMS: { key: NavKey; label: string; href: string }[] = [
 ];
 
 /* Title-case a stored brand name ("AL HARAMAIN" → "Al Haramain") */
-const toTitleCase = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/(^|[\s-])([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toUpperCase());
-
 export default function AppHeader({ activePage }: AppHeaderProps) {
   const router = useRouter();
 
@@ -61,16 +59,20 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
   const [brandCollections, setBrandCollections] = useState<BrandItem[]>([]);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileDrawerRef = useRef<HTMLDivElement | null>(null);
 
   const handleBrandsMouseEnter = () => setIsBrandsMenuOpen(true);
   const handleBrandsMouseLeave = () => setIsBrandsMenuOpen(false);
+
+  /* ── Bag count — reactive same-tab via useCart() ───────────── */
+  const { count: cartCount } = useCart();
 
   /* ── Maisons, read from Supabase ───────────────────────────── */
   useEffect(() => {
     let cancelled = false;
     const loadBrands = async () => {
       try {
-        const { data, error } = await clientSafeSupabase
+        const { data, error } = await getBrowserSupabase()
           .from("collections")
           .select("id, title, description, cover_image, kind, sort_order");
         if (cancelled || error || !data) return;
@@ -103,36 +105,6 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
     );
   };
 
-  /* ── Bag count (reads the same localStorage key the pages write) ── */
-  const subscribeToCart = useCallback((onStoreChange: () => void) => {
-    window.addEventListener("storage", onStoreChange);
-    window.addEventListener("focus", onStoreChange);
-    return () => {
-      window.removeEventListener("storage", onStoreChange);
-      window.removeEventListener("focus", onStoreChange);
-    };
-  }, []);
-
-  const rawCart = useSyncExternalStore(
-    subscribeToCart,
-    () => window.localStorage.getItem("gharib_cart_v2") ?? "",
-    () => ""
-  );
-
-  const cartCount = useMemo(() => {
-    if (!rawCart) return 0;
-    try {
-      const parsed: unknown = JSON.parse(rawCart);
-      if (!Array.isArray(parsed)) return 0;
-      return parsed.reduce<number>((sum, entry) => {
-        const quantity = (entry as { quantity?: unknown } | null)?.quantity;
-        return sum + (typeof quantity === "number" && quantity > 0 ? quantity : 1);
-      }, 0);
-    } catch {
-      return 0;
-    }
-  }, [rawCart]);
-
   /* ── Escape closes every open surface ──────────────────────── */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -148,6 +120,10 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
   useEffect(() => {
     if (isSearchOpen) searchInputRef.current?.focus();
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (isMobileMenuOpen) mobileDrawerRef.current?.focus();
+  }, [isMobileMenuOpen]);
 
   const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -229,10 +205,12 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
           {/* Center: wordmark */}
           <div className="flex items-center justify-center">
             <Link href="/" aria-label="Gharib — home">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src="/logo.png"
                 alt="Gharib"
+                width={952}
+                height={488}
+                preload
                 className="h-9 md:h-11 w-auto object-contain"
                 style={{ mixBlendMode: "multiply" }}
               />
@@ -329,8 +307,23 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
                 key={item.key}
                 href={item.href}
                 aria-current={activePage === item.key ? "page" : undefined}
+                aria-expanded={item.key === "brands" ? isBrandsMenuOpen : undefined}
+                aria-haspopup={item.key === "brands" ? "true" : undefined}
                 onMouseEnter={
                   item.key === "brands" ? handleBrandsMouseEnter : () => setIsBrandsMenuOpen(false)
+                }
+                onFocus={
+                  item.key === "brands" ? handleBrandsMouseEnter : () => setIsBrandsMenuOpen(false)
+                }
+                onKeyDown={
+                  item.key === "brands"
+                    ? (event: React.KeyboardEvent<HTMLAnchorElement>) => {
+                        if ((event.key === "Enter" || event.key === " ") && !isBrandsMenuOpen) {
+                          event.preventDefault();
+                          setIsBrandsMenuOpen(true);
+                        }
+                      }
+                    : undefined
                 }
                 onClick={() => setIsBrandsMenuOpen(false)}
                 className={navLinkClass(item.key)}
@@ -354,11 +347,16 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
+            ref={mobileDrawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
+            tabIndex={-1}
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-[60] bg-white text-black font-body flex flex-col"
+            className="fixed inset-0 z-[60] bg-white text-black font-body flex flex-col outline-none"
           >
             <div
               className="flex items-center justify-between h-[62px] px-5 border-b"

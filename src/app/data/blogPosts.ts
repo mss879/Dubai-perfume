@@ -9,6 +9,9 @@ export interface BlogPost {
   category: string;
   readTime: string;
   publishDate: string;
+  /** ISO 8601 timestamps used for Article structured data (per post). */
+  datePublished: string;
+  dateModified: string;
   author: {
     name: string;
     role: string;
@@ -32,7 +35,9 @@ export const BLOG_POSTS: BlogPost[] = [
     excerpt: "Navigating Dubai's vast online perfume market can be daunting. Learn how to verify batch codes, source 100% authentic Arabian and niche fragrances direct from official UAE distributors, and enjoy same-day delivery.",
     category: "Buying Guide",
     readTime: "8 min read",
-    publishDate: "October 24, 2026",
+    publishDate: "March 6, 2026",
+    datePublished: "2026-03-06T08:00:00+04:00",
+    dateModified: "2026-03-10T08:00:00+04:00",
     author: {
       name: "Tariq Al-Maktoum",
       role: "Senior Olfactory Curator & UAE Fragrance Specialist",
@@ -215,7 +220,9 @@ export const BLOG_POSTS: BlogPost[] = [
     excerpt: "Dubai's soaring temperatures demand high-performing scents. Discover the top 10 long-lasting perfumes crafted with beast-mode longevity to withstand Middle Eastern summer heat.",
     category: "Fragrance Performance",
     readTime: "9 min read",
-    publishDate: "October 26, 2026",
+    publishDate: "April 18, 2026",
+    datePublished: "2026-04-18T08:00:00+04:00",
+    dateModified: "2026-04-21T08:00:00+04:00",
     author: {
       name: "Fatima Al-Hashemi",
       role: "Master Perfumer & Olfactory Research Lead",
@@ -382,7 +389,9 @@ export const BLOG_POSTS: BlogPost[] = [
     excerpt: "Lattafa and Rasasi are global powerhouse brands from the UAE. Learn how to verify official factory batch stamps, compare retail pricing, and secure 100% authentic bottles in Dubai.",
     category: "Brand Spotlights",
     readTime: "7 min read",
-    publishDate: "October 27, 2026",
+    publishDate: "May 29, 2026",
+    datePublished: "2026-05-29T08:00:00+04:00",
+    dateModified: "2026-06-02T08:00:00+04:00",
     author: {
       name: "Zayd Al-Mansoori",
       role: "Emirati Perfume Historian & Retail Analyst",
@@ -501,7 +510,9 @@ export const BLOG_POSTS: BlogPost[] = [
     excerpt: "Unravel the timeless art of Arabian Oud. Learn the differences between Cambodian and Indian agarwood, pure Dehn El Oud oil vs EDP spray, and how Emirati royalty layers fragrance.",
     category: "Heritage & Artistry",
     readTime: "10 min read",
-    publishDate: "October 28, 2026",
+    publishDate: "July 12, 2026",
+    datePublished: "2026-07-12T08:00:00+04:00",
+    dateModified: "2026-07-15T08:00:00+04:00",
     author: {
       name: "Sheikh Rashid Al-Qasimi",
       role: "Heritage Master Attar Blender & Arabian Scent Historian",

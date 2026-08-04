@@ -1,200 +1,103 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { notFound } from "next/navigation";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
-import { BLOG_POSTS, BlogPost } from "../../data/blogPosts";
-import { clientSafeSupabase } from "../../lib/supabase";
+import { SITE_URL, SITE_NAME } from "../../lib/site";
+import { getAllPosts, getPostBySlug, getMentionedProducts } from "../posts";
+import ArticleToc from "./ArticleToc";
+import ShareRow from "./ShareRow";
 
-/** A fragrance named in the copy that was matched to a real row in public.products. */
-interface MentionedProduct {
-  id: number;
-  name: string;
-  brand: string | null;
+export const dynamic = "force-dynamic";
+
+const absoluteUrl = (path: string) =>
+  path.startsWith("http") ? path : `${SITE_URL}${path}`;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await getPostBySlug(slug);
+  if (!post) {
+    return { title: "Article Not Found" };
+  }
+  return {
+    title: post.metaTitle,
+    description: post.metaDescription,
+    alternates: { canonical: `/blogs/${post.slug}` },
+    openGraph: {
+      type: "article",
+      title: post.metaTitle,
+      description: post.metaDescription,
+      url: `${SITE_URL}/blogs/${post.slug}`,
+      images: [absoluteUrl(post.heroImage)],
+      publishedTime: post.datePublished,
+      modifiedTime: post.dateModified,
+    },
+  };
 }
 
-const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+export default async function BlogDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const post = await getPostBySlug(slug);
+  if (!post) notFound();
 
-export default function BlogDetailPage() {
-  const params = useParams();
-  const slug = params?.slug as string;
+  const mentionedProducts = await getMentionedProducts(post.relatedProducts);
+  // Read through getAllPosts() so published DB articles appear in the rail —
+  // reading BLOG_POSTS directly always showed the four built-in posts.
+  const allPosts = await getAllPosts();
+  const relatedPosts = allPosts.filter((p) => p.slug !== post.slug).slice(0, 3);
+  const canonicalUrl = `${SITE_URL}/blogs/${post.slug}`;
 
-  const [post, setPost] = useState<BlogPost | undefined>(() =>
-    BLOG_POSTS.find((p) => p.slug === slug)
-  );
-  const [activeTocId, setActiveTocId] = useState<string>("");
-  const [copiedLink, setCopiedLink] = useState<boolean>(false);
-  // Fragrances named in the story, resolved against the live catalogue.
-  const [mentionedProducts, setMentionedProducts] = useState<MentionedProduct[]>([]);
-
-  useEffect(() => {
-    if (!slug) return;
-    const fetchDbPost = async () => {
-      try {
-        const { data, error } = await clientSafeSupabase
-          .from("blog_posts")
-          .select("*")
-          .eq("slug", slug)
-          .single();
-
-        if (!error && data) {
-          const mapped: BlogPost = {
-            id: String(data.id),
-            title: data.title,
-            slug: data.slug,
-            metaTitle: data.title,
-            metaDescription: data.summary || data.title,
-            category: "Heritage & Artistry",
-            publishDate: new Date(data.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-            readTime: "5 min read",
-            excerpt: data.summary || (data.content ? data.content.replace(/<[^>]+>/g, "").slice(0, 140) + "..." : ""),
-            heroImage: data.cover_image || "/bento-oud-imperial.png",
-            author: {
-              name: data.author || "Gharib Master Perfumer",
-              role: "Olfactory Specialist",
-              avatar: "/bento-oud-imperial.png"
-            },
-            targetKeyword: data.title,
-            contentHtml: data.content,
-            toc: [],
-            faqs: [],
-            relatedProducts: []
-          };
-          setPost(mapped);
-        }
-      } catch (err) {
-        console.error("Error loading blog post from Supabase:", err);
-      }
-    };
-    fetchDbPost();
-  }, [slug]);
-
-  // Resolve the fragrances named in the story against public.products. Anything
-  // the shop does not actually carry is dropped rather than linked to nothing.
-  useEffect(() => {
-    const names = post?.relatedProducts ?? [];
-    if (names.length === 0) return;
-
-    let cancelled = false;
-    const resolveMentions = async () => {
-      try {
-        const { data, error } = await clientSafeSupabase
-          .from("products")
-          .select("id, name, brand");
-        if (error || !Array.isArray(data) || cancelled) return;
-
-        const rows = data as MentionedProduct[];
-        const resolved: MentionedProduct[] = [];
-        names.forEach((mention) => {
-          const key = normalise(mention);
-          const match = rows.find((row) => {
-            const rowKey = normalise(row.name || "");
-            return rowKey === key || rowKey.includes(key) || key.includes(rowKey);
-          });
-          if (match && !resolved.some((r) => r.id === match.id)) resolved.push(match);
-        });
-
-        if (!cancelled) setMentionedProducts(resolved);
-      } catch (err) {
-        console.error("Could not resolve the fragrances named in this story:", err);
-      }
-    };
-
-    resolveMentions();
-    return () => {
-      cancelled = true;
-    };
-  }, [post]);
-
-  // Set active scroll spy for Table of Contents
-  useEffect(() => {
-    if (!post) return;
-
-    const handleScroll = () => {
-      const scrollPosition = window.scrollY + 180;
-      for (let i = post.toc.length - 1; i >= 0; i--) {
-        const element = document.getElementById(post.toc[i].id);
-        if (element && element.offsetTop <= scrollPosition) {
-          setActiveTocId(post.toc[i].id);
-          break;
-        }
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [post]);
-
-  if (!post) {
-    return (
-      <div className="maison min-h-screen flex flex-col items-center justify-center gap-6 px-6 text-center">
-        <p className="maison-eyebrow">The Journal</p>
-        <h1 className="maison-page-title">Article Not Found</h1>
-        <p className="max-w-[46ch] text-[15px] font-light leading-[1.8] text-[rgba(0,0,0,0.75)]">
-          The requested perfume guide does not exist or has been relocated.
-        </p>
-        <Link href="/blogs" className="maison-btn-outline mt-2">
-          Return to the journal
-        </Link>
-      </div>
-    );
-  }
-
-  const relatedPosts = BLOG_POSTS.filter((p) => p.slug !== post.slug).slice(0, 3);
-  const canonicalUrl = `https://gharibperfumes.ae/blogs/${post.slug}`;
-  const encodedShare = encodeURIComponent(canonicalUrl);
-  const encodedTitle = encodeURIComponent(post.title);
-
-  const handleShare = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
-    }
-  };
-
-  // Structured Schema.org JSON-LD for Google Page 1 Rankings
+  // Structured Schema.org JSON-LD, emitted from the server with per-post dates.
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
-    "headline": post.metaTitle,
-    "description": post.metaDescription,
-    "image": [post.heroImage],
-    "datePublished": "2026-10-24T08:00:00+04:00",
-    "dateModified": "2026-10-28T08:00:00+04:00",
-    "author": {
+    headline: post.metaTitle,
+    description: post.metaDescription,
+    image: [absoluteUrl(post.heroImage)],
+    datePublished: post.datePublished,
+    dateModified: post.dateModified,
+    author: {
       "@type": "Person",
-      "name": post.author.name,
-      "jobTitle": post.author.role
+      name: post.author.name,
+      jobTitle: post.author.role,
     },
-    "publisher": {
+    publisher: {
       "@type": "Organization",
-      "name": "Gharib Dubai",
-      "logo": {
+      name: SITE_NAME,
+      logo: {
         "@type": "ImageObject",
-        "url": "https://gharibperfumes.ae/logo.png"
-      }
+        url: `${SITE_URL}/logo.png`,
+      },
     },
-    "mainEntityOfPage": {
+    mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `https://gharibperfumes.ae/blogs/${post.slug}`
-    }
+      "@id": canonicalUrl,
+    },
   };
 
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": post.faqs.map((f) => ({
-      "@type": "Question",
-      "name": f.question,
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": f.answer
-      }
-    }))
-  };
+  const faqSchema =
+    post.faqs.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: post.faqs.map((f) => ({
+            "@type": "Question",
+            name: f.question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: f.answer,
+            },
+          })),
+        }
+      : null;
 
   return (
     <div className="maison min-h-screen flex flex-col relative overflow-x-hidden">
@@ -203,10 +106,12 @@ export default function BlogDetailPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      )}
 
       {/* Shared Unified White Navbar */}
       <AppHeader activePage="blogs" />
@@ -254,29 +159,8 @@ export default function BlogDetailPage() {
 
             <hr className="maison-rule mt-10" />
 
-            {/* Contents */}
-            {post.toc.length > 0 && (
-              <nav className="border-b border-[rgba(0,0,0,0.12)] py-8">
-                <p className="maison-eyebrow">Contents</p>
-                <ul className="mt-5 space-y-2.5">
-                  {post.toc.map((item) => {
-                    const isActive = activeTocId === item.id;
-                    return (
-                      <li key={item.id}>
-                        <a
-                          href={`#${item.id}`}
-                          className={`text-[14px] font-light leading-[1.6] transition-colors duration-300 ${
-                            isActive ? "text-black" : "text-[#646464] hover:text-black"
-                          }`}
-                        >
-                          {item.text}
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </nav>
-            )}
+            {/* Contents (client island: scroll-spy highlight) */}
+            <ArticleToc toc={post.toc} />
 
             {/* Article body */}
             <div
@@ -295,7 +179,7 @@ export default function BlogDetailPage() {
                 delivery.
               </p>
               <div className="mt-8">
-                <Link href="/#new-in" className="maison-btn-outline">
+                <Link href="/shop" className="maison-btn-outline">
                   Shop the collection
                 </Link>
               </div>
@@ -336,37 +220,8 @@ export default function BlogDetailPage() {
               </p>
             </section>
 
-            {/* Share */}
-            <footer className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-5 border-t border-[rgba(0,0,0,0.12)] pt-8">
-              <span className="maison-eyebrow">Share this story</span>
-              <button onClick={handleShare} className="maison-link cursor-pointer">
-                {copiedLink ? "Link copied" : "Copy link"}
-              </button>
-              <a
-                href={`https://wa.me/?text=${encodedTitle}%20${encodedShare}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="maison-link"
-              >
-                WhatsApp
-              </a>
-              <a
-                href={`https://x.com/intent/post?text=${encodedTitle}&url=${encodedShare}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="maison-link"
-              >
-                X
-              </a>
-              <a
-                href={`https://www.facebook.com/sharer/sharer.php?u=${encodedShare}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="maison-link"
-              >
-                Facebook
-              </a>
-            </footer>
+            {/* Share (client island) */}
+            <ShareRow title={post.title} canonicalUrl={canonicalUrl} />
           </div>
         </article>
 
