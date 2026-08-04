@@ -34,11 +34,12 @@ const MEGA_LINK_CLASS =
   "inline-block w-full text-left py-2.5 text-[15px] font-[350] tracking-[0.02em] leading-none text-black cursor-pointer decoration-1 underline-offset-[6px] transition-opacity duration-300 hover:underline";
 
 /* "AL HARAMAIN" → "Al Haramain" */
-/* Sub-headline under the hero wordmark. Previously supplied by the admin-driven
-   hero slider (is_hero products); now a fixed maison line. */
-const HERO_TAGLINE = "Aurum Noble Edition";
 
-/* 
+/* Supporting line under the hero heading. */
+const HERO_SUBLINE =
+  "Your one destination for the world's most in-demand fragrances.";
+
+/*
   ==============================================
   PreloaderMistReveal: High-End Custom Preloader
   ==============================================
@@ -2031,13 +2032,17 @@ export default function HomeClient({
             className="lg:col-span-5 flex flex-col justify-end h-full py-4 lg:py-12"
           >
             <div className="mb-6 lg:mb-16 w-full">
-              <h1 className="text-4xl md:text-5xl lg:text-[56px] font-medium leading-[1.1] tracking-tight font-serif-luxury max-w-md">
+              {/* Two rows, always. The explicit <br> sets the break, and the
+                  container is wide enough that neither row re-wraps at 56px —
+                  max-w-md used to force this into five lines. */}
+              <h1 className="text-[2rem] sm:text-4xl md:text-5xl lg:text-[56px] font-medium leading-[1.1] tracking-tight font-serif-luxury whitespace-nowrap lg:-ml-6">
                 World-Class Luxury<br />
-                Perfume Collective <br />
-                Gharib
+                Perfume Collection
               </h1>
-              <p className="mt-3 text-xs tracking-[0.15em] text-white/50 font-sans-luxury">
-                {HERO_TAGLINE.toUpperCase()}
+              {/* Sentence case and a readable size — the old tracked-uppercase
+                  treatment suited two words, not a full line. */}
+              <p className="mt-5 lg:-ml-6 max-w-[34ch] text-[15px] md:text-base font-light leading-[1.65] text-white/65 font-sans-luxury">
+                {HERO_SUBLINE}
               </p>
             </div>
           </motion.div>

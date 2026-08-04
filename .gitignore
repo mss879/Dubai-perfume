@@ -30,6 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# macOS / iCloud duplicate copies ("HomeClient 2.tsx", "site 3.ts").
+# These are stale clones of real source files: they break typecheck and would
+# otherwise be swept into a commit by `git add -A`.
+* [0-9].*
+*\ [0-9].*
+
 # env files — never commit real secrets
 .env*
 # ...but the template must be shared so a fresh clone knows what to configure.
