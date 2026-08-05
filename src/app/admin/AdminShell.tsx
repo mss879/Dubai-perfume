@@ -10,6 +10,7 @@ import {
   ChevronDown, ChevronRight, Mail, Sparkles
 } from "lucide-react";
 import { getBrowserSupabase } from "../lib/supabase-browser";
+import SiteLockPanel from "./SiteLockPanel";
 
 // Categorized Admin Sidebar Links with Icons
 const categories = [
@@ -266,6 +267,11 @@ export default function AdminShell({
           {children}
         </main>
       </div>
+
+      {/* Docked bottom-right, outside <main> so it stays put on every tab:
+          the switch that puts the public storefront behind the "Launching
+          soon" page. */}
+      <SiteLockPanel />
 
       {/* Internal Custom Inline Styles for standard sidebar navigation links */}
       <style jsx global>{`
