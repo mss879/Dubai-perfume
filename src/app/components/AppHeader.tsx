@@ -49,6 +49,32 @@ const NAV_ITEMS: { key: NavKey; label: string; href: string }[] = [
   { key: "discover", label: "Scent finder", href: "/discover" },
 ];
 
+/**
+ * The monogram shown once a shopper is signed in.
+ *
+ * A real name wins. Failing that the address is used, split on the separators
+ * people actually put in one ("laila.hasan@…" → LH), because signup asks for an
+ * email and a password and nothing else — so for most accounts the address is
+ * all there is. Returns "" when even that yields nothing, and the caller falls
+ * back to the account icon rather than drawing an empty ring.
+ */
+function initialsFor(fullName: string, email: string | null): string {
+  const letters = (value: string) => value.replace(/[^\p{L}]/gu, "");
+
+  const nameParts = fullName.trim().split(/\s+/).map(letters).filter(Boolean);
+  if (nameParts.length >= 2) {
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+  }
+  if (nameParts.length === 1) return nameParts[0].slice(0, 2).toUpperCase();
+
+  const local = (email ?? "").split("@")[0] ?? "";
+  const localParts = local.split(/[._\-+\d]+/).map(letters).filter(Boolean);
+  if (localParts.length >= 2) return (localParts[0][0] + localParts[1][0]).toUpperCase();
+  if (localParts.length === 1) return localParts[0].slice(0, 2).toUpperCase();
+
+  return "";
+}
+
 /* Title-case a stored brand name ("AL HARAMAIN" → "Al Haramain") */
 export default function AppHeader({ activePage }: AppHeaderProps) {
   const router = useRouter();
@@ -72,6 +98,77 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
 
   /* ── Bag count — reactive same-tab via useCart() ───────────── */
   const { count: cartCount } = useCart();
+
+  /* ── Is anyone signed in? ──────────────────────────────────────
+     The header said "Sign in" to everybody, signed in or not, so a
+     shopper had no way to tell the difference without opening the page.
+     `null` means "not yet known" — neither state is rendered until the
+     session has been read, so the header never flickers the wrong one. */
+  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  const [initials, setInitials] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getBrowserSupabase();
+
+    /* Reads the session and, when there is one, the name to monogram. */
+    const loadIdentity = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        const user = data?.user ?? null;
+        if (cancelled) return;
+
+        setIsSignedIn(Boolean(user));
+        if (!user) {
+          setInitials("");
+          return;
+        }
+
+        // Signup collects only an address, so a name is usually absent —
+        // initialsFor falls back to the email rather than showing nothing.
+        const meta = (user.user_metadata ?? {}) as { first_name?: string; last_name?: string };
+        let fullName = [meta.first_name, meta.last_name].filter(Boolean).join(" ").trim();
+
+        if (!fullName) {
+          const { data: profile } = await supabase
+            .from("customers")
+            .select("first_name, last_name")
+            .eq("id", user.id)
+            .maybeSingle();
+          const row = profile as { first_name?: string | null; last_name?: string | null } | null;
+          fullName = [row?.first_name, row?.last_name].filter(Boolean).join(" ").trim();
+        }
+
+        if (!cancelled) setInitials(initialsFor(fullName, user.email ?? null));
+      } catch {
+        if (!cancelled) {
+          setIsSignedIn(false);
+          setInitials("");
+        }
+      }
+    };
+
+    loadIdentity();
+
+    // Keep the header honest when the shopper signs in or out in another tab.
+    let unsubscribe: (() => void) | undefined;
+    try {
+      const { data } = supabase.auth.onAuthStateChange(() => {
+        if (!cancelled) loadIdentity();
+      });
+      unsubscribe = () => data?.subscription?.unsubscribe();
+    } catch {
+      // The dev-sandbox mock emits no auth events.
+    }
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  const accountHref = isSignedIn ? "/customer/dashboard" : "/signin";
+  const accountLabel = isSignedIn ? "My account" : "Sign in";
 
   /* ── Maisons, read from Supabase ───────────────────────────── */
   useEffect(() => {
@@ -225,12 +322,20 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
 
           {/* Right: sign in + line icons */}
           <div className="flex items-center justify-end gap-4 md:gap-5">
-            <Link
-              href="/signin"
-              className="hidden md:inline-block text-[13px] font-[350] uppercase tracking-[0.06em] text-black leading-none transition-opacity duration-300 hover:opacity-60"
-            >
-              Sign in
-            </Link>
+            {/* Signed out: the words. Signed in: the shopper's monogram, which
+                replaces both the words and the account icon so the row does not
+                carry two ways into the same page. Nothing is drawn until the
+                session is known, so neither state flickers into the other. */}
+            {!isSignedIn && (
+              <Link
+                href={accountHref}
+                className="hidden md:inline-block text-[13px] font-[350] uppercase tracking-[0.06em] text-black leading-none transition-opacity duration-300 hover:opacity-60"
+              >
+                <span className={isSignedIn === null ? "invisible" : undefined}>
+                  {accountLabel}
+                </span>
+              </Link>
+            )}
 
             <span
               aria-hidden="true"
@@ -239,11 +344,22 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
             />
 
             <Link
-              href="/signin"
-              aria-label="Account"
+              href={accountHref}
+              aria-label={accountLabel}
+              title={isSignedIn ? accountLabel : undefined}
               className="text-black transition-opacity duration-300 hover:opacity-60"
             >
-              <User className="w-[18px] h-[18px]" strokeWidth={1.25} />
+              {isSignedIn && initials ? (
+                <span
+                  aria-hidden="true"
+                  className="flex h-[26px] w-[26px] items-center justify-center rounded-full border text-[10px] uppercase leading-none tracking-[0.06em]"
+                  style={{ borderColor: HAIRLINE, fontWeight: 350 }}
+                >
+                  {initials}
+                </span>
+              ) : (
+                <User className="w-[18px] h-[18px]" strokeWidth={1.25} />
+              )}
             </Link>
 
             <Link
@@ -403,11 +519,11 @@ export default function AppHeader({ activePage }: AppHeaderProps) {
                 </li>
                 <li className="border-b" style={{ borderColor: HAIRLINE }}>
                   <Link
-                    href="/signin"
+                    href={accountHref}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block py-5 font-display text-[18px] uppercase tracking-[0.08em] text-black"
                   >
-                    My account
+                    {accountLabel}
                   </Link>
                 </li>
               </ul>

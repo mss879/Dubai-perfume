@@ -170,21 +170,61 @@ export default function CheckoutClient() {
   const [orderResult, setOrderResult] = useState<ConfirmedOrder | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Prefill the contact email from the signed-in session, if any.
+  // Prefill from the signed-in shopper's saved profile: the contact email from
+  // the session, and the name, telephone and delivery address they stored under
+  // Settings (migration 51).
+  //
+  // Every field uses `prev || value`, so anything already typed wins — the
+  // fetch resolving must never overwrite what the shopper is in the middle of
+  // entering, and a shopper sending this order somewhere else can simply type
+  // over the suggestion.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const supabase = getBrowserSupabase();
         const { data } = await supabase.auth.getUser();
+        const user = data?.user ?? null;
+
         const knownEmail =
-          data?.user?.email ||
+          user?.email ||
           (typeof window !== "undefined" ? localStorage.getItem("userEmail") : null);
         if (!cancelled && knownEmail) {
           setEmail((prev) => prev || knownEmail);
         }
+
+        if (!user) return;
+
+        const { data: row } = await supabase
+          .from("customers")
+          .select("first_name, last_name, phone, street, city, country, postal_code")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (cancelled || !row) return;
+
+        // Nullable columns, and the address ones are absent entirely until
+        // migration 51 is applied — a missing value simply prefills nothing.
+        const saved = row as Record<string, unknown>;
+        const text = (key: string) => (typeof saved[key] === "string" ? (saved[key] as string) : "");
+        const fill = (
+          setter: React.Dispatch<React.SetStateAction<string>>,
+          value: string
+        ) => {
+          if (value) setter((prev) => prev || value);
+        };
+
+        fill(setFirstName, text("first_name"));
+        fill(setLastName, text("last_name"));
+        fill(setPhone, text("phone"));
+        fill(setStreet, text("street"));
+        fill(setCity, text("city"));
+        fill(setPostalCode, text("postal_code"));
+        // Country already defaults to the UAE, so `prev || value` would never
+        // apply a saved one. A shopper who has saved a country means it.
+        const savedCountry = text("country");
+        if (savedCountry) setCountry(savedCountry);
       } catch {
-        // Auth being down must never block checkout.
+        // Auth or the profile read being down must never block checkout.
       }
     })();
     return () => {

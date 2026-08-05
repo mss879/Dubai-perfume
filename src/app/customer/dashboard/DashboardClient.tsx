@@ -65,12 +65,83 @@ interface WishlistRow {
   wishlist_type?: WishlistType | null;
 }
 
+/** A row of `order_items`, as stored when the order was placed. */
+interface OrderItemRow {
+  order_id: string;
+  product_id: number;
+  size: string | null;
+  quantity: number;
+  unit_price: string | number;
+}
+
+/** An order line, resolved against the catalogue for display. */
+interface OrderLine {
+  productId: number;
+  name: string;
+  brand: string | null;
+  imageUrl: string;
+  size: string;
+  quantity: number;
+  /** What was charged then — not today's catalogue price. */
+  unitPriceAed: number;
+  /** False once a product has been withdrawn; it stays listed, but unlinked. */
+  stillSold: boolean;
+}
+
 const NAV_ITEMS: { key: TabKey; label: string }[] = [
   { key: "orders", label: "Order history" },
   { key: "wishlist", label: "Wishlist" },
   { key: "tracking", label: "Order tracking" },
-  { key: "settings", label: "Security" },
+  { key: "settings", label: "Settings" },
 ];
+
+/**
+ * The shopper's own details, as stored on `customers`.
+ *
+ * The email is deliberately absent: it is the login credential, it comes from
+ * the session, and migration 51 pins the column so it cannot be changed from
+ * the client even if a field for it appeared.
+ */
+interface ProfileDetails {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  street: string;
+  city: string;
+  country: string;
+  postal_code: string;
+}
+
+const EMPTY_PROFILE: ProfileDetails = {
+  first_name: "",
+  last_name: "",
+  phone: "",
+  street: "",
+  city: "",
+  country: "",
+  postal_code: "",
+};
+
+/**
+ * A `customers` row as the form wants it. Every column is nullable in the
+ * database, and a null in a controlled input makes React drop back to an
+ * uncontrolled field — so nulls become empty strings here, once.
+ */
+function toProfile(row: unknown): ProfileDetails {
+  const source = (row ?? {}) as Record<string, unknown>;
+  const text = (key: keyof ProfileDetails) =>
+    typeof source[key] === "string" ? (source[key] as string) : "";
+
+  return {
+    first_name: text("first_name"),
+    last_name: text("last_name"),
+    phone: text("phone"),
+    street: text("street"),
+    city: text("city"),
+    country: text("country"),
+    postal_code: text("postal_code"),
+  };
+}
 
 /**
  * Fulfilment milestones and the status→step mapping now live in
@@ -91,11 +162,18 @@ export default function DashboardClient() {
 
   // Data States
   const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [orderLines, setOrderLines] = useState<Record<string, OrderLine[]>>({});
   const [wishlist, setWishlist] = useState<WishlistProduct[]>([]);
   const [trackingLogs, setTrackingLogs] = useState<TrackingLog[]>([]);
   const [selectedTrackingOrderId, setSelectedTrackingOrderId] = useState<string>("");
 
-  // Settings Form States
+  // Settings — profile details
+  const [profile, setProfile] = useState<ProfileDetails>(EMPTY_PROFILE);
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  // Settings — password
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -132,11 +210,14 @@ export default function DashboardClient() {
 
       try {
         // This shopper's own orders only — never another customer's, and never a
-        // fallback list when they have none.
+        // fallback list when they have none. Newest first: Postgres guarantees
+        // no order without an ORDER BY, so "most recent" was previously
+        // whichever row the planner happened to return last.
         const { data: ordersData } = await supabase
           .from("orders")
           .select("*")
-          .eq("email", email);
+          .eq("email", email)
+          .order("created_at", { ascending: false });
 
         const myOrders = (Array.isArray(ordersData) ? ordersData : []).filter(
           (o: OrderRecord) => (o.email || "").toLowerCase() === email.toLowerCase()
@@ -144,18 +225,62 @@ export default function DashboardClient() {
         setOrders(myOrders);
 
         // The tracking tab opens on the shopper's most recent order, if any.
-        setSelectedTrackingOrderId(myOrders.length > 0 ? myOrders[myOrders.length - 1].id : "");
+        setSelectedTrackingOrderId(myOrders.length > 0 ? myOrders[0].id : "");
 
-        const [{ data: allProducts, error: productsError }, { data: wishlistData }] =
-          await Promise.all([
+        const orderIds = myOrders.map((o) => o.id);
+
+        const [
+          { data: allProducts, error: productsError },
+          { data: wishlistData },
+          { data: itemRows },
+          { data: profileRow },
+        ] = await Promise.all([
             supabase.from("products").select(PRODUCT_FIELDS),
-            supabase.from("wishlists").select("*").eq("customer_id", user.id)
+            supabase.from("wishlists").select("*").eq("customer_id", user.id),
+            // `.in()` on an empty list is not a valid filter, so a shopper with
+            // no orders skips the query entirely.
+            orderIds.length > 0
+              ? supabase
+                  .from("order_items")
+                  .select("order_id, product_id, size, quantity, unit_price")
+                  .in("order_id", orderIds)
+              : Promise.resolve({ data: [] as OrderItemRow[] }),
+            supabase
+              .from("customers")
+              .select("first_name, last_name, phone, street, city, country, postal_code")
+              .eq("id", user.id)
+              .maybeSingle(),
           ]);
+
+        // The address columns arrive with migration 51. Until it is applied the
+        // select errors and `profileRow` is null, which simply leaves the form
+        // blank rather than breaking the rest of the account page.
+        if (profileRow) setProfile(toProfile(profileRow));
 
         if (productsError) throw productsError;
 
         const catalog = (Array.isArray(allProducts) ? allProducts : []) as CatalogProduct[];
         const wishlistRows = (Array.isArray(wishlistData) ? wishlistData : []) as WishlistRow[];
+
+        // What was actually bought, resolved against the live catalogue for the
+        // name and image. The price shown is the one charged at the time
+        // (order_items.unit_price), not today's — a past order must not
+        // silently restate itself when the catalogue is repriced.
+        const linesByOrder: Record<string, OrderLine[]> = {};
+        for (const row of (Array.isArray(itemRows) ? itemRows : []) as OrderItemRow[]) {
+          const product = catalog.find((p) => p.id === row.product_id);
+          (linesByOrder[row.order_id] ||= []).push({
+            productId: row.product_id,
+            name: product?.name || `Product ${row.product_id}`,
+            brand: product?.brand || null,
+            imageUrl: product?.image_url || toArray(product?.image_urls)[0] || "",
+            size: row.size || "",
+            quantity: Number(row.quantity) || 1,
+            unitPriceAed: parseFloat(String(row.unit_price)) || 0,
+            stillSold: Boolean(product),
+          });
+        }
+        setOrderLines(linesByOrder);
 
         // Saved rows joined against the live catalogue. Nothing is ever seeded in.
         setWishlist(
@@ -179,6 +304,7 @@ export default function DashboardClient() {
       } catch (err) {
         console.error("Error loading customer data", err);
         setOrders([]);
+        setOrderLines({});
         setWishlist([]);
         setTrackingLogs([]);
       } finally {
@@ -271,6 +397,62 @@ export default function DashboardClient() {
   const handleBuyNow = (item: WishlistProduct) => {
     addItemToBag(item);
     router.push("/checkout");
+  };
+
+  const setProfileField = (field: keyof ProfileDetails, value: string) => {
+    setProfile((prev) => ({ ...prev, [field]: value }));
+    setProfileSuccess(null);
+    setProfileError(null);
+  };
+
+  /**
+   * Saves the shopper's own `customers` row. RLS scopes the write to their own
+   * id, and migration 51 pins `email` and `is_admin`, so nothing here can widen
+   * what a shopper is able to change.
+   */
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionUserId) return;
+
+    setProfileError(null);
+    setProfileSuccess(null);
+    setProfileSaving(true);
+
+    try {
+      const { error } = await getBrowserSupabase()
+        .from("customers")
+        .update({
+          first_name: profile.first_name.trim(),
+          last_name: profile.last_name.trim(),
+          phone: profile.phone.trim(),
+          street: profile.street.trim(),
+          city: profile.city.trim(),
+          country: profile.country.trim(),
+          postal_code: profile.postal_code.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sessionUserId);
+
+      if (error) {
+        console.error("Profile update failed", error);
+        // A missing column means migration 51 has not been applied yet; saying
+        // so beats "Please try again" on something retrying cannot fix.
+        setProfileError(
+          /column .* does not exist|schema cache/i.test(error.message || "")
+            ? "Your details cannot be saved until the latest database migration has been applied."
+            : "We could not save your details. Please try again."
+        );
+        return;
+      }
+
+      setProfileSuccess("Your details have been saved.");
+      triggerToast("Your details have been saved.");
+    } catch (err) {
+      console.error("Profile update failed", err);
+      setProfileError("An unexpected error occurred. Please try again.");
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -509,9 +691,9 @@ export default function DashboardClient() {
                       </div>
 
                       {orders.map(order => (
+                        <div key={order.id} className="border-b border-[rgba(0,0,0,0.12)] py-6">
                         <div
-                          key={order.id}
-                          className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.6fr_1fr_0.8fr_auto] gap-3 md:gap-6 md:items-center border-b border-[rgba(0,0,0,0.12)] py-6"
+                          className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.6fr_1fr_0.8fr_auto] gap-3 md:gap-6 md:items-center"
                         >
                           <div>
                             <span className="maison-eyebrow block md:hidden">Order</span>
@@ -565,6 +747,55 @@ export default function DashboardClient() {
                               Track
                             </button>
                           </div>
+                        </div>
+
+                        {/* What was in this order. Previously the account showed
+                            only a total, so a shopper could not tell one past
+                            order from another. */}
+                        {(orderLines[order.id] ?? []).length > 0 && (
+                          <ul className="mt-6 flex flex-col gap-4 md:pl-0">
+                            {orderLines[order.id].map((line, i) => (
+                              <li key={`${order.id}-${line.productId}-${line.size}-${i}`} className="flex items-center gap-4">
+                                <span className="w-14 h-14 flex-shrink-0 bg-[#F5F5F5] flex items-center justify-center p-1.5">
+                                  {line.imageUrl && (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img
+                                      src={line.imageUrl}
+                                      alt={line.name}
+                                      className="w-full h-full object-contain"
+                                    />
+                                  )}
+                                </span>
+
+                                <span className="flex-grow min-w-0">
+                                  {line.brand && (
+                                    <span className="maison-eyebrow block">{line.brand}</span>
+                                  )}
+                                  {line.stillSold ? (
+                                    <Link
+                                      href={`/product/${line.productId}`}
+                                      className="block text-[14px] text-black hover:opacity-60 transition-opacity duration-300"
+                                      style={{ fontWeight: 350 }}
+                                    >
+                                      {line.name}
+                                    </Link>
+                                  ) : (
+                                    <span className="block text-[14px] text-black" style={{ fontWeight: 350 }}>
+                                      {line.name}
+                                    </span>
+                                  )}
+                                  <span className="mt-1 block text-[12px] text-[#646464]">
+                                    {[line.size, `Qty ${line.quantity}`].filter(Boolean).join(" · ")}
+                                  </span>
+                                </span>
+
+                                <span className="flex-shrink-0 text-right text-[14px] text-[#646464]">
+                                  <Price amountAed={line.unitPriceAed * line.quantity} />
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                         </div>
                       ))}
                     </div>
@@ -865,10 +1096,162 @@ export default function DashboardClient() {
                 </motion.section>
               )}
 
-              {/* ── SECURITY ──────────────────────────────────────── */}
+              {/* ── SETTINGS ──────────────────────────────────────── */}
               {activeTab === "settings" && (
                 <motion.section key="settings-panel" {...panelMotion}>
-                  <span className="maison-eyebrow block">Security</span>
+                  <span className="maison-eyebrow block">Your details</span>
+                  <p className="mt-6 max-w-[46ch] text-[14px] font-light leading-[1.7] text-[#646464]">
+                    Your name, telephone and delivery address. We use these to prepare and
+                    deliver your orders, and they fill in your next checkout for you.
+                  </p>
+
+                  <form onSubmit={handleUpdateProfile} className="mt-10 flex flex-col gap-6 max-w-[520px]">
+
+                    {profileSuccess && (
+                      <p className="border border-[rgba(0,0,0,0.12)] bg-[#F5F5F5] px-4 py-3 text-[12px] uppercase tracking-[0.1em] text-black">
+                        {profileSuccess}
+                      </p>
+                    )}
+                    {profileError && (
+                      <p className="border border-[rgba(0,0,0,0.12)] bg-[#F5F5F5] px-4 py-3 text-[12px] uppercase tracking-[0.1em] text-black">
+                        {profileError}
+                      </p>
+                    )}
+
+                    {/* Email is the credential, not a detail — shown so the
+                        shopper knows which account this is, never editable. */}
+                    <div>
+                      <span className="maison-label">Email address</span>
+                      <p className="mt-1 text-[14px] font-light text-[#646464] break-all">
+                        {userEmail}
+                      </p>
+                      <p className="mt-2 text-[12px] font-light text-[#909090]">
+                        Your email address is how you sign in and cannot be changed here.
+                        Please write to us if you need it moved.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div>
+                        <label htmlFor="profile-first-name" className="maison-label">
+                          First name
+                        </label>
+                        <input
+                          id="profile-first-name"
+                          type="text"
+                          autoComplete="given-name"
+                          value={profile.first_name}
+                          onChange={(e) => setProfileField("first_name", e.target.value)}
+                          className="maison-input"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="profile-last-name" className="maison-label">
+                          Last name
+                        </label>
+                        <input
+                          id="profile-last-name"
+                          type="text"
+                          autoComplete="family-name"
+                          value={profile.last_name}
+                          onChange={(e) => setProfileField("last_name", e.target.value)}
+                          className="maison-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="profile-phone" className="maison-label">
+                        Telephone
+                      </label>
+                      <input
+                        id="profile-phone"
+                        type="tel"
+                        autoComplete="tel"
+                        value={profile.phone}
+                        onChange={(e) => setProfileField("phone", e.target.value)}
+                        placeholder="+971 50 000 0000"
+                        className="maison-input"
+                      />
+                      <p className="mt-2 text-[12px] font-light text-[#909090]">
+                        Our courier calls this number before a cash-on-delivery arrival.
+                      </p>
+                    </div>
+
+                    <div className="mt-4">
+                      <hr className="maison-rule" />
+                    </div>
+
+                    <span className="maison-eyebrow block">Delivery address</span>
+
+                    <div>
+                      <label htmlFor="profile-street" className="maison-label">
+                        Street address
+                      </label>
+                      <input
+                        id="profile-street"
+                        type="text"
+                        autoComplete="street-address"
+                        value={profile.street}
+                        onChange={(e) => setProfileField("street", e.target.value)}
+                        className="maison-input"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div>
+                        <label htmlFor="profile-city" className="maison-label">
+                          City
+                        </label>
+                        <input
+                          id="profile-city"
+                          type="text"
+                          autoComplete="address-level2"
+                          value={profile.city}
+                          onChange={(e) => setProfileField("city", e.target.value)}
+                          className="maison-input"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="profile-postal-code" className="maison-label">
+                          Postal code
+                        </label>
+                        <input
+                          id="profile-postal-code"
+                          type="text"
+                          autoComplete="postal-code"
+                          value={profile.postal_code}
+                          onChange={(e) => setProfileField("postal_code", e.target.value)}
+                          className="maison-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="profile-country" className="maison-label">
+                        Country
+                      </label>
+                      <input
+                        id="profile-country"
+                        type="text"
+                        autoComplete="country-name"
+                        value={profile.country}
+                        onChange={(e) => setProfileField("country", e.target.value)}
+                        placeholder="United Arab Emirates"
+                        className="maison-input"
+                      />
+                    </div>
+
+                    <button type="submit" disabled={profileSaving} className="maison-btn w-full mt-2 sm:w-auto sm:self-start sm:px-12">
+                      {profileSaving ? "Saving" : "Save details"}
+                    </button>
+                  </form>
+
+                  <div className="mt-16">
+                    <hr className="maison-rule" />
+                  </div>
+
+                  <span className="maison-eyebrow mt-16 block">Security</span>
                   <p className="mt-6 max-w-[46ch] text-[14px] font-light leading-[1.7] text-[#646464]">
                     Update the password used to sign in to your account.
                   </p>

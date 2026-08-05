@@ -23,5 +23,10 @@ export default async function SignInPage({
       ? candidate
       : null;
 
-  return <SigninClient redirectTo={redirectTo} />;
+  // Set by /auth/callback when a confirmation link has been followed, so the
+  // shopper arrives knowing why they are being asked to sign in.
+  const rawNotice = params.notice;
+  const notice = (Array.isArray(rawNotice) ? rawNotice[0] : rawNotice) || null;
+
+  return <SigninClient redirectTo={redirectTo} notice={notice} />;
 }
