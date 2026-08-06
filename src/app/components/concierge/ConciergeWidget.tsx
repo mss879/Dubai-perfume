@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { MessageSquare } from "lucide-react";
@@ -36,7 +36,7 @@ const GREETING_CHIPS = [
   "Something for a gift",
 ];
 
-export default function ConciergeWidget() {
+function ConciergeWidget() {
   const pathname = usePathname();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
@@ -77,6 +77,10 @@ export default function ConciergeWidget() {
     }
     return () => unsubscribe?.();
   }, [startOver]);
+
+  // Stable, so the panel's own effects are not re-run by every parent render.
+  const openPanel = useCallback(() => setOpen(true), []);
+  const closePanel = useCallback(() => setOpen(false), []);
 
   const acceptNudge = useCallback(() => {
     const accepted = accept();
@@ -124,7 +128,7 @@ export default function ConciergeWidget() {
           )}
           <motion.button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={openPanel}
             aria-label="Open the perfume concierge"
             className="relative flex h-12 items-center gap-2.5 bg-[#121212] px-4 text-white transition-opacity duration-300 hover:opacity-85 cursor-pointer sm:px-5"
             animate={reduced ? undefined : { scale: [1, 1.015, 1] }}
@@ -140,7 +144,7 @@ export default function ConciergeWidget() {
 
       <ConciergePanel
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={closePanel}
         messages={chat.messages}
         stage={chat.stage}
         status={chat.status}
@@ -157,3 +161,10 @@ export default function ConciergeWidget() {
     </>
   );
 }
+
+/**
+ * Memoised because it takes no props at all: the pages that mount it are large
+ * client components with their own animations, and none of that has any
+ * business re-rendering an open conversation twenty times a second.
+ */
+export default memo(ConciergeWidget);

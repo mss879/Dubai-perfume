@@ -138,9 +138,22 @@ export default function ConciergePanel({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    panelRef.current?.focus();
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  /**
+   * Give the window focus when it opens — once per opening, and never again.
+   *
+   * This used to sit in the Escape effect above, which lists `onClose`. The
+   * parent hands down a fresh arrow for that on every render, and the pages
+   * mounting the concierge re-render constantly — the homepage's typing search
+   * placeholder alone re-renders twenty times a second. So the effect re-ran at
+   * that rate, and every run pulled focus back onto the panel, off whatever the
+   * shopper had just clicked. The input could not be typed in at all.
+   */
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
+  }, [open]);
 
   // Follow the conversation down as it grows.
   useEffect(() => {
