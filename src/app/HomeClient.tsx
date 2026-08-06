@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import BrandsDropdown from "./components/BrandsDropdown";
 import Footer from "./components/Footer";
+import ConciergeWidget from "./components/concierge/ConciergeWidget";
 import { FREE_SHIPPING_NOTE, FREE_SHIPPING_THRESHOLD_AED } from "./lib/shipping";
 
 /* Hairline used across the maison header — matches --line in globals.css */
@@ -2665,6 +2666,7 @@ export default function HomeClient({
 
       {/* 4. Maison Footer — shared with every other route (design-system.md §5.8) */}
       <Footer />
+      <ConciergeWidget />
 
       {/* Notification toast — flat black panel, one-shot fade */}
       <AnimatePresence>

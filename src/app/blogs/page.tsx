@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import BlogsIndexClient from "./BlogsIndexClient";
 import { getAllPosts } from "./posts";
 
@@ -26,6 +27,7 @@ export default async function BlogsPage() {
       </main>
 
       <Footer />
+      <ConciergeWidget />
     </div>
   );
 }

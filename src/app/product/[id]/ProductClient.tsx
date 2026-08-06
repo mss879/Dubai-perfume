@@ -12,6 +12,7 @@ import { whatsappLink } from "../../lib/site";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
 import CartDrawer, { openCartDrawer } from "../../components/CartDrawer";
+import ConciergeWidget from "../../components/concierge/ConciergeWidget";
 import Price from "../../components/Price";
 
 export interface ProductDetailProps {
@@ -252,6 +253,7 @@ export default function ProductClient({
 
       <AppHeader activePage="shop" />
       <CartDrawer />
+      <ConciergeWidget />
 
       <main
         className={`flex-grow transition-[opacity,transform] duration-[600ms] ease-out ${

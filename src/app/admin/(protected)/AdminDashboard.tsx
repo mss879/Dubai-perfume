@@ -37,6 +37,38 @@ function errorMessage(err: unknown, fallback = "Unknown error"): string {
   return err instanceof Error && err.message ? err.message : fallback;
 }
 
+/** PostgREST's shape for "you have not applied that migration yet". */
+function isMissingFunctionMessage(message: string | undefined): boolean {
+  const m = (message || "").toLowerCase();
+  return m.includes("could not find the function") || m.includes("does not exist");
+}
+
+/**
+ * How a concierge turn ended, and what the owner should do about it. The same
+ * eight values are whitelisted by the CHECK on concierge_messages.outcome and
+ * by ConciergeOutcome in lib/concierge/insights.ts — all four lists move together.
+ */
+const CONCIERGE_OUTCOMES: Record<string, { label: string; note: string; bad: boolean }> = {
+  answered:       { label: "ANSWERED",        note: "A good turn",                          bad: false },
+  no_match:       { label: "NOTHING TO SHOW", note: "Searched, catalogue came back empty",  bad: true },
+  no_tools:       { label: "TALKED ONLY",     note: "Answered without opening the catalogue", bad: true },
+  dead_end:       { label: "DEAD END",        note: "Neither words nor anything on display", bad: true },
+  bad_ids:        { label: "PHANTOM BOTTLES", note: "Named products that do not exist",     bad: true },
+  truncated:      { label: "CUT OFF",         note: "Ran out of room mid-thought",          bad: true },
+  failed:         { label: "FAILED",          note: "The model call itself threw",          bad: true },
+  no_image_match: { label: "PHOTO UNMATCHED", note: "Read a photograph, found nothing close", bad: true },
+};
+
+const CONCIERGE_PAGE_SIZE = 25;
+
+/** The store's own clock. A busiest hour in UTC is a fact about nothing. */
+function dubaiHourLabel(hour: number): string {
+  const h = ((hour % 24) + 24) % 24;
+  const suffix = h < 12 ? "am" : "pm";
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return `${twelve}${suffix}`;
+}
+
 /**
  * Escape a value for the printable report, which is assembled as raw HTML and
  * written into a print frame. Order ids, client names and addresses are all
@@ -376,7 +408,9 @@ function AdminDashboardContent() {
   const [discMinReq, setDiscMinReq] = useState("0");
   const [discEndsAt, setDiscEndsAt] = useState("");
   const [discUsageLimit, setDiscUsageLimit] = useState("");
+  const [discConciergeOnly, setDiscConciergeOnly] = useState(false);
   const [discSubmitting, setDiscSubmitting] = useState(false);
+  const [conciergeOfferStats, setConciergeOfferStats] = useState<Row[]>([]);
 
   // New Gift Card Form
   const [giftCode, setGiftCode] = useState("");
@@ -412,6 +446,21 @@ function AdminDashboardContent() {
   const [editColRuleTag, setEditColRuleTag] = useState("");
   const [editColSaving, setEditColSaving] = useState(false);
   const [editColUploading, setEditColUploading] = useState(false);
+
+  // Concierge insights. Kept out of the seed effect above on purpose: the
+  // transcript tables grow with every chat message, so they are read through
+  // aggregate RPCs on demand rather than star-selected on every panel load.
+  const [conciergeDays, setConciergeDays] = useState(30);
+  const [conciergeOverview, setConciergeOverview] = useState<Row | null>(null);
+  const [conciergePhotoDemand, setConciergePhotoDemand] = useState<Row[]>([]);
+  const [conciergeSessions, setConciergeSessions] = useState<Row[]>([]);
+  const [conciergeLoading, setConciergeLoading] = useState(false);
+  const [conciergeError, setConciergeError] = useState<string | null>(null);
+  const [conciergeStrugglesOnly, setConciergeStrugglesOnly] = useState(false);
+  const [conciergePage, setConciergePage] = useState(0);
+  const [replaySession, setReplaySession] = useState<Row | null>(null);
+  const [replayTurns, setReplayTurns] = useState<Row[]>([]);
+  const [replayLoading, setReplayLoading] = useState(false);
 
   // Inquiry reply desk
   const [replyingInquiry, setReplyingInquiry] = useState<Row | null>(null);
@@ -470,6 +519,105 @@ function AdminDashboardContent() {
     };
     loadDashboardData();
   }, []);
+
+  // The overview is a dozen aggregates over the whole window, so it is keyed on
+  // the window alone — turning a page of the session list must not re-run it.
+  useEffect(() => {
+    if (currentTab !== "concierge") return;
+    let cancelled = false;
+    (async () => {
+      setConciergeLoading(true);
+      setConciergeError(null);
+      const db = getBrowserSupabase();
+      const [{ data, error }, photos] = await Promise.all([
+        db.rpc("admin_concierge_overview", { p_days: conciergeDays }),
+        // Migration 58, so it may be missing while 54 is already applied. Its
+        // absence costs the panel one list, never the whole tab.
+        db.rpc("admin_concierge_photo_demand", { p_days: conciergeDays }),
+      ]);
+      if (cancelled) return;
+      setConciergePhotoDemand(photos.error ? [] : ((photos.data as Row[]) || []));
+      if (error) {
+        setConciergeError(
+          isMissingFunctionMessage(error.message)
+            ? "Migrations 53 and 54 have not been applied yet — no conversations are being recorded."
+            : error.message
+        );
+        setConciergeOverview(null);
+      } else {
+        setConciergeOverview((data as Row) || null);
+      }
+      setConciergeLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTab, conciergeDays]);
+
+  useEffect(() => {
+    if (currentTab !== "concierge") return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await getBrowserSupabase().rpc("admin_concierge_sessions", {
+        p_days: conciergeDays,
+        p_struggles_only: conciergeStrugglesOnly,
+        p_limit: CONCIERGE_PAGE_SIZE,
+        p_offset: conciergePage * CONCIERGE_PAGE_SIZE,
+      });
+      if (cancelled) return;
+      setConciergeSessions(error ? [] : ((data as Row[]) || []));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTab, conciergeDays, conciergeStrugglesOnly, conciergePage]);
+
+  // One transcript at a time, fetched when the drawer opens. The message table
+  // is the one thing in this panel that grows without bound.
+  //
+  // Clearing the previous transcript happens in openReplay below rather than
+  // here: an effect that synchronously sets state on the closed branch just
+  // schedules a second render for something the caller already knew.
+  useEffect(() => {
+    if (!replaySession) return;
+    const sessionId = replaySession.session_id;
+    let cancelled = false;
+    (async () => {
+      const { data } = await getBrowserSupabase().rpc("admin_concierge_transcript", {
+        p_session_id: sessionId,
+      });
+      if (cancelled) return;
+      setReplayTurns((data as Row[]) || []);
+      setReplayLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [replaySession]);
+
+  // What the conversation actually closed. Degrades to an empty strip rather
+  // than an error banner — a store that has not applied migration 55 yet should
+  // still get its discounts tab.
+  useEffect(() => {
+    if (currentTab !== "discounts") return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await getBrowserSupabase().rpc(
+        "admin_concierge_offer_performance",
+        { p_since: null, p_until: null, p_concierge_only: true }
+      );
+      if (!cancelled) setConciergeOfferStats(error ? [] : ((data as Row[]) || []));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTab]);
+
+  const openReplay = (session: Row) => {
+    setReplayTurns([]);
+    setReplayLoading(true);
+    setReplaySession(session);
+  };
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -993,6 +1141,13 @@ function AdminDashboardContent() {
       triggerToast("Redemption cap must be a whole number of at least 1.");
       return;
     }
+    // Caught here rather than by the database, which would surface a raw
+    // constraint name. A code an AI hands out without a ceiling is how you
+    // find out in a month that the chat gave away the quarter.
+    if (discConciergeOnly && usageLimit === null) {
+      triggerToast("A concierge-exclusive code needs a redemption cap.");
+      return;
+    }
 
     // A date input gives a bare day; the code stays live to the end of it.
     const endsAt = discEndsAt ? new Date(`${discEndsAt}T23:59:59`).toISOString() : null;
@@ -1015,6 +1170,7 @@ function AdminDashboardContent() {
           usage_limit: usageLimit,
           usage_count: 0,
           is_active: true,
+          concierge_only: discConciergeOnly,
         })
         .select()
         .single();
@@ -1029,6 +1185,7 @@ function AdminDashboardContent() {
       setDiscMinReq("0");
       setDiscEndsAt("");
       setDiscUsageLimit("");
+      setDiscConciergeOnly(false);
     } catch (err) {
       const msg = errorMessage(err, "");
       triggerToast(
@@ -1053,6 +1210,38 @@ function AdminDashboardContent() {
 
       setDiscounts(prev => prev.map(d => (d.id === disc.id ? { ...d, is_active: next } : d)));
       triggerToast(`${disc.code} is now ${next ? "active" : "paused"}.`);
+    } catch (err) {
+      triggerToast(`Could not update ${disc.code}. ${errorMessage(err, "")}`.trim());
+    }
+  };
+
+  /**
+   * Move a code between the shop floor and the concierge.
+   *
+   * Only a concierge-exclusive code is one the agent may offer unprompted; a
+   * public code it will merely confirm when asked. Making one exclusive needs a
+   * redemption cap, which the database enforces too — this check exists so the
+   * owner sees a sentence rather than a constraint name.
+   */
+  const handleToggleConciergeOnly = async (disc: Row) => {
+    const next = !disc.concierge_only;
+    if (next && disc.usage_limit == null) {
+      triggerToast(`Give ${disc.code} a redemption cap before handing it to the concierge.`);
+      return;
+    }
+    try {
+      const { error } = await getBrowserSupabase()
+        .from("discounts")
+        .update({ concierge_only: next })
+        .eq("id", disc.id);
+      if (error) throw error;
+
+      setDiscounts(prev => prev.map(d => (d.id === disc.id ? { ...d, concierge_only: next } : d)));
+      triggerToast(
+        next
+          ? `${disc.code} is now the concierge's to offer.`
+          : `${disc.code} is public again.`
+      );
     } catch (err) {
       triggerToast(`Could not update ${disc.code}. ${errorMessage(err, "")}`.trim());
     }
@@ -4669,6 +4858,39 @@ function AdminDashboardContent() {
               </button>
             </div>
 
+            {/* What the conversation closed. Only appears once a concierge
+                code has actually been redeemed — an empty strip would just be
+                a reminder that nothing has happened yet. */}
+            {conciergeOfferStats.some((s) => Number(s.orders_count) > 0) && (
+              <div className="bg-white/[0.015] border border-amber-800/25 p-6">
+                <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-2">
+                  CONCIERGE-ATTRIBUTED TRADE
+                </h4>
+                <p className="text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase mb-5">
+                  Orders that paid with a code only the chat hands out
+                </p>
+                <div className="flex flex-wrap gap-8">
+                  {conciergeOfferStats
+                    .filter((s) => Number(s.orders_count) > 0)
+                    .map((s) => (
+                      <div key={String(s.code)}>
+                        <span className="text-[8px] tracking-[0.3em] text-amber-400 uppercase font-black block mb-1">
+                          {String(s.code)}
+                        </span>
+                        <span className="text-xl font-serif-luxury text-[#EAE3DB]">
+                          AED {Number(s.revenue).toLocaleString("en-AE", { maximumFractionDigits: 0 })}
+                        </span>
+                        <span className="block text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase mt-1">
+                          {Number(s.orders_count)} orders
+                          {Number(s.cancelled_count) > 0 && ` · ${Number(s.cancelled_count)} cancelled`}
+                          {" · "}AED {Number(s.discount_given).toLocaleString("en-AE", { maximumFractionDigits: 0 })} given
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
             {/* Discount Codes Table */}
             <div className="bg-white/[0.015] border border-white/[0.04] overflow-x-auto">
               <table className="w-full border-collapse text-left">
@@ -4676,6 +4898,7 @@ function AdminDashboardContent() {
                   <tr className="border-b border-white/[0.04] text-[8.5px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black bg-white/[0.01]">
                     <th className="p-4 pl-6">PROMO CODE</th>
                     <th className="p-4">DEDUCTION RATIO</th>
+                    <th className="p-4 text-center">CHANNEL</th>
                     <th className="p-4 text-center">MIN PURCHASE</th>
                     <th className="p-4 text-center">REDEMPTIONS</th>
                     <th className="p-4 text-center">EXPIRES</th>
@@ -4686,7 +4909,7 @@ function AdminDashboardContent() {
                 <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
                   {discounts.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
+                      <td colSpan={8} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
                         NO PROMOTIONAL CODES REGISTERED
                       </td>
                     </tr>
@@ -4706,6 +4929,23 @@ function AdminDashboardContent() {
                           <td className="p-4 pl-6 text-amber-400 font-black">{disc.code}</td>
                           <td className="p-4">
                             {disc.type === "percentage" ? `${disc.value}% OFF` : `AED ${disc.value} OFF`}
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => handleToggleConciergeOnly(disc)}
+                              title={
+                                disc.concierge_only
+                                  ? "The concierge may offer this code. Click to make it public."
+                                  : "Public: the concierge will confirm it if asked, but never offer it. Click to hand it to the concierge."
+                              }
+                              className={`text-[7px] tracking-widest px-2.5 py-1 border font-black transition-all cursor-pointer ${
+                                disc.concierge_only
+                                  ? "border-amber-700/50 bg-amber-950/25 text-amber-400 hover:border-amber-500"
+                                  : "border-neutral-700/40 bg-neutral-800/15 text-neutral-400 hover:border-neutral-500"
+                              }`}
+                            >
+                              {disc.concierge_only ? "CONCIERGE" : "PUBLIC"}
+                            </button>
                           </td>
                           <td className="p-4 text-center text-[#EAE3DB]/50 font-sans">
                             {parseFloat(String(disc.min_requirement || 0)) > 0
@@ -4889,6 +5129,28 @@ function AdminDashboardContent() {
                           </span>
                         </div>
                       </div>
+
+                      {/* The chat's own code. Requires a cap — both here and in
+                          the database — because a code an agent offers freely
+                          needs a ceiling somebody chose deliberately. */}
+                      <label className="flex items-start gap-3 border border-white/[0.06] p-3.5 cursor-pointer hover:border-amber-700/40 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={discConciergeOnly}
+                          onChange={(e) => setDiscConciergeOnly(e.target.checked)}
+                          className="mt-0.5 accent-amber-600 cursor-pointer"
+                        />
+                        <span>
+                          <span className="block text-[7.5px] tracking-widest text-amber-400 font-black">
+                            CONCIERGE EXCLUSIVE
+                          </span>
+                          <span className="block text-[6.5px] tracking-widest text-[#EAE3DB]/30 font-bold normal-case mt-1 leading-relaxed">
+                            Only the chat agent may offer it, and only after a real
+                            conversation. Needs a redemption cap. Trade it closes is
+                            reported back here.
+                          </span>
+                        </span>
+                      </label>
 
                       <button
                         type="submit"
@@ -5485,6 +5747,411 @@ function AdminDashboardContent() {
               </div>
 
             </div>
+          </div>
+          );
+        })()}
+
+        {/* ========================================================
+            TAB: CONCIERGE INSIGHTS
+            What the chat agent learned about what people want.
+            ======================================================== */}
+        {currentTab === "concierge" && (() => {
+          const totals = (conciergeOverview?.totals || {}) as Row;
+          const outcomes = (conciergeOverview?.outcomes || []) as Row[];
+          const hours = (conciergeOverview?.hours || []) as Row[];
+          const terms = (conciergeOverview?.terms || []) as Row[];
+          const demand = (conciergeOverview?.demand || []) as Row[];
+          const tools = (conciergeOverview?.tools || []) as Row[];
+
+          const turns = Number(totals.turns) || 0;
+          const struggles = Number(totals.struggles) || 0;
+          const peakHour = hours.reduce(
+            (best: Row | null, h) => (!best || Number(h.turns) > Number(best.turns) ? h : best),
+            null
+          );
+          const busiest = hours.reduce((m, h) => Math.max(m, Number(h.turns) || 0), 0) || 1;
+          const mostShown = demand.reduce((m, d) => Math.max(m, Number(d.shown) || 0), 0) || 1;
+          const totalPages = Math.max(
+            1,
+            Math.ceil((Number(conciergeSessions[0]?.total_count) || 0) / CONCIERGE_PAGE_SIZE)
+          );
+
+          const kpis = [
+            { label: "CONVERSATIONS", value: String(Number(totals.sessions) || 0) },
+            { label: "AGENT REPLIES", value: String(turns) },
+            { label: "BOTTLES TAKEN", value: String(Number(totals.adds) || 0) },
+            { label: "PHOTOGRAPHS", value: String(Number(totals.photo_turns) || 0) },
+            {
+              label: "TROUBLED TURNS",
+              value: turns > 0 ? `${((struggles / turns) * 100).toFixed(0)}%` : "—",
+            },
+            {
+              label: "MEDIAN REPLY",
+              value: Number(totals.median_latency_ms)
+                ? `${(Number(totals.median_latency_ms) / 1000).toFixed(1)}s`
+                : "—",
+            },
+          ];
+
+          return (
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <span className="text-[8px] tracking-[0.35em] text-amber-500 uppercase font-black block mb-1">
+                  WHAT THE SHOP FLOOR HEARD
+                </span>
+                <h2 className="text-xl font-serif-luxury text-[#EAE3DB] uppercase tracking-wider">
+                  CONCIERGE INSIGHTS
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {[7, 30, 90].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => { setConciergeDays(d); setConciergePage(0); }}
+                    className={`text-[8.5px] tracking-[0.25em] font-black uppercase px-4 py-3 border transition-all cursor-pointer ${
+                      conciergeDays === d
+                        ? "border-amber-600 bg-amber-600/15 text-amber-400"
+                        : "border-white/[0.06] text-[#EAE3DB]/40 hover:text-[#EAE3DB]/70"
+                    }`}
+                  >
+                    {d} DAYS
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {conciergeError && (
+              <div className="border border-amber-800/40 bg-amber-950/15 p-4 flex items-start gap-3">
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-[9px] tracking-widest text-amber-200/80 font-bold uppercase leading-relaxed">
+                  {conciergeError}
+                </p>
+              </div>
+            )}
+
+            {conciergeLoading && !conciergeOverview ? (
+              <div className="flex items-center gap-3 py-16 justify-center">
+                <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                <span className="text-[9px] tracking-[0.25em] text-[#EAE3DB]/40 font-black uppercase">
+                  READING THE TRANSCRIPTS
+                </span>
+              </div>
+            ) : !conciergeError && turns === 0 ? (
+              <div className="bg-white/[0.015] border border-white/[0.04] py-16 text-center">
+                <p className="text-[9px] tracking-[0.25em] text-[#EAE3DB]/30 font-black uppercase">
+                  NO CONVERSATIONS IN THIS WINDOW
+                </p>
+              </div>
+            ) : !conciergeError && (
+              <>
+                {/* KPI row */}
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                  {kpis.map((k) => (
+                    <div key={k.label} className="bg-white/[0.015] border border-white/[0.04] p-5">
+                      <span className="text-[7.5px] tracking-[0.3em] text-[#EAE3DB]/35 uppercase font-black block mb-2">
+                        {k.label}
+                      </span>
+                      <span className="text-2xl font-serif-luxury text-[#EAE3DB]">{k.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  {/* Shown against taken — the whole reason this tab exists */}
+                  <div className="bg-white/[0.015] border border-white/[0.04] p-6">
+                    <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-2">
+                      SHOWN, AND TAKEN
+                    </h4>
+                    <p className="text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase mb-6">
+                      A bottle shown often and never taken is the one to look at
+                    </p>
+                    {demand.length === 0 ? (
+                      <p className="text-[9px] tracking-widest text-[#EAE3DB]/40 font-bold uppercase py-6">
+                        Nothing staged yet.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-4">
+                        {demand.slice(0, 10).map((d) => {
+                          const shown = Number(d.shown) || 0;
+                          const taken = Number(d.taken) || 0;
+                          const rate = shown > 0 ? (taken / shown) * 100 : 0;
+                          return (
+                            <div key={String(d.product_id)}>
+                              <div className="flex justify-between items-baseline mb-1.5 gap-3">
+                                <span className="text-[9px] tracking-widest text-[#EAE3DB]/70 font-black uppercase truncate">
+                                  {String(d.name).replace(/_/g, " ")}
+                                </span>
+                                <span className="text-[8px] tracking-widest text-[#EAE3DB]/40 font-bold shrink-0">
+                                  {taken}/{shown} · {rate.toFixed(0)}%
+                                </span>
+                              </div>
+                              <div className="h-2 w-full bg-white/[0.03] relative">
+                                {/* Amber resin for what was shown, the darker */}
+                                {/* charred oud for what actually left. */}
+                                <div
+                                  className="absolute inset-y-0 left-0 bg-amber-600/30"
+                                  style={{ width: `${(shown / mostShown) * 100}%` }}
+                                />
+                                <div
+                                  className="absolute inset-y-0 left-0 bg-amber-500"
+                                  style={{ width: `${(taken / mostShown) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-6">
+                    {/* Busiest hours, in Dubai time */}
+                    <div className="bg-white/[0.015] border border-white/[0.04] p-6">
+                      <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-2">
+                        WHEN THEY COME IN
+                      </h4>
+                      <p className="text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase mb-6">
+                        Dubai time{peakHour ? ` · busiest around ${dubaiHourLabel(Number(peakHour.hour))}` : ""}
+                      </p>
+                      <div className="flex items-end gap-[3px] h-24">
+                        {Array.from({ length: 24 }, (_, h) => {
+                          const row = hours.find((x) => Number(x.hour) === h);
+                          const n = Number(row?.turns) || 0;
+                          return (
+                            <div
+                              key={h}
+                              className="flex-1 bg-amber-600/70 min-h-[2px] hover:bg-amber-500 transition-colors"
+                              style={{ height: `${Math.max((n / busiest) * 100, 2)}%` }}
+                              title={`${dubaiHourLabel(h)} — ${n} replies`}
+                            />
+                          );
+                        })}
+                      </div>
+                      <div className="flex justify-between mt-2 text-[7px] tracking-widest text-[#EAE3DB]/25 font-black">
+                        <span>12AM</span><span>6AM</span><span>12PM</span><span>6PM</span><span>11PM</span>
+                      </div>
+                    </div>
+
+                    {/* Where the agent struggled */}
+                    <div className="bg-white/[0.015] border border-white/[0.04] p-6">
+                      <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-6">
+                        HOW TURNS ENDED
+                      </h4>
+                      <div className="flex flex-col gap-3">
+                        {outcomes.map((o) => {
+                          const meta = CONCIERGE_OUTCOMES[String(o.outcome)] || {
+                            label: String(o.outcome).toUpperCase(), note: "", bad: true,
+                          };
+                          const n = Number(o.turns) || 0;
+                          return (
+                            <div key={String(o.outcome)} className="flex items-center gap-3">
+                              <div className="h-2 w-2 shrink-0" style={{
+                                backgroundColor: meta.bad ? "#78350f" : "#e6a86c",
+                              }} />
+                              <span className="text-[9px] tracking-widest text-[#EAE3DB]/70 font-black uppercase">
+                                {meta.label}
+                              </span>
+                              <div className="flex-1 h-px bg-white/[0.05]" />
+                              <span className="text-[9px] text-[#EAE3DB]/50 font-bold">{n}</span>
+                              <span className="text-[8px] text-[#EAE3DB]/25 font-bold w-10 text-right">
+                                {turns > 0 ? `${((n / turns) * 100).toFixed(0)}%` : ""}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* What they asked for */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div className="bg-white/[0.015] border border-white/[0.04] p-6">
+                    <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-2">
+                      WHAT THEY ASKED FOR
+                    </h4>
+                    <p className="text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase mb-6">
+                      The agent&apos;s own searches — demand in the shopper&apos;s words
+                    </p>
+                    {terms.length === 0 ? (
+                      <p className="text-[9px] tracking-widest text-[#EAE3DB]/40 font-bold uppercase py-4">
+                        No searches recorded.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {terms.map((t) => (
+                          <span
+                            key={String(t.term)}
+                            className="border border-white/[0.06] px-3 py-1.5 text-[9px] tracking-widest text-[#EAE3DB]/60 font-bold uppercase"
+                          >
+                            {String(t.term)}
+                            <span className="text-amber-500/70 ml-2">{Number(t.times)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-white/[0.015] border border-white/[0.04] p-6">
+                    <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-6">
+                      WHAT IT REACHED FOR
+                    </h4>
+                    <div className="flex flex-col gap-2.5">
+                      {tools.map((t) => (
+                        <div key={String(t.tool)} className="flex items-center gap-3">
+                          <span className="text-[9px] tracking-widest text-[#EAE3DB]/60 font-bold lowercase">
+                            {String(t.tool)}
+                          </span>
+                          <div className="flex-1 h-px bg-white/[0.05]" />
+                          <span className="text-[9px] text-[#EAE3DB]/50 font-bold">{Number(t.times)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottles people photographed. Read it as a buying list: a
+                    house appearing repeatedly is one the shop has no answer
+                    to, and the count beside it is how often that cost a sale. */}
+                {conciergePhotoDemand.length > 0 && (
+                  <div className="bg-white/[0.015] border border-white/[0.04] p-6">
+                    <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black mb-2">
+                      BOTTLES THEY WALKED IN WANTING
+                    </h4>
+                    <p className="text-[8px] tracking-widest text-[#EAE3DB]/35 font-bold uppercase mb-6">
+                      Read from photographs customers sent — demand for houses you may not carry
+                    </p>
+                    <div className="flex flex-col gap-2.5">
+                      {conciergePhotoDemand.map((d) => (
+                        <div key={String(d.reading)} className="flex items-center gap-3">
+                          <span className="text-[9px] tracking-widest text-[#EAE3DB]/70 font-bold uppercase">
+                            {String(d.reading)}
+                          </span>
+                          <div className="flex-1 h-px bg-white/[0.05]" />
+                          <span className="text-[9px] text-amber-400 font-bold">{Number(d.times)}</span>
+                          <span className="text-[8px] text-[#EAE3DB]/25 font-bold">
+                            {d.last_seen
+                              ? new Date(String(d.last_seen)).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                })
+                              : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Conversations */}
+                <div className="bg-white/[0.015] border border-white/[0.04]">
+                  <div className="flex flex-col md:flex-row justify-between md:items-center gap-3 p-6 pb-4">
+                    <h4 className="text-[10px] tracking-[0.2em] text-amber-500 uppercase font-black">
+                      CONVERSATIONS
+                    </h4>
+                    <button
+                      onClick={() => { setConciergeStrugglesOnly((v) => !v); setConciergePage(0); }}
+                      className={`text-[8.5px] tracking-[0.25em] font-black uppercase px-4 py-2.5 border transition-all cursor-pointer ${
+                        conciergeStrugglesOnly
+                          ? "border-amber-600 bg-amber-600/15 text-amber-400"
+                          : "border-white/[0.06] text-[#EAE3DB]/40 hover:text-[#EAE3DB]/70"
+                      }`}
+                    >
+                      {conciergeStrugglesOnly ? "SHOWING TROUBLED ONLY" : "SHOW TROUBLED ONLY"}
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left">
+                      <thead>
+                        <tr className="border-b border-white/[0.04] text-[8.5px] tracking-[0.2em] text-[#EAE3DB]/40 uppercase font-black bg-white/[0.01]">
+                          <th className="p-4 pl-6">OPENED WITH</th>
+                          <th className="p-4 text-center">REPLIES</th>
+                          <th className="p-4 text-center">TROUBLED</th>
+                          <th className="p-4 text-center">PHOTOS</th>
+                          <th className="p-4 text-center">TAKEN</th>
+                          <th className="p-4 text-center">WHEN</th>
+                          <th className="p-4 pr-6 text-center">ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-[10px] tracking-wider font-semibold text-[#EAE3DB]/80">
+                        {conciergeSessions.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest uppercase">
+                              NO CONVERSATIONS RECORDED
+                            </td>
+                          </tr>
+                        ) : (
+                          conciergeSessions.map((s) => (
+                            <tr key={String(s.session_id)} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-colors">
+                              <td className="p-4 pl-6 max-w-[340px]">
+                                <span className="block truncate text-[#EAE3DB]/70 normal-case font-normal">
+                                  {String(s.opening || "—")}
+                                </span>
+                              </td>
+                              <td className="p-4 text-center font-sans">{Number(s.turns)}</td>
+                              <td className="p-4 text-center font-sans">
+                                {Number(s.struggles) > 0 ? (
+                                  <span className="text-amber-400 font-bold">{Number(s.struggles)}</span>
+                                ) : (
+                                  <span className="text-[#EAE3DB]/25">—</span>
+                                )}
+                              </td>
+                              <td className="p-4 text-center font-sans">
+                                {Number(s.photos) > 0 ? Number(s.photos) : <span className="text-[#EAE3DB]/25">—</span>}
+                              </td>
+                              <td className="p-4 text-center font-sans">
+                                {Number(s.adds) > 0 ? (
+                                  <span className="text-green-400 font-bold">{Number(s.adds)}</span>
+                                ) : (
+                                  <span className="text-[#EAE3DB]/25">—</span>
+                                )}
+                              </td>
+                              <td className="p-4 text-center font-sans text-[9px] text-[#EAE3DB]/50">
+                                {s.last_seen_at
+                                  ? new Date(String(s.last_seen_at)).toLocaleDateString("en-GB", {
+                                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                                    })
+                                  : "—"}
+                              </td>
+                              <td className="p-4 pr-6 text-center">
+                                <button
+                                  onClick={() => openReplay(s)}
+                                  className="text-[8px] tracking-[0.2em] font-black uppercase border border-white/[0.08] px-3 py-1.5 text-[#EAE3DB]/50 hover:border-amber-600 hover:text-amber-400 transition-all cursor-pointer"
+                                >
+                                  REPLAY
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between p-6 pt-4 border-t border-white/[0.04]">
+                      <button
+                        disabled={conciergePage === 0}
+                        onClick={() => setConciergePage((p) => Math.max(0, p - 1))}
+                        className="text-[8.5px] tracking-[0.25em] font-black uppercase text-[#EAE3DB]/40 hover:text-amber-400 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        ← NEWER
+                      </button>
+                      <span className="text-[8px] tracking-[0.25em] text-[#EAE3DB]/30 font-black">
+                        {conciergePage + 1} / {totalPages}
+                      </span>
+                      <button
+                        disabled={conciergePage + 1 >= totalPages}
+                        onClick={() => setConciergePage((p) => p + 1)}
+                        className="text-[8.5px] tracking-[0.25em] font-black uppercase text-[#EAE3DB]/40 hover:text-amber-400 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        OLDER →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           );
         })()}
@@ -6449,6 +7116,113 @@ function AdminDashboardContent() {
             </AnimatePresence>
            </div>
          )}
+
+        {/* ── CONVERSATION REPLAY ───────────────────────────────────────
+            The transcript as the shopper read it. Contact details were
+            already replaced with [number] and [email] on the way into the
+            database, so there is nothing here to redact on display — and
+            nothing to recover either. That is the deliberate trade. */}
+        <AnimatePresence>
+          {replaySession && (
+            <div
+              onClick={(e) => { if (e.target === e.currentTarget) setReplaySession(null); }}
+              className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-6"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                className="bg-[#090503] border border-amber-600/35 w-full max-w-[680px] max-h-[88vh] overflow-y-auto p-8 shadow-[0_20px_50px_rgba(0,0,0,0.9)] relative"
+              >
+                <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-amber-500" />
+                <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-amber-500" />
+
+                <div className="flex items-start justify-between mb-6 gap-4">
+                  <div>
+                    <h4 className="text-[12px] tracking-[0.3em] font-black text-amber-400 uppercase mb-1">
+                      CONVERSATION REPLAY
+                    </h4>
+                    <span className="text-[9px] text-[#EAE3DB]/50 font-bold">
+                      {Number(replaySession.turns)} replies
+                      {Number(replaySession.struggles) > 0 && ` · ${Number(replaySession.struggles)} troubled`}
+                      {Number(replaySession.adds) > 0 && ` · ${Number(replaySession.adds)} taken`}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setReplaySession(null)}
+                    className="text-[#EAE3DB]/40 hover:text-amber-400 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {replayLoading ? (
+                  <div className="flex items-center gap-3 py-12 justify-center">
+                    <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-5">
+                    {replayTurns.map((t) => {
+                      const meta = t.outcome ? CONCIERGE_OUTCOMES[String(t.outcome)] : null;
+                      return (
+                        <div key={String(t.id)} className={String(t.role) === "user" ? "pl-10" : ""}>
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <span className="text-[7.5px] tracking-[0.3em] font-black uppercase text-[#EAE3DB]/30">
+                              {String(t.role) === "user" ? "SHOPPER" : "CONCIERGE"}
+                            </span>
+                            {t.has_image && (
+                              <span className="text-[9px] uppercase tracking-[0.2em] text-amber-500/70 font-black">
+                                [PHOTO]
+                              </span>
+                            )}
+                            {meta && meta.bad && (
+                              <span className="text-[7.5px] tracking-[0.2em] font-black uppercase px-2 py-0.5 border border-amber-800/40 bg-amber-950/20 text-amber-400/80">
+                                {meta.label}
+                              </span>
+                            )}
+                            {Number(t.latency_ms) > 0 && (
+                              <span className="text-[7.5px] text-[#EAE3DB]/20 font-bold">
+                                {(Number(t.latency_ms) / 1000).toFixed(1)}s
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-[11px] leading-relaxed whitespace-pre-wrap ${
+                            String(t.role) === "user"
+                              ? "text-[#EAE3DB]/60 italic"
+                              : "text-[#EAE3DB]/85"
+                          }`}>
+                            {String(t.content)}
+                          </p>
+                          {t.photo_reading && (
+                            <p className="mt-1.5 text-[8.5px] tracking-widest text-amber-500/60 font-bold uppercase">
+                              READ AS: {String(t.photo_reading)}
+                            </p>
+                          )}
+                          {Array.isArray(t.product_ids) && t.product_ids.length > 0 && (
+                            <p className="mt-1.5 text-[8px] tracking-widest text-[#EAE3DB]/30 font-bold uppercase">
+                              SHOWED{" "}
+                              {(t.product_ids as number[])
+                                .map((id) => {
+                                  const p = products.find((pr) => pr.id === id);
+                                  return p ? String(p.name).replace(/_/g, " ") : `#${id}`;
+                                })
+                                .join(" · ")}
+                            </p>
+                          )}
+                          {Array.isArray(t.search_terms) && t.search_terms.length > 0 && (
+                            <p className="mt-1 text-[8px] tracking-widest text-[#EAE3DB]/25 font-bold uppercase">
+                              SEARCHED {(t.search_terms as string[]).join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
        </div>
     </div>

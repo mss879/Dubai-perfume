@@ -60,12 +60,29 @@ const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+    // camera=(self) so the concierge's "photograph a bottle" input can reach the
+    // camera on a phone. Defensive rather than proven: it is not established
+    // that Chromium gates <input capture> on this header, and the file-picker
+    // path works regardless — so if the camera does not open, this is not the
+    // reason. Everything else stays denied outright.
+    value: "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
   },
   { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
 ];
 
 const nextConfig: NextConfig = {
+  experimental: {
+    /**
+     * proxy.ts matches every route, and when a proxy is in play Next buffers the
+     * whole request body in memory before the route handler sees a byte of it —
+     * 10MB by default. The concierge's own cap (512KB, enforced by streaming in
+     * request-guard.ts) therefore protects nothing on its own: the memory is
+     * already spent by the time it runs. This is the limit that actually binds.
+     * Sized just above the concierge's cap, which is the largest body the store
+     * accepts anywhere.
+     */
+    proxyClientMaxBodySize: "640kb",
+  },
   compress: true,
   // Stop advertising the framework and its version to attackers.
   poweredByHeader: false,

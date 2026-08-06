@@ -7,7 +7,7 @@ import {
   Home, ShoppingBag, Tag, FolderOpen, Layers, ClipboardList,
   GitCompare, Gift, Users, Megaphone, Percent, FileText, Globe,
   BarChart3, LogOut, Menu, X,
-  ChevronDown, ChevronRight, Mail, Sparkles
+  ChevronDown, ChevronRight, Mail, Sparkles, MessageSquare
 } from "lucide-react";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 import SiteLockPanel from "./SiteLockPanel";
@@ -21,6 +21,7 @@ const categories = [
     subItems: [
       { id: "dashboard", label: "Home Dashboard", icon: Home },
       { id: "analytics", label: "Analytics Reports", icon: BarChart3 },
+      { id: "concierge", label: "Concierge Insights", icon: MessageSquare },
       { id: "reports", label: "Executive Reports", icon: ClipboardList }
     ]
   },

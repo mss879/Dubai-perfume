@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import CartDrawer from "../components/CartDrawer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import QuizClient from "./QuizClient";
 import { fetchQuizCatalogue } from "../lib/quiz-catalogue";
 
@@ -35,6 +36,7 @@ export default async function DiscoverPage() {
     <div className="maison min-h-screen flex flex-col relative overflow-x-hidden">
       <AppHeader activePage="discover" />
       <CartDrawer />
+      <ConciergeWidget />
 
       <main className="flex-grow">
         <QuizClient products={products} />

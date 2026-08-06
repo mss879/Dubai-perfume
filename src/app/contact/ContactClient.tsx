@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import { FREE_SHIPPING_THRESHOLD_AED, SHIPPING_FEE_AED } from "../lib/shipping";
 
 const HAIRLINE = "rgba(0,0,0,0.12)";
@@ -498,6 +499,7 @@ export default function ContactClient() {
       </main>
 
       <Footer />
+      <ConciergeWidget />
     </div>
   );
 }

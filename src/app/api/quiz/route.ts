@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-server";
+import {
+  createServerSupabase,
+  createSessionSupabase,
+  isSupabaseConfigured,
+} from "../../lib/supabase-server";
 import { isMissingFunction } from "../../lib/rpc-errors";
 import { checkRateLimit, clientKey } from "../../lib/rate-limit";
 import { isBot, readJsonBody } from "../../lib/request-guard";
@@ -125,12 +129,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Who took this quiz, if anyone signed in did.
+  //
+  // Read from the cookie session and nowhere else — a customer id in the
+  // request body would let anyone attach their taste to a stranger's account.
+  // Only this one call uses the session client; the rate limit and the
+  // catalogue read stay on the anon client, which is all they need.
+  let customerId: string | null = null;
+  try {
+    const session = await createSessionSupabase();
+    const { data } = await session.auth.getUser();
+    customerId = data.user?.id ?? null;
+  } catch {
+    // Signed out, or auth unreachable. The result is still captured, just
+    // without an owner — exactly as it behaved before this was added.
+  }
+
   const { error } = await supabase.rpc("record_quiz_response", {
     p_session_id: sessionId,
     p_answers: answers,
     p_email: email,
     p_recommended: recommended,
     p_profile: cleanProfile(body.profile),
+    p_customer_id: customerId,
   });
 
   if (error) {

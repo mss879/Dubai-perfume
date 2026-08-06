@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
+import ConciergeWidget from "../../components/concierge/ConciergeWidget";
 import { SITE_URL, SITE_NAME } from "../../lib/site";
 import { jsonLdScript } from "../../lib/html";
 import { getAllPosts, getPostBySlug, getMentionedProducts } from "../posts";
@@ -270,6 +271,7 @@ export default async function BlogDetailPage({
       </main>
 
       <Footer />
+      <ConciergeWidget />
     </div>
   );
 }

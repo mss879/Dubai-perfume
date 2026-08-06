@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import { createServerSupabase, isSupabaseConfigured } from "../lib/supabase-server";
 
 /* Never bake stale catalogue data into the build. */
@@ -226,6 +227,7 @@ export default async function CollectionsIndexPage() {
 
       {/* Main App Footer */}
       <Footer />
+      <ConciergeWidget />
     </div>
   );
 }

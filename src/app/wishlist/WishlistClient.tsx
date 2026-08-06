@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import CartDrawer, { openCartDrawer } from "../components/CartDrawer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import EmptyState from "../components/EmptyState";
 import Price from "../components/Price";
 import { getBrowserSupabase } from "../lib/supabase-browser";
@@ -277,6 +278,7 @@ export default function WishlistClient() {
     <div className="maison min-h-screen flex flex-col">
       <AppHeader activePage="wishlist" />
       <CartDrawer />
+      <ConciergeWidget />
 
       {/* Toast */}
       <AnimatePresence>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import TrackClient from "./TrackClient";
 
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ export default async function TrackPage({
       </main>
 
       <Footer />
+      <ConciergeWidget />
     </div>
   );
 }

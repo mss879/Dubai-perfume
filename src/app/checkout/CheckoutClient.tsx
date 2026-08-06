@@ -6,10 +6,12 @@ import Image from "next/image";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import CartDrawer from "../components/CartDrawer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import FreeDeliveryProgress from "../components/FreeDeliveryProgress";
 import { useCart, readCart, type CartLine } from "../lib/cart";
 import { useCurrency } from "../lib/currency";
 import { shippingFeeForSubtotal } from "../lib/shipping";
+import { takeOfferCode, OFFER_CODE_EVENT } from "../lib/offer-code";
 import { getBrowserSupabase } from "../lib/supabase-browser";
 
 /** Never-changing store, used only to distinguish server render from client. */
@@ -300,6 +302,35 @@ export default function CheckoutClient() {
    * and a second implementation of them would be a second thing to get wrong.
    */
   const pricedForSubtotal = useRef<number | null>(null);
+
+  /**
+   * A code the concierge offered, waiting in the field.
+   *
+   * Filled in, never applied: the shopper still presses Apply, which is what
+   * prices it, and place_order still re-validates at order time. An agent that
+   * silently discounted an order would be an agent nobody could audit.
+   * Read-and-clear, so it cannot resurface on a later order.
+   */
+  // set-state-in-effect is disabled deliberately here. The rule guards against
+  // effects that mirror React state into React state; this reads once from an
+  // external store (localStorage) that cannot be read during render, because
+  // taking the code also clears it. A lazy useState initialiser would run on the
+  // server too and mismatch on hydration.
+  useEffect(() => {
+    const claim = () => {
+      const parked = takeOfferCode();
+      if (!parked) return;
+      setDiscountInput(parked);
+      setDiscountNote("The concierge saved this code for you — press Apply to use it.");
+    };
+    /* eslint-disable react-hooks/set-state-in-effect */
+    claim();
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // The concierge is mounted on this very page, so a code accepted mid-checkout
+    // arrives without a navigation to pick it up.
+    window.addEventListener(OFFER_CODE_EVENT, claim);
+    return () => window.removeEventListener(OFFER_CODE_EVENT, claim);
+  }, []);
 
   useEffect(() => {
     if (!discountCode) {
@@ -741,6 +772,7 @@ export default function CheckoutClient() {
       <div className="maison min-h-screen flex flex-col">
         <AppHeader />
         <CartDrawer />
+      <ConciergeWidget />
         <main className="flex-grow">
           <div className="maison-container maison-section">
             <div className="mx-auto max-w-[620px] text-center">
@@ -831,6 +863,7 @@ export default function CheckoutClient() {
       <div className="maison min-h-screen flex flex-col">
         <AppHeader />
         <CartDrawer />
+      <ConciergeWidget />
         <main className="flex-grow">
           <div className="maison-container maison-section">
             <div className="mx-auto max-w-[560px] text-center">
@@ -857,6 +890,7 @@ export default function CheckoutClient() {
     <div className="maison min-h-screen flex flex-col">
       <AppHeader />
       <CartDrawer />
+      <ConciergeWidget />
 
       <main className="flex-grow">
         <div className="maison-container">

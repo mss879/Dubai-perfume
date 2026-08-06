@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronDown } from "lucide-react";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
 import CartDrawer, { openCartDrawer } from "../../components/CartDrawer";
+import ConciergeWidget from "../../components/concierge/ConciergeWidget";
 import Price from "../../components/Price";
 import { useCart } from "../../lib/cart";
 import { toArray } from "../../lib/catalogue";
@@ -263,6 +264,7 @@ export default function CollectionClient({
 
       {/* Shared bag drawer — opened after every add-to-cart */}
       <CartDrawer />
+      <ConciergeWidget />
 
       {/* ═══ FULL-BLEED HOUSE HERO ═══ */}
       <section

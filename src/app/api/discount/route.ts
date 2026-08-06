@@ -3,6 +3,7 @@ import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-s
 import { isMissingFunction } from "../../lib/rpc-errors";
 import { checkRateLimit, clientKey } from "../../lib/rate-limit";
 import { readJsonBody } from "../../lib/request-guard";
+import { discountRefusalMessage } from "../../lib/discount-copy";
 
 /**
  * Advisory discount check for the checkout summary. place_order() re-validates
@@ -23,8 +24,12 @@ const CANNOT_VALIDATE =
   "We could not check this code just now. Enter it anyway — it will be applied when your order is placed if it is valid.";
 const TOO_MANY_CHECKS = "Too many codes tried. Please wait a moment before trying another.";
 
-/** A code we cannot honour is always refused in the same words. */
-const NOT_VALID = "This code is not valid.";
+/**
+ * A code we cannot honour is refused in the same words every time, with one
+ * exception: an unmet minimum, which is the only refusal a shopper can act on.
+ * The wording lives in lib/discount-copy.ts so checkout and the concierge say
+ * exactly the same thing.
+ */
 
 export async function POST(request: NextRequest) {
   const parsed = await readJsonBody<DiscountBody>(request);
@@ -74,19 +79,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, valid: null, discountAmount: 0, message: CANNOT_VALIDATE });
   }
 
-  const result = data as { valid?: boolean; discount_amount?: number; message?: string } | null;
+  // validate_discount returns `reason` and `minimum`; it has never returned a
+  // `message`. Reading one collapsed every refusal to the same generic line and
+  // threw away the only thing a shopper could act on — how far short they were.
+  const result = data as
+    | { valid?: boolean; discount_amount?: number; reason?: string; minimum?: number }
+    | null;
   if (!result || typeof result.valid !== "boolean") {
     return NextResponse.json({ ok: true, valid: null, discountAmount: 0, message: CANNOT_VALIDATE });
   }
 
   if (!result.valid) {
-    // The database supplies the wording when the shopper can act on it (a
-    // minimum they have not reached). Nothing else about the code is returned.
     return NextResponse.json({
       ok: true,
       valid: false,
       discountAmount: 0,
-      message: result.message || NOT_VALID,
+      message: discountRefusalMessage(result.reason, result.minimum),
     });
   }
 
@@ -94,6 +102,6 @@ export async function POST(request: NextRequest) {
     ok: true,
     valid: true,
     discountAmount: Number(result.discount_amount) || 0,
-    message: result.message || "Code applied.",
+    message: "Code applied.",
   });
 }

@@ -9,6 +9,7 @@ import { ChevronDown, Heart } from "lucide-react";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import CartDrawer, { openCartDrawer } from "../components/CartDrawer";
+import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import Price from "../components/Price";
 import { useCart } from "../lib/cart";
 import { toArray } from "../lib/catalogue";
@@ -520,6 +521,7 @@ function ShopContent({ products, collections, productCollections, initialFilters
 
       {/* Shared bag drawer — opened after every add-to-cart */}
       <CartDrawer />
+      <ConciergeWidget />
 
       <main className="flex-grow bg-white">
         <div className="maison-container">
