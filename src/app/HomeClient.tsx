@@ -1123,19 +1123,26 @@ export default function HomeClient({
       <>
         {/* ── Row 1 — announcement bar (identical in both themes) ───── */}
         <div className="bg-black text-white">
-          <div className="maison-container h-[39px] flex items-center justify-center gap-4 sm:gap-8">
+          {/* gap-2 on a phone: at gap-4 the two chevrons and their gutters took
+              enough of a 375px bar that the longest notice truncated mid-word
+              ("Two discovery samples with eve…"). */}
+          <div className="maison-container h-[39px] flex items-center justify-center gap-2 sm:gap-8">
+            {/* Hidden on a phone. The two chevrons and their gutters took 48 of
+                375px and truncated the longest notice mid-word, and at 16px
+                square they were barely tappable anyway. The bar turns itself
+                over every 5.2s, so nothing is lost but the impatience. */}
             <button
               type="button"
               aria-label="Previous message"
               onClick={() => stepAnnouncement(-1)}
-              className="text-white/70 hover:text-white transition-colors duration-300 cursor-pointer"
+              className="hidden sm:block text-white/70 hover:text-white transition-colors duration-300 cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" strokeWidth={1.25} />
             </button>
 
             <p
               aria-live="polite"
-              className="text-[12px] font-normal uppercase tracking-[0.1em] text-white text-center leading-none truncate"
+              className="text-[11px] sm:text-[12px] font-normal uppercase tracking-[0.05em] sm:tracking-[0.1em] text-white text-center leading-none truncate"
             >
               {ANNOUNCEMENTS[announcementIndex]}
             </p>
@@ -1144,7 +1151,7 @@ export default function HomeClient({
               type="button"
               aria-label="Next message"
               onClick={() => stepAnnouncement(1)}
-              className="text-white/70 hover:text-white transition-colors duration-300 cursor-pointer"
+              className="hidden sm:block text-white/70 hover:text-white transition-colors duration-300 cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" strokeWidth={1.25} />
             </button>
@@ -2087,9 +2094,21 @@ export default function HomeClient({
               initial={{ y: 30, opacity: 0 }}
               animate={revealInterface ? { y: 0, opacity: 1 } : { y: 30, opacity: 0 }}
               transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.5 }}
-              className="p-4 md:p-5 flex flex-col items-center justify-center min-h-[110px] bg-transparent w-full md:w-[220px] flex-shrink-0 z-30 text-center border-r border-white/10"
+              /*
+                On a phone this is a row of its own, and at 110px it was an
+                empty black band with two small words adrift in it — a quarter
+                of the fold spent on a caption. It keeps its full height beside
+                the marquee from md up, where it is a column and has to match;
+                below that it slims to a caption bar over the moving row.
+
+                The rule is `md:border-r` for the same reason: in the column
+                layout that right border drew a hairline straight down the edge
+                of the screen, and the parent's `divide-y` already rules the two
+                rows apart.
+              */
+              className="px-4 py-3.5 md:p-5 flex flex-col items-center justify-center min-h-0 md:min-h-[110px] bg-transparent w-full md:w-[220px] flex-shrink-0 z-30 text-center md:border-r border-white/10"
             >
-              <span className="text-[13px] md:text-[15px] tracking-[0.25em] font-black text-white uppercase font-sans-luxury whitespace-nowrap select-none">
+              <span className="text-[11px] md:text-[15px] tracking-[0.3em] md:tracking-[0.25em] font-black text-white/90 md:text-white uppercase font-sans-luxury whitespace-nowrap select-none">
                 BEST SELLER
               </span>
             </motion.div>
@@ -2099,7 +2118,7 @@ export default function HomeClient({
               initial={{ y: 30, opacity: 0 }}
               animate={revealInterface ? { y: 0, opacity: 1 } : { y: 30, opacity: 0 }}
               transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
-              className="w-full md:flex-grow overflow-hidden flex items-center relative min-h-[110px] bg-transparent"
+              className="w-full md:flex-grow overflow-hidden flex items-center relative min-h-[96px] md:min-h-[110px] bg-transparent"
             >
               {marqueeProducts.length > 0 && (
                 <div className="animate-marquee-track flex divide-x divide-white/10">
@@ -2112,15 +2131,18 @@ export default function HomeClient({
                           <Link
                             key={`${loop}-${prod.id}`}
                             href={`/product/${prod.id}`}
-                            className="p-4 md:p-5 lg:p-6 flex items-center justify-between gap-6 cursor-pointer transition-all-custom group min-h-[110px] w-[260px] md:w-[320px] flex-shrink-0 hover:bg-white/[0.02]"
+                            className="px-4 py-3 md:p-5 lg:p-6 flex items-center justify-between gap-4 md:gap-6 cursor-pointer transition-all-custom group min-h-[96px] md:min-h-[110px] w-[228px] md:w-[320px] flex-shrink-0 hover:bg-white/[0.02]"
                           >
                             {/* Left product detail */}
-                            <div className="flex flex-col justify-between h-full min-h-[75px] max-w-[70%]">
+                            <div className="flex flex-col justify-between h-full min-h-[62px] md:min-h-[75px] max-w-[72%]">
                               <div>
                                 <span className="text-[14px] font-serif-luxury font-medium block">
                                   {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
                                 </span>
-                                <span className="text-[10px] font-semibold tracking-[0.15em] text-white/90 uppercase mt-0.5 block">
+                                {/* Two lines at most, and tracked tighter on a
+                                    phone — "Club de Nuit Intense Man" at 0.15em
+                                    broke to a third line with one orphan word. */}
+                                <span className="text-[10px] font-semibold tracking-[0.1em] md:tracking-[0.15em] leading-[1.45] text-white/90 uppercase mt-0.5 block line-clamp-2">
                                   {marqueeName}
                                 </span>
                               </div>
