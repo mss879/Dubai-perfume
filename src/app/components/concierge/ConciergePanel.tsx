@@ -18,6 +18,13 @@ import SuggestionChips from "./SuggestionChips";
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
 /**
+ * How much of the viewport has to disappear before we call it a keyboard.
+ * Comfortably above a collapsing browser toolbar (~60px) and far below the
+ * shortest software keyboard (~250px).
+ */
+const KEYBOARD_THRESHOLD_PX = 120;
+
+/**
  * The concierge window — the CartDrawer pattern grown a second zone. The top
  * is the agent's stage (exhibits and scent-builder questions); the bottom is
  * the conversation and the input. The stage can be folded away when the
@@ -103,6 +110,11 @@ export default function ConciergePanel({
   const [attachment, setAttachment] = useState<ConciergePreparedImage | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  /** Set only while a software keyboard is covering part of the viewport. */
+  const [keyboardInset, setKeyboardInset] = useState<{
+    height: number;
+    offsetTop: number;
+  } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -155,12 +167,47 @@ export default function ConciergePanel({
     if (open) panelRef.current?.focus();
   }, [open]);
 
-  // Follow the conversation down as it grows.
+  /**
+   * While a software keyboard is up, follow the VISUAL viewport.
+   *
+   * iOS does not shrink the layout viewport when the keyboard slides in — only
+   * the visual one. A window pinned to `bottom-0` is therefore still as tall as
+   * the whole phone, with the composer the shopper just tapped sitting behind
+   * the keyboard, and Safari scrolls the document to chase the caret, which
+   * drags the supposedly fixed window off-register. Neither dvh nor svh helps:
+   * no viewport unit accounts for a keyboard.
+   *
+   * Nothing is taken over until something is genuinely covering the viewport,
+   * so at rest — and on every desktop — the class-based top-0/bottom-0 is left
+   * exactly as it was.
+   */
+  useEffect(() => {
+    const vv = typeof window === "undefined" ? null : window.visualViewport;
+    if (!open || !vv) return;
+    const sync = () => {
+      const covered = window.innerHeight - vv.height > KEYBOARD_THRESHOLD_PX;
+      const next = covered ? { height: vv.height, offsetTop: vv.offsetTop } : null;
+      setKeyboardInset((prev) =>
+        prev?.height === next?.height && prev?.offsetTop === next?.offsetTop ? prev : next
+      );
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      setKeyboardInset(null);
+    };
+  }, [open]);
+
+  // Follow the conversation down as it grows — and again when the keyboard
+  // reshapes the window, or the last thing said scrolls out of sight under it.
   useEffect(() => {
     if (!open) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [open, messages.length, status]);
+  }, [open, messages.length, status, keyboardInset]);
 
   const submit = () => {
     const text = input.trim();
@@ -195,7 +242,15 @@ export default function ConciergePanel({
             exit={{ x: "100%" }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
             className="fixed right-0 top-0 bottom-0 w-full sm:w-[480px] bg-white border-l z-[95] flex flex-col font-body text-black outline-none"
-            style={{ borderColor: HAIRLINE }}
+            style={{
+              borderColor: HAIRLINE,
+              // Only while a keyboard is up; otherwise the classes above stand.
+              ...(keyboardInset && {
+                top: keyboardInset.offsetTop,
+                bottom: "auto",
+                height: keyboardInset.height,
+              }),
+            }}
             role="dialog"
             aria-modal="true"
             aria-label="Perfume concierge"
@@ -240,7 +295,17 @@ export default function ConciergePanel({
             {/* ── The stage ──────────────────────────────────────────── */}
             {!stageFolded && (
               <div
-                className="relative h-[38%] min-h-[220px] shrink-0 border-b"
+                /*
+                  The 220px floor is right on a phone at rest and ruinous with a
+                  keyboard up: header, floor and composer come to more than the
+                  strip left over, so the conversation is squeezed to nothing and
+                  the composer is pushed out of the window. While the shopper is
+                  typing the words matter more than the vitrine, so the floor
+                  lifts and the stage keeps only its share.
+                */
+                className={`relative h-[38%] shrink-0 border-b ${
+                  keyboardInset ? "min-h-0" : "min-h-[220px]"
+                }`}
                 style={{ borderColor: HAIRLINE }}
               >
                 <ConciergeStageView
@@ -279,7 +344,12 @@ export default function ConciergePanel({
             {/* ── The conversation ───────────────────────────────────── */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto px-5 py-5"
+              /*
+                overscroll-contain, or reaching either end of the conversation
+                hands the scroll to the storefront underneath and the shopper
+                drags the shop around behind an open window.
+              */
+              className="flex-1 overflow-y-auto overscroll-contain px-5 py-5"
               aria-live="polite"
             >
               <div className="flex flex-col gap-5">

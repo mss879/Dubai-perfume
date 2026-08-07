@@ -261,9 +261,18 @@ body {
   color: #ffffff;
 }
 
-.maison-btn:hover {
-  background: #ffffff;
-  color: var(--ink-soft);
+/*
+   Gated on a real pointer. A touch browser leaves :hover latched on the last
+   thing tapped, so an ungated rule meant the concierge's Send button stayed
+   inverted after every message — white on white, and once disabled by its own
+   send it faded to a ghost at 0.35 opacity. The maison inverts on hover for a
+   mouse; a finger has no hover to give.
+*/
+@media (hover: hover) and (pointer: fine) {
+  .maison-btn:hover {
+    background: #ffffff;
+    color: var(--ink-soft);
+  }
 }
 
 .maison-btn-outline {
@@ -271,9 +280,11 @@ body {
   color: var(--ink-soft);
 }
 
-.maison-btn-outline:hover {
-  background: var(--ink-soft);
-  color: #ffffff;
+@media (hover: hover) and (pointer: fine) {
+  .maison-btn-outline:hover {
+    background: var(--ink-soft);
+    color: #ffffff;
+  }
 }
 
 .maison-btn:disabled,
@@ -344,6 +355,31 @@ body {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+/*
+   Mobile Safari magnifies the whole page when it focuses a field whose type is
+   smaller than 16px, and it does not zoom back out afterwards. Every field in
+   the maison is 12–14px by choice, so every one of them did it: tap the
+   concierge to ask a question, the keyboard comes up, and the shopper is left
+   looking at a storefront blown up and off-centre with no obvious way back.
+
+   The type only needs to grow where a software keyboard exists, so this sits
+   behind a coarse-pointer query and the desktop keeps its smaller, deliberate
+   fields. Raising the type is also the only fix that leaves pinch-zoom alone —
+   maximum-scale=1 or user-scalable=no would stop the magnifying too, by taking
+   zoom away from every shopper who needs it to read at all (WCAG 1.4.4).
+
+   Unlayered, so it beats Tailwind's text-[14px] utilities without !important:
+   @import "tailwindcss" puts those in @layer utilities, and unlayered rules
+   outrank every layer.
+*/
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 /* Product card -------------------------------------------------- */

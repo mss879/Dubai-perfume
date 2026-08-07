@@ -106,7 +106,7 @@ export default function StageOrderLookup({
     const latest = order.events[order.events.length - 1];
 
     return (
-      <div className="flex h-full flex-col overflow-y-auto px-6 py-5">
+      <div className="flex h-full flex-col overflow-y-auto overscroll-contain px-6 py-5">
         <div className="flex items-baseline justify-between gap-3">
           <span className="maison-eyebrow">{order.orderId}</span>
           <button
@@ -188,7 +188,7 @@ export default function StageOrderLookup({
   }
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto px-6 py-5">
+    <div className="flex h-full flex-col gap-3 overflow-y-auto overscroll-contain px-6 py-5">
       <div>
         <span className="maison-eyebrow">Find your order</span>
         <p className="mt-1 text-[11px] font-light leading-relaxed text-[#646464]">
