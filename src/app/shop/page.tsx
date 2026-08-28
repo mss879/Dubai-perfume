@@ -23,6 +23,7 @@ interface DbProductRow {
   brand: string;
   name: string;
   price: number | string;
+  compare_at_price?: number | string | null;
   sizes?: string[] | null;
   image_url?: string | null;
   image_urls?: string[] | null;
@@ -49,6 +50,9 @@ function mapProduct(p: DbProductRow): CatalogProduct {
     brand: p.brand,
     name: p.name,
     price: String(p.price),
+    /* The list price the house quotes. Kept null unless the column carries one,
+     * so the grid strikes it through only where there is a real saving. */
+    compareAtPrice: p.compare_at_price == null ? null : String(p.compare_at_price),
     sizes: p.sizes || ["50ml", "100ml"],
     image: p.image_url || "/placeholder-bottle.png",
     images: p.image_urls || (p.image_url ? [p.image_url] : []),

@@ -20,6 +20,7 @@ export interface ProductDetailProps {
   brand: string;
   name: string;
   priceAed: number;
+  compareAtAed: number | null;
   sizes: string[];
   image: string;
   images: string[];
@@ -40,6 +41,7 @@ export interface RelatedItemProps {
   brand: string;
   name: string;
   priceAed: number;
+  compareAtAed: number | null;
   sizes: string[];
   image: string;
   olfactory: string;
@@ -344,6 +346,7 @@ export default function ProductClient({
                 </div>
                 <Price
                   amountAed={product.priceAed}
+                  compareAtAed={product.compareAtAed}
                   className="text-[20px] font-medium leading-none text-black"
                 />
               </div>
@@ -514,7 +517,11 @@ export default function ProductClient({
                             <span className="font-display text-[14px] tracking-[0.08em] uppercase text-black">
                               {item.name}
                             </span>
-                            <Price amountAed={item.priceAed} className="maison-price" />
+                            <Price
+                              amountAed={item.priceAed}
+                              compareAtAed={item.compareAtAed}
+                              className="maison-price"
+                            />
                           </span>
                         </Link>
                       ))}
@@ -587,7 +594,11 @@ export default function ProductClient({
 
                     <span className="maison-card-notes mt-2 block">{item.olfactory}</span>
 
-                    <Price amountAed={item.priceAed} className="maison-price mt-3 text-center block" />
+                    <Price
+                      amountAed={item.priceAed}
+                      compareAtAed={item.compareAtAed}
+                      className="maison-price mt-3 text-center block"
+                    />
 
                     <button
                       type="button"

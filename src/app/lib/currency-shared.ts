@@ -8,7 +8,10 @@ export type CurrencyCode =
   | "AED" | "USD" | "EUR" | "GBP" | "SAR" | "QAR" | "KWD" | "BHD" | "OMR" | "INR";
 
 export const SUPPORTED_CURRENCIES: { code: CurrencyCode; label: string; decimals: number }[] = [
-  { code: "AED", label: "UAE Dirham", decimals: 0 },
+  // AED carries two decimals because the catalogue is priced on .49 / .99 endings
+  // (migration 60). Rounding it to whole dirhams would show 139.49 as "AED 139"
+  // and quietly misstate what the shopper is charged.
+  { code: "AED", label: "UAE Dirham", decimals: 2 },
   { code: "USD", label: "US Dollar", decimals: 2 },
   { code: "EUR", label: "Euro", decimals: 2 },
   { code: "GBP", label: "British Pound", decimals: 2 },
@@ -39,9 +42,10 @@ export function isSupportedCurrency(code: string): code is CurrencyCode {
 }
 
 /**
- * The house format: currency code before the amount — `AED 745` /
- * `USD 202.86`. Zero decimals for dirham-pegged Gulf currencies, two
- * elsewhere.
+ * The house format: currency code before the amount — `AED 139.49` /
+ * `USD 202.86`. AED and the two-decimal currencies show fils; the remaining
+ * dirham-pegged Gulf currencies stay whole, since their conversion is
+ * presentation-only and fractions there mean nothing.
  */
 export function formatFromAed(
   amountAed: number,

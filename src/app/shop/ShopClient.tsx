@@ -20,6 +20,9 @@ export interface CatalogProduct {
   brand: string;
   name: string;
   price: string;
+  /* products.compare_at_price — the house list price. Catalogue-only: the grid
+     card strikes it through beside `price`, the cart carries `price` alone. */
+  compareAtPrice?: string | null;
   sizes: string[];
   image: string;
   images?: string[];
@@ -714,7 +717,11 @@ function ShopContent({ products, collections, productCollections, initialFilters
                       {/* Price + size */}
                       <div className="mt-auto pt-6">
                         <div className="flex items-center justify-between gap-2 border-b border-[rgba(0,0,0,0.12)] pb-3">
-                          <Price amountAed={parseFloat(prod.price) || 0} className="maison-price" />
+                          <Price
+                            amountAed={parseFloat(prod.price) || 0}
+                            compareAtAed={prod.compareAtPrice != null ? parseFloat(prod.compareAtPrice) : null}
+                            className="maison-price"
+                          />
 
                           {sizes.length > 1 ? (
                             <div className="relative shrink-0">

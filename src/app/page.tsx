@@ -5,6 +5,7 @@ import HomeClient, {
   type DbProductRow,
 } from "./HomeClient";
 import { createServerSupabase, isSupabaseConfigured } from "./lib/supabase-server";
+import { PRODUCT_FIELDS } from "./lib/catalogue";
 import { SITE_DESCRIPTION } from "./lib/site";
 
 /* The catalogue is live merchant data — never bake it into the build. */
@@ -36,7 +37,12 @@ const getHomeData = cache(async (): Promise<HomeData> => {
   try {
     const supabase = createServerSupabase();
     const [productsRes, collectionsRes] = await Promise.all([
-      supabase.from("products").select("*"),
+      /* Named columns, never "*". HomeClient is a client component, so whatever
+         lands in this array is serialised into the HTML the browser receives —
+         a "*" here would publish products.cost_price, the maison's supplier
+         cost sheet, to every visitor. PRODUCT_FIELDS is exactly what
+         DbProductRow declares and it does not include cost. */
+      supabase.from("products").select(PRODUCT_FIELDS),
       supabase.from("collections").select("*"),
     ]);
     return {

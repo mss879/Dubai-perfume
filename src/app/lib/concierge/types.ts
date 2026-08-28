@@ -82,6 +82,12 @@ export type ConciergeCard = {
   brand: string;
   name: string;
   priceAed: number;
+  /**
+   * The house list price, for the struck-through figure. null when the row has
+   * none. Display only — ConciergeAction carries priceAed alone, because a bag
+   * line is a transaction.
+   */
+  compareAtAed: number | null;
   image: string;
   sizes: string[];
   topNotes: string[];

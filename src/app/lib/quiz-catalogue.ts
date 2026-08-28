@@ -25,6 +25,7 @@ interface DbProductRow {
   brand: string;
   name: string;
   price: number | string;
+  compare_at_price?: number | string | null;
   sizes?: string[] | null;
   image_url?: string | null;
   description?: string | null;
@@ -36,6 +37,17 @@ interface DbProductRow {
   base_notes?: string[] | null;
   is_bestseller?: boolean | null;
 }
+
+/**
+ * The finder's product, plus the house list price.
+ *
+ * It hangs off ScoredProduct rather than living inside it because scoring has
+ * no use for a list price — only the cards that display a composition do.
+ */
+export type QuizCatalogueProduct = ScoredProduct & {
+  /** products.compare_at_price, struck through beside what is charged. */
+  compareAtPrice: number | null;
+};
 
 /** The gender a product's tags declare. Same reading the shop filters use. */
 function genderOf(tags: string[]): "men" | "women" | "unisex" {
@@ -58,7 +70,7 @@ const GROUP_FALLBACK: Record<string, string> = {
   "Amber & Oriental": "resinous amber",
 };
 
-function mapProduct(p: DbProductRow): ScoredProduct {
+function mapProduct(p: DbProductRow): QuizCatalogueProduct {
   const pyramid = {
     top: toArray(p.top_notes),
     heart: toArray(p.heart_notes),
@@ -76,6 +88,10 @@ function mapProduct(p: DbProductRow): ScoredProduct {
     brand: p.brand,
     name: p.name,
     price: Number(p.price) || 0,
+    // DECIMAL comes back as a string on some clients, and null on any row with
+    // no list price recorded. An unreadable one stays null rather than striking
+    // a nonsense figure through the price.
+    compareAtPrice: p.compare_at_price == null ? null : Number(p.compare_at_price) || null,
     image: p.image_url || "",
     sizes: sizes.length > 0 ? sizes : ["100ml"],
     gender: genderOf(toArray(p.tags)),
@@ -89,7 +105,7 @@ function mapProduct(p: DbProductRow): ScoredProduct {
   };
 }
 
-export async function fetchQuizCatalogue(): Promise<ScoredProduct[]> {
+export async function fetchQuizCatalogue(): Promise<QuizCatalogueProduct[]> {
   if (!isSupabaseConfigured) return [];
   try {
     const supabase = createServerSupabase();

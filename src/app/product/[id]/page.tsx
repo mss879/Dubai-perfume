@@ -21,6 +21,7 @@ interface ProductRow {
   brand: string | null;
   name: string | null;
   price: number | string | null;
+  compare_at_price: number | string | null;
   sizes: unknown;
   image_url: string | null;
   image_urls: unknown;
@@ -38,6 +39,14 @@ interface ProductRow {
 
 const toAedNumber = (value: unknown): number =>
   parseFloat(String(value ?? "").replace(/[^0-9.]/g, "")) || 0;
+
+// compare_at_price is nullable, so an absent list price has to stay null rather
+// than fall back to 0 the way toAedNumber does — no column means no was-price.
+const toAedNumberOrNull = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  const parsed = parseFloat(String(value).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 const isValidId = (id: string): boolean => /^\d+$/.test(id);
 
@@ -76,6 +85,7 @@ function normalizeProduct(row: ProductRow): ProductDetailProps {
     brand: row.brand || "",
     name: row.name || "",
     priceAed: toAedNumber(row.price),
+    compareAtAed: toAedNumberOrNull(row.compare_at_price),
     sizes: toArray(row.sizes),
     image: row.image_url || galleryImages[0] || "",
     images: galleryImages,
@@ -98,6 +108,7 @@ function toRelated(row: ProductRow): RelatedItemProps {
     brand: row.brand || "",
     name: row.name || "",
     priceAed: toAedNumber(row.price),
+    compareAtAed: toAedNumberOrNull(row.compare_at_price),
     sizes: toArray(row.sizes),
     image: row.image_url || toArray(row.image_urls)[0] || "",
     olfactory: row.olfactory_group || ""

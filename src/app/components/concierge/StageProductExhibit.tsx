@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useCurrency } from "../../lib/currency";
+import Price from "../Price";
 import type { ConciergeAction, ConciergeCard } from "../../lib/concierge/types";
 
 const HAIRLINE = "rgba(0,0,0,0.12)";
@@ -39,7 +39,6 @@ function toActionProduct(card: ConciergeCard): ConciergeAction["product"] {
 }
 
 function SoloExhibit({ card, onAdd }: { card: ConciergeCard; onAdd: OnAdd }) {
-  const { format } = useCurrency();
   const [size, setSize] = useState(card.sizes[0] ?? "");
   const stock = stockLine(card, size);
   const notes = [card.topNotes[0], card.heartNotes[0], card.baseNotes[0]].filter(Boolean);
@@ -68,7 +67,7 @@ function SoloExhibit({ card, onAdd }: { card: ConciergeCard; onAdd: OnAdd }) {
         )}
 
         <div className="flex items-baseline gap-3 pt-1">
-          <span className="maison-price">{format(card.priceAed)}</span>
+          <Price amountAed={card.priceAed} compareAtAed={card.compareAtAed} className="maison-price" />
           {stock && (
             <span
               className={`text-[10px] uppercase tracking-[0.1em] ${stock.out ? "text-[#646464]" : "text-black"}`}
@@ -117,7 +116,6 @@ function SoloExhibit({ card, onAdd }: { card: ConciergeCard; onAdd: OnAdd }) {
 
 /** One rail card. Fixed zone heights keep every card's rows on shared baselines. */
 function RailCard({ card, onAdd }: { card: ConciergeCard; onAdd: OnAdd }) {
-  const { format } = useCurrency();
   const size = card.sizes[0] ?? "";
   const stock = stockLine(card, size);
 
@@ -142,9 +140,13 @@ function RailCard({ card, onAdd }: { card: ConciergeCard; onAdd: OnAdd }) {
         </h4>
       </Link>
 
-      <span className="maison-price mt-1.5 block h-[16px] shrink-0 text-[12px]">
-        {format(card.priceAed)}
-      </span>
+      {/* nowrap: the zone's height is fixed so every ADD lands on one baseline,
+          so a wrapped second figure would be clipped rather than push it down. */}
+      <Price
+        amountAed={card.priceAed}
+        compareAtAed={card.compareAtAed}
+        className="maison-price mt-1.5 block h-[16px] shrink-0 text-[12px] whitespace-nowrap"
+      />
 
       <span
         className={`mt-0.5 block h-[12px] shrink-0 text-[9px] uppercase tracking-[0.1em] ${

@@ -9,9 +9,13 @@
  * Columns that actually exist on public.products. Four divergent copies of
  * this list used to live in the catalogue pages; this superset replaces them
  * all so no page can silently miss a column it renders.
+ *
+ * compare_at_price arrives with migration 60. PostgREST rejects the whole
+ * query when a named column is missing, so migration 60 must be run BEFORE
+ * this code ships, or every page selecting these fields returns nothing.
  */
 export const PRODUCT_FIELDS =
-  "id, brand, name, price, sizes, image_url, image_urls, description, tagline, olfactory_group, tags, top_notes, heart_notes, base_notes, is_new, is_bestseller, is_featured_large";
+  "id, brand, name, price, compare_at_price, sizes, image_url, image_urls, description, tagline, olfactory_group, tags, top_notes, heart_notes, base_notes, is_new, is_bestseller, is_featured_large";
 
 /** Normalises a Postgres array column that may arrive as null or with blank entries. */
 export const toArray = (value: unknown): string[] =>

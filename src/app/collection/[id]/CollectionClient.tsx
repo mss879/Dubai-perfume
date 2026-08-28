@@ -17,6 +17,7 @@ export interface DbProduct {
   brand: string;
   name: string;
   price: number | string;
+  compare_at_price?: number | string | null;
   sizes: string[] | null;
   image_url: string | null;
   image_urls: string[] | null;
@@ -538,6 +539,10 @@ export default function CollectionClient({
                     const notes = notesLine(product);
                     const sizes = toArray(product.sizes);
                     const activeSize = selectedSizes[product.id] || sizes[0] || "";
+                    // DECIMAL comes back as a string on some clients, and null on any row the
+                    // pricing migration has not reached — Price ignores anything non-finite.
+                    const listPrice =
+                      product.compare_at_price == null ? null : Number(product.compare_at_price);
 
                     return (
                       <div key={product.id} className="group flex flex-col">
@@ -576,7 +581,11 @@ export default function CollectionClient({
                           className="mt-auto pt-5 flex items-center justify-between gap-3"
                           style={{ borderBottom: "1px solid var(--line)", paddingBottom: "12px" }}
                         >
-                          <Price amountAed={Number(product.price) || 0} className="maison-price" />
+                          <Price
+                            amountAed={Number(product.price) || 0}
+                            compareAtAed={listPrice}
+                            className="maison-price"
+                          />
 
                           {sizes.length > 1 ? (
                             <div className="relative flex items-center">

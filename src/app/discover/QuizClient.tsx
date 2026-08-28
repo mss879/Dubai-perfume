@@ -12,7 +12,7 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { gsap } from "gsap";
 import { useCart } from "../lib/cart";
-import { useCurrency } from "../lib/currency";
+import Price from "../components/Price";
 import { openCartDrawer } from "../components/CartDrawer";
 import FinderIntro from "./FinderIntro";
 import { AXES, AXIS_LABELS, type Axis } from "../lib/scent-wheel";
@@ -389,7 +389,15 @@ function NotePyramid({
 
 /* ── The finder ──────────────────────────────────────────────────────────── */
 
-export default function QuizClient({ products }: { products: ScoredProduct[] }) {
+/**
+ * What /discover hands over: each composition the finder scores, carrying the
+ * list price its result card strikes through. Spelled out here rather than
+ * imported from lib/quiz-catalogue because that module is server-only — the
+ * whole point of it is that the note lexicon never reaches the browser.
+ */
+type FinderProduct = ScoredProduct & { compareAtPrice: number | null };
+
+export default function QuizClient({ products }: { products: FinderProduct[] }) {
   const reduced = useReducedMotion();
 
   const [stage, setStage] = useState<Stage>("intro");
@@ -404,7 +412,6 @@ export default function QuizClient({ products }: { products: ScoredProduct[] }) 
   const [captureError, setCaptureError] = useState<string | null>(null);
 
   const { add } = useCart();
-  const { format } = useCurrency();
   const [added, setAdded] = useState<Set<number>>(new Set());
 
   /** One id per completed run, so the anonymous record and any later email
@@ -417,6 +424,13 @@ export default function QuizClient({ products }: { products: ScoredProduct[] }) 
   const question = QUIZ_QUESTIONS[index];
   const total = QUIZ_QUESTIONS.length;
   const catalogueEmpty = products.length === 0;
+
+  /** Scoring narrows a product to what it scores on, so the list price is read
+      back off the catalogue by id when the result card draws it. */
+  const compareAtById = useMemo(
+    () => new Map(products.map((p) => [p.id, p.compareAtPrice])),
+    [products]
+  );
 
   const fade = useMemo(
     () =>
@@ -895,7 +909,11 @@ export default function QuizClient({ products }: { products: ScoredProduct[] }) 
                   </div>
 
                   <div className="flex flex-col justify-start gap-4 md:pt-1">
-                    <p className="maison-price">{format(match.product.price)}</p>
+                    <Price
+                      amountAed={match.product.price}
+                      compareAtAed={compareAtById.get(match.product.id) ?? null}
+                      className="maison-price"
+                    />
                     <button
                       type="button"
                       onClick={() => addToBag(match)}

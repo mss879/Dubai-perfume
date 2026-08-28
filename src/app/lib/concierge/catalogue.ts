@@ -1,6 +1,6 @@
 import "server-only";
 import { createServerSupabase, isSupabaseConfigured } from "../supabase-server";
-import { fetchQuizCatalogue } from "../quiz-catalogue";
+import { fetchQuizCatalogue, type QuizCatalogueProduct } from "../quiz-catalogue";
 import { toArray, toTitleCase } from "../catalogue";
 import type { ScoredProduct } from "../quiz";
 import type { ConciergeCard, ConciergeStockRow } from "./types";
@@ -21,8 +21,8 @@ import type { ConciergeCard, ConciergeStockRow } from "./types";
  */
 
 export type ConciergeSnapshot = {
-  scored: ScoredProduct[];
-  byId: Map<number, ScoredProduct>;
+  scored: QuizCatalogueProduct[];
+  byId: Map<number, QuizCatalogueProduct>;
   meta: Map<number, { description: string; olfactoryGroup: string; isNew: boolean }>;
   digest: string;
 };
@@ -136,6 +136,7 @@ export function resolveCards(
       brand: toTitleCase(p.brand),
       name: p.name.replace(/_/g, " "),
       priceAed: p.price,
+      compareAtAed: p.compareAtPrice,
       image: p.image || "/placeholder-bottle.png",
       sizes: toArray(p.sizes),
       topNotes: p.topNotes,

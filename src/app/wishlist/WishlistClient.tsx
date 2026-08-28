@@ -19,6 +19,7 @@ interface WishlistProduct {
   brand?: string | null;
   name: string;
   price: string | number;
+  compare_at_price?: string | number | null;
   sizes?: string[] | null;
   image_url?: string | null;
   image_urls?: string[] | null;
@@ -40,6 +41,11 @@ const itemImage = (item: WishlistProduct) =>
   item.image_url || toArray(item.image_urls)[0] || "";
 
 const itemPriceAed = (item: WishlistProduct) => parseFloat(String(item.price)) || 0;
+
+/* The list price, for the struck-through figure on the card. Null on a row that
+   has none, and on anything unreadable — a saved product is still catalogue. */
+const itemCompareAtAed = (item: WishlistProduct) =>
+  item.compare_at_price == null ? null : parseFloat(String(item.compare_at_price)) || null;
 
 export default function WishlistClient() {
   const router = useRouter();
@@ -398,7 +404,7 @@ export default function WishlistClient() {
                     )}
 
                     <p className="maison-price mt-3 text-center">
-                      <Price amountAed={itemPriceAed(item)} />
+                      <Price amountAed={itemPriceAed(item)} compareAtAed={itemCompareAtAed(item)} />
                     </p>
                   </div>
 

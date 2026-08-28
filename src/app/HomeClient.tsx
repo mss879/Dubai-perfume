@@ -19,6 +19,7 @@ import {
 import BrandsDropdown from "./components/BrandsDropdown";
 import Footer from "./components/Footer";
 import ConciergeWidget from "./components/concierge/ConciergeWidget";
+import Price from "./components/Price";
 import { FREE_SHIPPING_NOTE, FREE_SHIPPING_THRESHOLD_AED } from "./lib/shipping";
 
 /* Hairline used across the maison header — matches --line in globals.css */
@@ -195,6 +196,9 @@ interface CatalogProduct {
   brand: string;
   name: string;
   price: string;
+  /* The house list price `price` sits below. Catalogue surfaces only — the bag,
+     checkout and every order record quote what is actually charged. */
+  compareAt?: number | null;
   sizes: string[];
   image: string;
   images?: string[];
@@ -212,6 +216,9 @@ export interface DbProductRow {
   brand: string;
   name: string;
   price: number | string;
+  /* Migration 60. Null on anything the house has not marked down, and
+     PostgREST hands a numeric back as a string on some clients. */
+  compare_at_price?: number | string | null;
   sizes?: string[] | null;
   image_url?: string | null;
   image_urls?: string[] | null;
@@ -350,8 +357,7 @@ const ProductCard: React.FC<{
   onSelectSize: (id: number, size: string) => void;
   onAddToCart: (id: number) => void;
   badgeText?: string;
-  formatCurrency: (aedAmount: number) => string;
-}> = ({ prod, isFav, activeSize, onToggleFavorite, onSelectSize, onAddToCart, badgeText, formatCurrency }) => {
+}> = ({ prod, isFav, activeSize, onToggleFavorite, onSelectSize, onAddToCart, badgeText }) => {
 
   const [isHovered, setIsHovered] = useState(false);
 
@@ -444,9 +450,11 @@ const ProductCard: React.FC<{
             className="flex items-center justify-between gap-3 border-b pb-3 pt-5"
             style={{ borderColor: HAIRLINE }}
           >
-            <span className="maison-price">
-              {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-            </span>
+            <Price
+              amountAed={parseFloat(prod.price.replace("$", "")) || 0}
+              compareAtAed={prod.compareAt}
+              className="maison-price"
+            />
 
             {sizes.length > 1 ? (
               <select
@@ -531,11 +539,18 @@ export default function HomeClient({
             gender = "women";
           }
         }
+        /* products.price is what is charged; compare_at_price is the list price
+           it sits below. Coerced once here — the render sites take a number. */
+        const compareAt =
+          dbProd.compare_at_price == null
+            ? null
+            : parseFloat(String(dbProd.compare_at_price).replace("$", ""));
         return {
           id: dbProd.id,
           brand: dbProd.brand,
           name: dbProd.name,
           price: String(dbProd.price),
+          compareAt: Number.isFinite(compareAt) ? compareAt : null,
           sizes: dbProd.sizes || ["50ml", "100ml"],
           // No stand-in bottle — a row without art renders a plain grey block.
           image: dbProd.image_url || "",
@@ -1317,9 +1332,11 @@ export default function HomeClient({
                               {prod.olfactory}
                             </span>
                           </div>
-                          <span className="maison-price flex-shrink-0">
-                            {formatCurrency(parseFloat(prod.price.replace("$", "")) || 0)}
-                          </span>
+                          <Price
+                            amountAed={parseFloat(prod.price.replace("$", "")) || 0}
+                            compareAtAed={prod.compareAt}
+                            className="maison-price flex-shrink-0 whitespace-nowrap"
+                          />
                         </button>
                       ))}
                     </div>
@@ -2266,7 +2283,6 @@ export default function HomeClient({
                           onSelectSize={selectSize}
                           onAddToCart={handleAddToCart}
                           badgeText={prod.isFeaturedLarge ? "Featured" : prod.isNew ? "New" : undefined}
-                          formatCurrency={formatCurrency}
                         />
                       );
                     })}
@@ -2362,7 +2378,6 @@ export default function HomeClient({
                             onSelectSize={selectSize}
                             onAddToCart={handleAddToCart}
                             badgeText={badgeFor(prod)}
-                            formatCurrency={formatCurrency}
                           />
                         );
                       })}
@@ -2539,7 +2554,6 @@ export default function HomeClient({
                           onSelectSize={selectSize}
                           onAddToCart={handleAddToCart}
                           badgeText="Best seller"
-                          formatCurrency={formatCurrency}
                         />
                       );
                     })}

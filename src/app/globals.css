@@ -432,6 +432,47 @@ body {
   font-weight: 350;
   letter-spacing: 0.07em;
   color: var(--ink);
+  /* Inter's digits are proportional by default and it ships tnum; without this
+     the two stacked figures don't align and prices jitter across the grid. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* The charged figure. Identical to an undiscounted price — a was-price
+   appearing beside it must not move it, re-weight it, or recolour it. */
+.maison-price-now {
+  white-space: nowrap;
+}
+
+/* The brand's own retail price, struck through on its own line beneath what
+   the house actually charges. Two earlier attempts failed in opposite
+   directions: the first printed both figures at full ink on one line, so the
+   pair read as one long number; the second attenuated on three axes at once —
+   0.78em AND --muted-2 AND a rule at 1.98:1, lighter than its own glyphs and
+   under the 3:1 WCAG 1.4.11 floor — and disappeared. No retailer attenuates on
+   more than one axis. This one attenuates on position and size only and holds
+   the ink near-black, so the rule can never be fainter than the figure it
+   crosses, even after anti-aliasing on a 1x display. */
+.maison-price-rrp {
+  display: block;
+  margin-top: 0.35em;
+  /* Relative, so one rule serves the 14px grid card (-> 11.9px) and the 20px
+     product page (-> 17px). */
+  font-size: 0.85em;
+  font-weight: 350;
+  /* Explicit: the product page passes leading-none, which would jam the lines. */
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  /* It must never wrap, or the rule strikes empty space. */
+  white-space: nowrap;
+  text-decoration: line-through;
+  /* The line IS the meaning, so it is exactly as dark as the figure it crosses
+     and never lighter. Not a pinned 1px: css-text-decor-4 already floors the
+     thickness at one device pixel, and auto lets it scale at 17px and at 2x. */
+  text-decoration-color: currentColor;
+  text-decoration-thickness: auto;
+  text-decoration-skip-ink: none;
 }
 
 /* Accordion ----------------------------------------------------- */
