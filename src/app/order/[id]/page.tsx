@@ -6,6 +6,7 @@ import Price from "../../components/Price";
 import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-server";
 import { isMissingFunction, MIGRATIONS_PENDING_MESSAGE } from "../../lib/rpc-errors";
 import { ORDER_STEPS, isCancelledOrder, stepIndexForStatus } from "../../lib/orders";
+import { paymentLineForShopper } from "../../lib/payments/status";
 
 export const metadata: Metadata = {
   title: "Your order",
@@ -30,6 +31,9 @@ type TrackedOrder = {
   created_at: string | null;
   tracking_number: string | null;
   tracking_url: string | null;
+  /** Present once migration 63 is applied; absent means cash on delivery. */
+  payment_method?: string | null;
+  payment_status?: string | null;
   tracking: TrackingEntry[];
 };
 
@@ -133,6 +137,7 @@ export default async function OrderPage({
   const { order } = result;
   const activeStep = stepIndexForStatus(order.status);
   const cancelled = isCancelledOrder(order.status);
+  const payment = paymentLineForShopper(order.payment_method, order.payment_status);
 
   return (
     <OrderShell>
@@ -158,17 +163,14 @@ export default async function OrderPage({
           style={{ borderTop: `1px solid ${HAIRLINE}` }}
         >
           <span className="font-display text-[16px] uppercase tracking-[0.08em] text-black">
-            Total due on delivery
+            {payment.totalLabel}
           </span>
           <Price
             amountAed={parseFloat(String(order.total_price)) || 0}
             className="font-display text-[16px] uppercase tracking-[0.08em] text-black"
           />
         </div>
-        <p className="mt-4 text-[13px] font-light leading-[1.8] text-[#646464]">
-          Nothing has been charged. This order is paid in cash to the courier when your parcel
-          arrives — please have the amount ready.
-        </p>
+        <p className="mt-4 text-[13px] font-light leading-[1.8] text-[#646464]">{payment.note}</p>
 
         {cancelled ? (
           <p className="mt-10 text-[14px] font-light leading-relaxed text-black">

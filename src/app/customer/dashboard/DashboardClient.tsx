@@ -11,6 +11,7 @@ import Price from "../../components/Price";
 import { getBrowserSupabase } from "../../lib/supabase-browser";
 import { useCart } from "../../lib/cart";
 import { ORDER_STEPS, isCancelledOrder, stepIndexForStatus } from "../../lib/orders";
+import { countsAsRevenue, isOnlinePayment, paymentStatusLabel } from "../../lib/payments/status";
 import { PRODUCT_FIELDS, toArray } from "../../lib/catalogue";
 
 type TabKey = "orders" | "wishlist" | "tracking" | "settings";
@@ -33,6 +34,8 @@ interface OrderRecord {
   packing_charges?: string | number | null;
   tracking_number?: string | null;
   tracking_url?: string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
 }
 
 interface TrackingLog {
@@ -509,12 +512,18 @@ export default function DashboardClient() {
   const isCancelled = isCancelledOrder(trackingOrderObj?.status);
   const activeStepIdx = stepIndexForStatus(trackingOrderObj?.status);
 
-  const orderTotal = (order: OrderRecord) =>
-    (parseFloat(String(order.total_price)) || 0) +
-    (parseFloat(String(order.packing_charges ?? 0)) || 0);
+  // Packing is collected with a cash-on-delivery order; an order paid online
+  // was charged its total, and nothing more.
+  const packingFor = (order: OrderRecord) =>
+    isOnlinePayment(order.payment_method) ? 0 : parseFloat(String(order.packing_charges ?? 0)) || 0;
 
+  const orderTotal = (order: OrderRecord) => (parseFloat(String(order.total_price)) || 0) + packingFor(order);
+
+  // What was actually bought: not cancelled orders, nor online orders that
+  // were never paid or were refunded.
   const lifetimeTotal = orders.reduce(
-    (sum, order) => sum + orderTotal(order),
+    (sum, order) =>
+      countsAsRevenue(order.payment_method, order.payment_status, order.status) ? sum + orderTotal(order) : sum,
     0
   );
 
@@ -728,9 +737,14 @@ export default function DashboardClient() {
                             <span className="maison-price">
                               <Price amountAed={orderTotal(order)} />
                             </span>
-                            {(parseFloat(String(order.packing_charges ?? 0)) || 0) > 0 && (
+                            {packingFor(order) > 0 && (
                               <span className="block mt-1 text-[12px] text-[#646464]">
-                                incl. <Price amountAed={parseFloat(String(order.packing_charges)) || 0} /> packing
+                                incl. <Price amountAed={packingFor(order)} /> packing
+                              </span>
+                            )}
+                            {isOnlinePayment(order.payment_method) && (
+                              <span className="block mt-1 text-[12px] text-[#646464]">
+                                {paymentStatusLabel(order.payment_method, order.payment_status)}
                               </span>
                             )}
                           </div>
@@ -1174,7 +1188,7 @@ export default function DashboardClient() {
                         className="maison-input"
                       />
                       <p className="mt-2 text-[12px] font-light text-[#909090]">
-                        Our courier calls this number before a cash-on-delivery arrival.
+                        Our courier calls this number before your delivery arrives.
                       </p>
                     </div>
 

@@ -12,6 +12,9 @@ import {
   type OwnerOrderEmailData,
   type ShippingAddress,
 } from "../../lib/email/templates";
+import { resolveCheckoutMode } from "../../lib/payments/mode";
+import { readPaymobConfig } from "../../lib/payments/paymob/config";
+import { PAYMENT_TOKEN, paymentPath, startPayment } from "../../lib/payments/paymob/service";
 
 /**
  * The only order-placement path. Delegates to the place_order() SECURITY
@@ -19,6 +22,12 @@ import {
  * catalogue, validates and decrements stock, applies the discount code and
  * generates the sequential order number — nothing money-bearing is trusted
  * from the client.
+ *
+ * How the order is paid is decided HERE, from the owner's switch (migration
+ * 63) — never from what the browser asks for. In online mode the order is
+ * created awaiting payment and the response carries the shopper's payment page
+ * and Paymob's checkout URL; it is marked paid only by Paymob (webhook or
+ * inquiry), and only then are the confirmation emails sent.
  */
 
 type CheckoutBody = {
@@ -56,7 +65,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_exchange_rate: "Unsupported display currency.",
   unsupported_payment_method: "This payment method is not available.",
   customer_email_conflict: "That email is already registered. Please sign in first.",
+  phone_required: "Please enter a phone number. Our payment partner needs one to confirm the payment.",
+  online_payment_not_needed:
+    "Your order comes to AED 0, so there is nothing to pay online. Please write to us and we will complete it for you.",
 };
+
+const ONLINE_UNAVAILABLE =
+  "Secure online payment is unavailable for a moment. Please try again shortly, or write to us and a client advisor will help.";
 
 function mapDbError(message: string): { status: number; error: string } {
   const [code, detail] = message.split(":");
@@ -121,7 +136,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: TOO_MANY_ORDERS }, { status: 429 });
   }
 
-  const provider = getPaymentProvider(body.paymentMethod || "cod");
+  // The store's mode, not the browser, picks the method. A page left open from
+  // before a switch simply gets the current method.
+  const mode = await resolveCheckoutMode();
+  if (mode === "unavailable") {
+    return NextResponse.json({ error: ONLINE_UNAVAILABLE }, { status: 503 });
+  }
+  const provider = getPaymentProvider(mode === "online" ? "paymob" : "cod");
   if (!provider) {
     return NextResponse.json(
       { error: "This payment method is not available." },
@@ -172,16 +193,54 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: mapped.error }, { status: mapped.status });
   }
 
-  // Notification email. Deliberately after the order is committed and never
-  // allowed to fail the request — the order exists whether or not mail works.
   const result = data as {
     order_id?: string;
     subtotal?: number;
     shipping_fee?: number;
     discount_amount?: number;
     total?: number;
+    currency?: string;
+    payment_method?: string;
+    payment_status?: string;
+    payment_token?: string | null;
   } | null;
 
+  const summary = {
+    order_id: result?.order_id,
+    subtotal: result?.subtotal,
+    shipping_fee: result?.shipping_fee,
+    discount_amount: result?.discount_amount,
+    total: result?.total,
+    currency: result?.currency,
+    payment_method: result?.payment_method,
+    payment_status: result?.payment_status,
+  };
+
+  if (provider.method === "paymob") {
+    // Online: no emails yet (they go when Paymob confirms the payment). The
+    // shopper's payment page works even if opening the Paymob checkout failed
+    // just now — it offers to try again.
+    const token = result?.payment_token ?? "";
+    if (!result?.order_id || !PAYMENT_TOKEN.test(token)) {
+      return NextResponse.json({ error: ONLINE_UNAVAILABLE }, { status: 503 });
+    }
+    const config = readPaymobConfig();
+    const started = config.ok ? await startPayment(config.config, token) : null;
+    return NextResponse.json(
+      {
+        ok: true,
+        ...summary,
+        payment: {
+          returnPath: paymentPath(token),
+          redirectUrl: started?.ok ? started.redirectUrl : null,
+        },
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  // Notification email. Deliberately after the order is committed and never
+  // allowed to fail the request — the order exists whether or not mail works.
   if (result?.order_id) {
     try {
       await sendOrderEmails(supabase, result, items, {
@@ -198,7 +257,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, ...data });
+  return NextResponse.json({ ok: true, ...summary });
 }
 
 /**

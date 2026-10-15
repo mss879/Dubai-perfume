@@ -8,6 +8,7 @@ import { X } from "lucide-react";
 import { useCart } from "../lib/cart";
 import { useCurrency } from "../lib/currency";
 import FreeDeliveryProgress from "./FreeDeliveryProgress";
+import { usePaymentMode } from "./PaymentModeProvider";
 
 const OPEN_EVENT = "gharib:cart:open";
 const HAIRLINE = "rgba(0,0,0,0.12)";
@@ -25,6 +26,7 @@ export function openCartDrawer() {
  * it manages its own open state via the `gharib:cart:open` event.
  */
 export default function CartDrawer() {
+  const paymentMode = usePaymentMode();
   const [isOpen, setIsOpen] = useState(false);
   const { lines, count, subtotal, setQuantity, remove } = useCart();
   const { format } = useCurrency();
@@ -206,7 +208,9 @@ export default function CartDrawer() {
                 <FreeDeliveryProgress subtotalAed={subtotal} />
 
                 <p className="text-[12px] font-light leading-relaxed text-[#646464]">
-                  Payment is collected on delivery.
+                  {paymentMode === "online"
+                    ? "Secure payment by card, Apple Pay or Google Pay."
+                    : "Payment is collected on delivery."}
                 </p>
 
                 <Link href="/checkout" className="maison-btn w-full">

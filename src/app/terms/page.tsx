@@ -3,11 +3,12 @@ import Link from "next/link";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import { SITE_EMAIL, TRADE_LICENCE } from "../lib/site";
+import { storefrontPaymentMode } from "../lib/payments/mode";
 
 export const metadata: Metadata = {
   title: "Terms of Use",
   description:
-    "The terms that govern browsing and ordering from the Gharib online boutique — orders, pricing in AED, cash-on-delivery payment and governing law in the UAE.",
+    "The terms that govern browsing and ordering from the Gharib online boutique — orders, pricing in AED, payment and governing law in the UAE.",
   alternates: { canonical: "/terms" },
 };
 
@@ -68,18 +69,31 @@ export default function TermsPage() {
             <TermsSection title="Pricing and currency">
               <p>
                 Prices are set in United Arab Emirates dirhams (AED). Prices shown in other
-                currencies are indicative conversions for convenience; the amount payable on
-                delivery is the AED total confirmed at checkout. Prices may change at any time, but
-                changes do not affect orders we have already confirmed.
+                currencies are indicative conversions for convenience; the amount{" "}
+                {storefrontPaymentMode() === "online" ? "charged" : "payable on delivery"} is the AED
+                total confirmed at checkout. Prices may change at any time, but changes do not affect
+                orders we have already confirmed.
               </p>
             </TermsSection>
 
             <TermsSection title="Payment">
-              <p>
-                Payment is made by cash on delivery (COD) only. You pay the courier the order total
-                in cash when your parcel is handed over. We do not take card payments on the site
-                and we never ask for card numbers, banking details or one-time passcodes.
-              </p>
+              {storefrontPaymentMode() === "online" ? (
+                <p>
+                  Payment is made online at checkout, by debit or credit card or, where available,
+                  Apple Pay or Google Pay, through our payment partner Paymob. You enter your card
+                  details on Paymob&rsquo;s secure payment page; they are never received or stored by
+                  Gharib. Your card is charged the AED total confirmed at checkout, and your order is
+                  confirmed once the payment is approved. An order that is not paid within its payment
+                  window is released and nothing is charged. We never ask for card numbers, banking
+                  details or one-time passcodes by email, telephone or message.
+                </p>
+              ) : (
+                <p>
+                  Payment is made by cash on delivery (COD) only. You pay the courier the order total
+                  in cash when your parcel is handed over. We do not take card payments on the site
+                  and we never ask for card numbers, banking details or one-time passcodes.
+                </p>
+              )}
             </TermsSection>
 
             <TermsSection title="Delivery and returns">

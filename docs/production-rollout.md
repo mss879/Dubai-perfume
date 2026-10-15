@@ -107,12 +107,13 @@ the notification cannot be bypassed by whoever changed the status.
 
 ## 4. What changed operationally
 
-- **Checkout is cash-on-delivery only.** The card form (which was collecting
-  card details and discarding them) is gone, along with the untrue "encrypted
-  payment" claims. When a payment gateway is approved, it plugs into
-  `src/app/lib/payments/` + a webhook route without reworking checkout — the
-  provider now genuinely feeds `place_order`, and the database validates the
-  (method, payment status) pair so a client cannot declare an order paid.
+- **Checkout was cash-on-delivery only; online payment through Paymob is now
+  built in** (migration 63, `src/app/lib/payments/paymob/`). It stays off — the
+  store keeps taking cash on delivery — until the owner configures it and
+  switches the store to online payment, which also closes COD at the database.
+  Setup, go-live and day-to-day operation: **[docs/payments-paymob.md](payments-paymob.md)**.
+  The card form that once collected card details and discarded them is long
+  gone: card details are only ever entered on Paymob's hosted page.
 - Orders decrement inventory, redeem discount codes, and roll up into
   `customers.total_spent` / `orders_count`; totals are computed in the database
   from catalogue prices.

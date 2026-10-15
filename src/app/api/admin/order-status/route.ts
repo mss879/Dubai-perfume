@@ -35,7 +35,7 @@ const TIMELINE: Record<OrderStatus, { status: string; location: string; descript
   pending: {
     status: "Order Placed",
     location: "Dubai Headquarters",
-    description: "We have received your order. Payment is collected on delivery.",
+    description: "We have received your order.",
   },
   processing: {
     status: "Processing",
@@ -116,6 +116,49 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createSessionSupabase();
+
+  // Online orders: the sealed payment row (migration 63) — not the editable
+  // payment_status copy on orders — decides what may happen next.
+  const { data: current, error: readError } = await supabase
+    .from("orders")
+    .select("payment_method")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (readError || !current) {
+    return NextResponse.json({ error: "Order not found." }, { status: 404 });
+  }
+  if ((current as { payment_method?: string }).payment_method === "paymob") {
+    const { data: payment } = await supabase
+      .from("order_payments")
+      .select("state, paid_transaction_id")
+      .eq("order_id", orderId)
+      .maybeSingle();
+    const state = (payment as { state?: string } | null)?.state ?? "awaiting";
+    const paid = (payment as { paid_transaction_id?: number | null } | null)?.paid_transaction_id != null;
+    const fulfilment: OrderStatus[] = ["accepted", "fulfilled", "out_for_delivery", "delivered"];
+
+    if (!paid && fulfilment.includes(status)) {
+      return NextResponse.json(
+        { error: "This order has not been paid online yet. It can be accepted once Paymob confirms the payment." },
+        { status: 409 }
+      );
+    }
+    if (state === "awaiting" && status === "cancelled") {
+      return NextResponse.json(
+        {
+          error:
+            "An unpaid online order releases itself — stock and discount included — when its payment window closes. Nothing to do.",
+        },
+        { status: 409 }
+      );
+    }
+    if ((state === "expired" || state === "cancelled") && !paid && status !== "cancelled") {
+      return NextResponse.json(
+        { error: "This order was released unpaid and cannot be reopened. Ask the customer to order again." },
+        { status: 409 }
+      );
+    }
+  }
 
   const update: Record<string, unknown> = { status };
   if (trackingNumber) update.tracking_number = trackingNumber;
@@ -238,6 +281,7 @@ async function loadOrderEmailData(
       discountAed: discount,
       totalAed: total,
       trackingNumber: trackingNumber ?? (row.tracking_number as string | null) ?? null,
+      payment: row.payment_method === "paymob" ? { method: "paymob" } : null,
     },
   };
 }

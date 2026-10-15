@@ -3,6 +3,7 @@ import Link from "next/link";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import { SITE_EMAIL } from "../lib/site";
+import { storefrontPaymentMode } from "../lib/payments/mode";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -56,8 +57,10 @@ export default function PrivacyPage() {
                 <strong className="font-normal text-black">Order and delivery details.</strong> When
                 you place an order we collect the recipient&rsquo;s name, delivery address, contact
                 telephone number and email address so that we can prepare, dispatch and deliver your
-                parcel. As payment is made in cash on delivery, we do not collect card numbers or
-                other payment credentials on this site.
+                parcel.{" "}
+                {storefrontPaymentMode() === "online"
+                  ? "Card payments are made on the secure page of our payment partner, Paymob: your card number and security code are entered there and never reach us or this site. We keep only the card brand, its last four digits and Paymob's transaction reference, to confirm, reconcile and refund payments."
+                  : "As payment is made in cash on delivery, we do not collect card numbers or other payment credentials on this site."}
               </p>
               <p>
                 <strong className="font-normal text-black">Newsletter.</strong> If you subscribe to
@@ -83,6 +86,9 @@ export default function PrivacyPage() {
               <p>
                 We share delivery details with the courier companies who carry your parcel within
                 the UAE, and we use trusted service providers to host the site and store its data.
+                {storefrontPaymentMode() === "online"
+                  ? " When you pay online, we share your name, email address, telephone number and billing address with our payment partner, Paymob, so that it can process and secure the payment."
+                  : ""}{" "}
                 These parties receive only the information needed to perform their service.
               </p>
             </PolicySection>

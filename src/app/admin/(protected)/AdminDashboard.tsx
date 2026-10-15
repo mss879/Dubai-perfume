@@ -19,6 +19,14 @@ import {
   isOpenOrder,
   orderStatusLabel,
 } from "../../lib/orders";
+import {
+  countsAsRevenue,
+  isOnlinePayment,
+  isPaymentSettledForFulfilment,
+  paymentStatusLabel,
+} from "../../lib/payments/status";
+import PaymentsPanel from "./payments/PaymentsPanel";
+import OrderPaymentSection from "./payments/OrderPaymentSection";
 import { 
   Bold, Italic, Underline, List, ListOrdered, 
   AlignLeft, AlignCenter, AlignRight, Code, Eye 
@@ -303,6 +311,9 @@ function AdminDashboardContent() {
   // Data states
   const [products, setProducts] = useState<Row[]>([]);
   const [orders, setOrders] = useState<Row[]>([]);
+  // Online-payment state per order (sealed table, admin-readable): drives the
+  // attention marker in the orders registry. Empty until migration 63 exists.
+  const [orderPayments, setOrderPayments] = useState<Record<string, { state: string; attention: string[] }>>({});
   const [inventory, setInventory] = useState<Row[]>([]);
   const [customers, setCustomers] = useState<Row[]>([]);
   const [discounts, setDiscounts] = useState<Row[]>([]);
@@ -511,6 +522,20 @@ function AdminDashboardContent() {
         setAnalyticsEvents(aeRes.data || []);
         setCmsPages(cmsRes.data || []);
         setBlogPosts(bpRes.data || []);
+
+        // Separate read with named columns: never ships the payment token hash
+        // to the browser, and a database without migration 63 just has none.
+        const payRes = await db.from("order_payments").select("order_id, state, attention");
+        if (!payRes.error && payRes.data) {
+          setOrderPayments(
+            Object.fromEntries(
+              (payRes.data as { order_id: string; state: string; attention: string[] | null }[]).map((r) => [
+                r.order_id,
+                { state: r.state, attention: r.attention ?? [] },
+              ])
+            )
+          );
+        }
       } catch (err) {
         console.error("Dashboard seed retrieval failure", err);
       } finally {
@@ -1320,6 +1345,27 @@ function AdminDashboardContent() {
    * written straight from the browser, so the notification can never be
    * skipped by whoever changed it.
    */
+  /** Re-reads one order (and its payment state) after a refund or void. */
+  const refreshOrder = async (orderId: string) => {
+    try {
+      const db = getBrowserSupabase();
+      const [{ data: row }, { data: pay }] = await Promise.all([
+        db.from("orders").select("*").eq("id", orderId).maybeSingle(),
+        db.from("order_payments").select("order_id, state, attention").eq("order_id", orderId).maybeSingle(),
+      ]);
+      if (row) {
+        setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, ...row } : o)));
+        setSelectedOrder(prev => (prev && prev.id === orderId ? { ...prev, ...row } : prev));
+      }
+      if (pay) {
+        const p = pay as { order_id: string; state: string; attention: string[] | null };
+        setOrderPayments(prev => ({ ...prev, [p.order_id]: { state: p.state, attention: p.attention ?? [] } }));
+      }
+    } catch {
+      // The next full load picks it up.
+    }
+  };
+
   const handleUpdateOrderStatus = async (
     orderId: string,
     nextStatus: string,
@@ -1808,14 +1854,20 @@ function AdminDashboardContent() {
       return orderDate >= start && orderDate <= end;
     });
 
-    const totalRevenue = periodOrders.reduce((sum, o) => sum + (parseFloat(String(o.total_price)) || 0), 0);
-    const ordersCount = periodOrders.length;
+    // Revenue is money kept: not cancelled orders, nor online orders that were
+    // never paid or were refunded (lib/payments/status.ts).
+    const revenueOrders = periodOrders.filter(o => countsAsRevenue(o.payment_method, o.payment_status, o.status));
+    const totalRevenue = revenueOrders.reduce((sum, o) => sum + (parseFloat(String(o.total_price)) || 0), 0);
+    const ordersCount = revenueOrders.length;
     const aov = ordersCount > 0 ? totalRevenue / ordersCount : 0;
 
     // Filter statuses
     // Shared helpers so no status falls between the two buckets — previously
-    // "out_for_delivery" and "processing" counted as neither.
-    const pendingOrders = periodOrders.filter(o => isOpenOrder(o.status));
+    // "out_for_delivery" and "processing" counted as neither. An online order
+    // still awaiting payment is not owed to anyone yet.
+    const pendingOrders = periodOrders.filter(
+      o => isOpenOrder(o.status) && isPaymentSettledForFulfilment(o.payment_method, o.payment_status)
+    );
     const completedOrders = periodOrders.filter(o => isCompletedOrder(o.status));
     
     const pendingValue = pendingOrders.reduce((sum, o) => sum + (parseFloat(String(o.total_price)) || 0), 0);
@@ -2420,6 +2472,8 @@ function AdminDashboardContent() {
               </div>
             </div>
 
+            <PaymentsPanel onToast={triggerToast} />
+
             {/* Orders Table list */}
             <div className="bg-white/[0.015] border border-white/[0.04] overflow-x-auto">
               <table className="w-full border-collapse text-left">
@@ -2429,6 +2483,7 @@ function AdminDashboardContent() {
                     <th className="p-4">CLIENT NAME & EMAIL</th>
                     <th className="p-4">DATE PLACED</th>
                     <th className="p-4 text-right">TOTAL PRICE</th>
+                    <th className="p-4 text-center">PAYMENT</th>
                     <th className="p-4 text-center">STATUS BADGE</th>
                     <th className="p-4 pr-6 text-center">ACTIONS</th>
                   </tr>
@@ -2436,7 +2491,7 @@ function AdminDashboardContent() {
                 <tbody className="text-[10px] tracking-wider font-semibold uppercase text-[#EAE3DB]/80">
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
+                      <td colSpan={7} className="py-12 text-center text-[#EAE3DB]/30 font-black tracking-widest">
                         NO TRANSACTION RECORDS ALIGN WITH FILTER
                       </td>
                     </tr>
@@ -2459,6 +2514,28 @@ function AdminDashboardContent() {
                             {order.currency && order.currency !== "AED" && order.converted_total && (
                               <span className="text-[8px] text-[#EAE3DB]/40 tracking-wider mt-0.5 uppercase">
                                 ({order.converted_total})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span
+                              className={`text-[7px] tracking-widest px-2.5 py-1 border font-black ${
+                                !isOnlinePayment(order.payment_method)
+                                  ? "border-neutral-700/40 bg-neutral-800/15 text-neutral-400"
+                                  : isPaymentSettledForFulfilment(order.payment_method, order.payment_status)
+                                    ? "border-green-800/40 bg-green-950/15 text-green-400"
+                                    : order.payment_status === "awaiting_payment"
+                                      ? "border-amber-700/40 bg-amber-950/20 text-amber-400"
+                                      : "border-neutral-700/40 bg-neutral-800/15 text-neutral-400"
+                              }`}
+                            >
+                              {paymentStatusLabel(order.payment_method, order.payment_status).toUpperCase()}
+                            </span>
+                            {(orderPayments[order.id]?.attention?.length ?? 0) > 0 && (
+                              <span title="This payment needs your attention — open the invoice">
+                                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
                               </span>
                             )}
                           </div>
@@ -2605,7 +2682,10 @@ function AdminDashboardContent() {
                           <span className="font-bold text-[#EAE3DB]">Grand Total</span>
                           <div className="flex flex-col items-end">
                             <span className="font-sans text-amber-200 font-black">
-                              {(parseFloat(selectedOrder.total_price) + (parseFloat(selectedOrder.packing_charges) || 0)).toLocaleString()} AED
+                              {(
+                                parseFloat(selectedOrder.total_price) +
+                                (isOnlinePayment(selectedOrder.payment_method) ? 0 : parseFloat(selectedOrder.packing_charges) || 0)
+                              ).toLocaleString()} AED
                             </span>
                             {selectedOrder.currency && selectedOrder.currency !== "AED" && selectedOrder.converted_total && (
                               <span className="text-[8px] text-[#EAE3DB]/40 tracking-wider mt-0.5 uppercase">
@@ -2615,6 +2695,16 @@ function AdminDashboardContent() {
                           </div>
                         </div>
                       </div>
+
+                      {isOnlinePayment(selectedOrder.payment_method) && (
+                        <OrderPaymentSection
+                          key={selectedOrder.id}
+                          orderId={selectedOrder.id}
+                          paymentStatus={selectedOrder.payment_status ?? null}
+                          onChanged={() => refreshOrder(selectedOrder.id)}
+                          onToast={triggerToast}
+                        />
+                      )}
 
                       {/* Tracking assignment */}
                       <div className="flex flex-col gap-4 bg-white/[0.01] border border-white/[0.04] p-4">

@@ -14,6 +14,7 @@ import { gsap } from "gsap";
 import { useCart } from "../lib/cart";
 import Price from "../components/Price";
 import { openCartDrawer } from "../components/CartDrawer";
+import { usePaymentMode } from "../components/PaymentModeProvider";
 import FinderIntro from "./FinderIntro";
 import { AXES, AXIS_LABELS, type Axis } from "../lib/scent-wheel";
 import {
@@ -398,6 +399,7 @@ function NotePyramid({
 type FinderProduct = ScoredProduct & { compareAtPrice: number | null };
 
 export default function QuizClient({ products }: { products: FinderProduct[] }) {
+  const paymentMode = usePaymentMode();
   const reduced = useReducedMotion();
 
   const [stage, setStage] = useState<Stage>("intro");
@@ -824,8 +826,8 @@ export default function QuizClient({ products }: { products: FinderProduct[] }) 
             <h1 className="maison-page-title mt-5">Chosen for you</h1>
             <p className="maison-body mt-6 mx-auto max-w-[52ch]">
               Read from the note pyramid of every composition in the house against what you told
-              us. Payment is collected on delivery, and two discovery samples accompany every order
-              — so you can meet them properly before you commit.
+              us. {paymentMode === "online" ? "Two" : "Payment is collected on delivery, and two"} discovery
+              samples accompany every order — so you can meet them properly before you commit.
             </p>
           </div>
 

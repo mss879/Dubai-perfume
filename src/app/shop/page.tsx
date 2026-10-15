@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "All Fragrances",
   description:
-    "Explore the complete Gharib catalogue — niche and designer fragrances from the great houses of Dubai perfumery, with cash-on-delivery across the UAE.",
+    "Explore the complete Gharib catalogue — niche and designer fragrances from the great houses of Dubai perfumery, delivered across the UAE.",
   alternates: { canonical: "/shop" },
 };
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useCart } from "../../lib/cart";
 import { FREE_SHIPPING_THRESHOLD_AED } from "../../lib/shipping";
+import { usePaymentMode } from "../PaymentModeProvider";
 
 /**
  * The concierge's sense of timing — when a closed widget may lean in.
@@ -128,6 +129,7 @@ export function useConciergeNudges(input: { suppressed: boolean }) {
   const { suppressed } = input;
   const pathname = usePathname();
   const { lines, subtotal } = useCart();
+  const paymentMode = usePaymentMode();
   /** The raised teaser, pinned to the pathname it was raised on — so simple
       navigation retires it without a state write. */
   const [active, setActive] = useState<{ def: ConciergeNudgeDef; onPath: string } | null>(null);
@@ -159,8 +161,13 @@ export function useConciergeNudges(input: { suppressed: boolean }) {
           id: "checkout-help",
           teaser: "A question about checkout? I'm here.",
           opener:
-            "I'm right here if anything about checkout needs a hand — delivery, payment on delivery, or a final question about a fragrance.",
-          suggestions: ["When is delivery free?", "How does cash on delivery work?"],
+            paymentMode === "online"
+              ? "I'm right here if anything about checkout needs a hand — delivery, paying securely online, or a final question about a fragrance."
+              : "I'm right here if anything about checkout needs a hand — delivery, payment on delivery, or a final question about a fragrance.",
+          suggestions:
+            paymentMode === "online"
+              ? ["When is delivery free?", "How do I pay?"]
+              : ["When is delivery free?", "How does cash on delivery work?"],
         },
       },
       {
@@ -198,7 +205,7 @@ export function useConciergeNudges(input: { suppressed: boolean }) {
         },
       },
     ],
-    [pathname, lines.length, subtotal]
+    [pathname, lines.length, subtotal, paymentMode]
   );
 
   useEffect(() => {

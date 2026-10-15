@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
+import { usePaymentMode } from "./components/PaymentModeProvider";
 import {
   Search,
   Bookmark,
@@ -657,6 +658,7 @@ export default function HomeClient({
     setCurrency: setActiveCurrency,
     format: formatCurrency,
   } = useCurrency();
+  const paymentMode = usePaymentMode();
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
@@ -2889,7 +2891,10 @@ export default function HomeClient({
                   {/* The threshold runs through `formatCurrency` like every other
                       figure on this panel, so it follows the display currency. */}
                   <p className="text-[12px] font-light leading-relaxed text-[#646464]">
-                    Payment is collected on delivery. Complimentary delivery on orders over{" "}
+                    {paymentMode === "online"
+                      ? "Secure payment by card, Apple Pay or Google Pay."
+                      : "Payment is collected on delivery."}{" "}
+                    Complimentary delivery on orders over{" "}
                     {formatCurrency(FREE_SHIPPING_THRESHOLD_AED)}.
                   </p>
 

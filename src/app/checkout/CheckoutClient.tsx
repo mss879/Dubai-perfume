@@ -13,6 +13,13 @@ import { useCurrency } from "../lib/currency";
 import { shippingFeeForSubtotal } from "../lib/shipping";
 import { takeOfferCode, OFFER_CODE_EVENT } from "../lib/offer-code";
 import { getBrowserSupabase } from "../lib/supabase-browser";
+import {
+  PAYMENT_PATH,
+  isPaymobCheckoutUrl,
+  readPendingPayment,
+  savePendingPayment,
+  type PendingPayment,
+} from "../lib/payments/pending-payment";
 
 /** Never-changing store, used only to distinguish server render from client. */
 const subscribeToNothing = () => () => {};
@@ -128,9 +135,26 @@ function getStoredOrder(): ConfirmedOrder | null {
 /** Server render has no sessionStorage, so it restores nothing. */
 const noStoredOrder = () => null;
 
-export default function CheckoutClient() {
+/**
+ * An online order the shopper left for Paymob's page, so an empty checkout can
+ * offer the way back to its payment page. Resolved once (see storedOrderSnapshot
+ * above for why), and refreshed by the submit handler.
+ */
+let pendingPaymentSnapshot: PendingPayment | null | undefined;
+function getPendingPayment(): PendingPayment | null {
+  if (pendingPaymentSnapshot === undefined) pendingPaymentSnapshot = readPendingPayment();
+  return pendingPaymentSnapshot;
+}
+
+const formatAed = (amount: number) =>
+  `AED ${amount.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export type CheckoutPaymentMode = "cod" | "online" | "unavailable";
+
+export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: CheckoutPaymentMode }) {
   const { lines, count, subtotal, remove, setQuantity, clear } = useCart();
   const { currency, format, rate } = useCurrency();
+  const online = paymentMode === "online";
 
   const [step, setStep] = useState<"selection" | "details">("selection");
 
@@ -171,6 +195,9 @@ export default function CheckoutClient() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [orderResult, setOrderResult] = useState<ConfirmedOrder | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Set the instant an online order is placed, so clearing the bag does not
+  // flash the empty-bag screen while the browser leaves for Paymob.
+  const [leavingForPayment, setLeavingForPayment] = useState(false);
 
   // Prefill from the signed-in shopper's saved profile: the contact email from
   // the session, and the name, telephone and delivery address they stored under
@@ -243,6 +270,23 @@ export default function CheckoutClient() {
     getStoredOrder,
     noStoredOrder
   );
+
+  // An online order waiting on Paymob, if this browser left one.
+  const pendingPayment = useSyncExternalStore(subscribeToNothing, getPendingPayment, () => null);
+
+  // Before leaving for Paymob, this page's history entry is rewritten to the
+  // order's payment page — so Back from Paymob lands there. A browser that
+  // restores this page from its back/forward cache instead would show the old
+  // checkout under the new address; reload it into the real payment page.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted && PAYMENT_PATH.test(window.location.pathname)) {
+        window.location.reload();
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   /**
    * A new bag retires the old receipt.
@@ -475,7 +519,8 @@ export default function CheckoutClient() {
           abandonedCartId: getAbandonedCartId() || undefined,
           currency,
           exchangeRate: rate,
-          paymentMethod: "cod",
+          // Informational only: the server decides the method from the store's mode.
+          paymentMethod: online ? "paymob" : "cod",
           company,
         }),
       });
@@ -488,11 +533,36 @@ export default function CheckoutClient() {
         discount_amount?: number;
         total?: number;
         error?: string;
+        payment?: { returnPath?: unknown; redirectUrl?: unknown };
       } | null = null;
       try {
         json = await res.json();
       } catch {
         json = null;
+      }
+
+      const returnPath = json?.payment?.returnPath;
+      if (res.ok && json?.ok && typeof returnPath === "string" && PAYMENT_PATH.test(returnPath)) {
+        // Online: the order now holds the bag, so the bag is cleared; the
+        // payment page can rebuild it if the shopper changes their mind.
+        setLeavingForPayment(true);
+        clear();
+        abandonedCartIdRef.current = null;
+        const pending: PendingPayment = {
+          path: returnPath,
+          orderId: String(json.order_id ?? ""),
+          expiresAt: Date.now() + 6 * 60 * 60 * 1000,
+        };
+        try {
+          sessionStorage.removeItem(ABANDONED_CART_ID_KEY);
+        } catch {}
+        savePendingPayment(pending);
+        pendingPaymentSnapshot = pending;
+        window.history.replaceState(null, "", returnPath);
+        const redirectUrl = json.payment?.redirectUrl;
+        // Still "submitting" while the browser leaves for Paymob.
+        window.location.assign(isPaymobCheckoutUrl(redirectUrl) ? redirectUrl : returnPath);
+        return;
       }
 
       if (res.ok && json?.ok) {
@@ -756,6 +826,28 @@ export default function CheckoutClient() {
     );
   }
 
+  /* ── Leaving for Paymob ───────────────────────────────────────── */
+
+  if (leavingForPayment) {
+    return (
+      <div className="maison min-h-screen flex flex-col">
+        <AppHeader />
+        <main className="flex-grow">
+          <div className="maison-container maison-section">
+            <div className="mx-auto max-w-[560px] text-center" role="status">
+              <h1 className="maison-page-title">Opening secure payment</h1>
+              <p className="mt-8 text-[14px] font-light leading-[1.8] text-black">
+                Your order is reserved. You are being taken to our payment partner&rsquo;s secure page to
+                complete it.
+              </p>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   /* ── Order confirmation ───────────────────────────────────────── */
 
   // The order just placed, or the one this session placed before a reload.
@@ -867,6 +959,24 @@ export default function CheckoutClient() {
         <main className="flex-grow">
           <div className="maison-container maison-section">
             <div className="mx-auto max-w-[560px] text-center">
+              {pendingPayment && (
+                <div className="mb-14 bg-[#F5F5F5] p-6 md:p-8 text-left">
+                  <p className="text-[13px] uppercase tracking-[0.1em] text-black">
+                    {pendingPayment.orderId
+                      ? `Order ${pendingPayment.orderId} is awaiting payment`
+                      : "An order is awaiting payment"}
+                  </p>
+                  <p className="mt-3 text-[13px] font-light leading-[1.7] text-[#646464]">
+                    Your selection is reserved while you complete the payment. You can pay, or change the
+                    order, from its payment page.
+                  </p>
+                  <div className="mt-5">
+                    <Link href={pendingPayment.path} className="maison-btn">
+                      Continue to payment
+                    </Link>
+                  </div>
+                </div>
+              )}
               <h1 className="maison-page-title">Your cart is empty</h1>
               <p className="mt-8 text-[14px] font-light leading-[1.8] text-black">
                 Nothing has been selected yet. Explore the collection and compose your own signature.
@@ -1156,19 +1266,50 @@ export default function CheckoutClient() {
                     </div>
                   </section>
 
-                  {/* Payment — cash on delivery only */}
+                  {/* Payment — the store's mode decides, the server enforces it */}
                   <section>
                     <h2 className="maison-eyebrow pb-4" style={{ borderBottom: `1px solid ${HAIRLINE}` }}>
                       Payment
                     </h2>
                     <div className="mt-8 bg-[#F5F5F5] p-6 md:p-8">
-                      <p className="text-[13px] uppercase tracking-[0.1em] text-black">
-                        Cash on delivery
-                      </p>
-                      <p className="mt-3 text-[13px] font-light leading-[1.7] text-[#646464]">
-                        Pay in cash or by card to the courier when your order arrives. Nothing is
-                        charged before your parcel is in your hands.
-                      </p>
+                      {paymentMode === "online" ? (
+                        <>
+                          <p className="text-[13px] uppercase tracking-[0.1em] text-black">
+                            Card, Apple Pay or Google Pay
+                          </p>
+                          <p className="mt-3 text-[13px] font-light leading-[1.7] text-[#646464]">
+                            You will complete your payment on the secure page of our payment partner,
+                            Paymob. Your card details are entered there and never reach us. Your
+                            selection is held for you while you pay.
+                          </p>
+                          {currency !== "AED" && (
+                            <p className="mt-3 text-[13px] font-light leading-[1.7] text-[#646464]">
+                              Payment is taken in UAE dirhams: you will be charged{" "}
+                              <span className="text-black">{formatAed(total)}</span>.
+                            </p>
+                          )}
+                        </>
+                      ) : paymentMode === "unavailable" ? (
+                        <>
+                          <p className="text-[13px] uppercase tracking-[0.1em] text-black">
+                            Secure payment is being prepared
+                          </p>
+                          <p className="mt-3 text-[13px] font-light leading-[1.7] text-[#646464]">
+                            Online payment is unavailable for a moment. Please try again shortly, or
+                            write to us and a client advisor will help.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-[13px] uppercase tracking-[0.1em] text-black">
+                            Cash on delivery
+                          </p>
+                          <p className="mt-3 text-[13px] font-light leading-[1.7] text-[#646464]">
+                            Pay in cash or by card to the courier when your order arrives. Nothing is
+                            charged before your parcel is in your hands.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </section>
 
@@ -1201,10 +1342,16 @@ export default function CheckoutClient() {
 
                     <button
                       type="submit"
-                      disabled={isSubmitting || !acceptedTerms}
+                      disabled={isSubmitting || !acceptedTerms || paymentMode === "unavailable"}
                       className="maison-btn w-full"
                     >
-                      {isSubmitting ? "Placing order" : "Place order"}
+                      {online
+                        ? isSubmitting
+                          ? "Reserving your order"
+                          : "Continue to secure payment"
+                        : isSubmitting
+                          ? "Placing order"
+                          : "Place order"}
                     </button>
                     <button
                       type="button"
@@ -1276,7 +1423,7 @@ export default function CheckoutClient() {
 
               <div className="mt-8 flex flex-col gap-2">
                 <p className="text-[12px] uppercase tracking-[0.1em] text-[#646464]">
-                  Payment on delivery
+                  {online ? "Secure online payment" : "Payment on delivery"}
                 </p>
               </div>
             </aside>

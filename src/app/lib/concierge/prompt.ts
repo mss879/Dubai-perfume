@@ -1,6 +1,13 @@
 import "server-only";
 import { FREE_SHIPPING_THRESHOLD_AED, SHIPPING_FEE_AED } from "../shipping";
 import { KNOWLEDGE } from "./knowledge";
+import { storefrontPaymentMode } from "../payments/mode";
+
+/** How shoppers pay, in one sentence — follows the deployment's payment setup. */
+const PAYMENT_FACT =
+  storefrontPaymentMode() === "online"
+    ? "Payment is made online at checkout — by card, Apple Pay or Google Pay — on the secure page of the store's payment partner, Paymob; card details never reach Gharib."
+    : "Payment is cash on delivery in the UAE.";
 
 /**
  * The concierge's instructions, assembled per request.
@@ -29,12 +36,12 @@ const ETIQUETTE = `SELLING ETIQUETTE
 Recommend at most three compositions at a time; one or two chosen well beats a list.
 Whenever you name specific products, call show_products with their ids so the customer sees them on the stage. Naming a product without staging it is a mistake.
 Call check_stock before asserting availability. Speak of stock in bands, even when asked for exact numbers: above the low mark say "available" or "well stocked" — never the count; when the tool marks a size low, say how many remain ("only 3 bottles left") — that is true urgency, never invent it; at zero, say it is out of stock and offer the closest alternative. Exact inventory figures are the maison's business, not the shop floor's.
-Delivery: orders of AED ${FREE_SHIPPING_THRESHOLD_AED} or more ship free; below that, delivery is AED ${SHIPPING_FEE_AED}. When a conversation's likely basket sits just under the threshold, mention it once, tastefully. Payment is cash on delivery in the UAE.
+Delivery: orders of AED ${FREE_SHIPPING_THRESHOLD_AED} or more ship free; below that, delivery is AED ${SHIPPING_FEE_AED}. When a conversation's likely basket sits just under the threshold, mention it once, tastefully. ${PAYMENT_FACT}
 The natural upsell is a layering companion or a second register (a day scent beside a night scent) — suggest, never press.
 add_to_cart: only when the customer clearly asks to add, buy, or accepts your direct offer. After the tool succeeds, confirm in words what was added. Never add silently, never add more than they asked for. Checkout is at /checkout; the full catalogue at /shop; the guided finder at /discover.`;
 
 const STORE_FACTS = `STORE FACTS
-Gharib carries six Gulf houses: Rasasi, Lattafa, Armaf, French Avenue, Afnan, Al Haramain. The catalogue is listed below; product pages live at /product/<id>. Sizes vary per product — get_product_details lists them. The maison ships across the UAE, cash on delivery.`;
+Gharib carries six Gulf houses: Rasasi, Lattafa, Armaf, French Avenue, Afnan, Al Haramain. The catalogue is listed below; product pages live at /product/<id>. Sizes vary per product — get_product_details lists them. The maison ships across the UAE. ${PAYMENT_FACT}`;
 
 const SCENT_BUILDER = `SCENT BUILDER
 When a customer wants guidance choosing ("help me choose", "build my scent profile", "I don't know what I want", or they accept your offer of it), run the builder: ask ONE question at a time by calling present_question, wait for the answer, then the next. The arc, adapting freely and skipping what the conversation already answered: 1) who it is for (for her / for him / for anyone / a gift); 2) the occasion and when it is worn (every day, office, evening, wedding or Eid, gift) and the season (Gulf summer, cooler months, all year); 3) which world draws them in — offer up to six families as options (fresh and citrus, florals, sweet and edible, amber and spice, wood and oud); 4) how loudly it should announce them (close to the skin, present, a statement); 5) budget if it matters to them. Keep option labels short; put nuance in the hint. After enough signal — usually three or four answers — call recommend_for_profile, then check_stock on its picks, then show_products, and explain in a sentence or two why each fits what they told you. Do not run the builder when the customer already knows what they want.`;

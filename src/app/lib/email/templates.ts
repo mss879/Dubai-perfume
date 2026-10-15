@@ -1,6 +1,7 @@
 import "server-only";
 import { SITE_URL, SITE_EMAIL } from "../site";
 import { FREE_SHIPPING_THRESHOLD_AED } from "../shipping";
+import { storefrontPaymentMode } from "../payments/mode";
 import {
   recoveryStopUrl,
   recoveryUrl,
@@ -24,6 +25,17 @@ export type OrderLine = {
   unitPriceAed: number;
 };
 
+/**
+ * How an order is paid. Absent means cash on delivery — every order placed
+ * before online payment existed, and every order while the store is in COD
+ * mode.
+ */
+export type OrderPaymentInfo = {
+  method: "cod" | "paymob";
+  /** Card brand and last four only, e.g. "Mastercard ending 2346". */
+  cardLabel?: string | null;
+};
+
 export type OrderEmailData = {
   orderId: string;
   customerName?: string | null;
@@ -33,7 +45,11 @@ export type OrderEmailData = {
   discountAed: number;
   totalAed: number;
   trackingNumber?: string | null;
+  payment?: OrderPaymentInfo | null;
 };
+
+const paidOnline = (data: OrderEmailData) => data.payment?.method === "paymob";
+const totalLabel = (data: OrderEmailData) => (paidOnline(data) ? "Total paid" : "Total due on delivery");
 
 /** The shipping object as checkout posts it. Every field is optional. */
 export type ShippingAddress = {
@@ -167,7 +183,7 @@ function lineItemsTable(data: OrderEmailData): string {
       ${totalRow("Subtotal", aed(data.subtotalAed))}
       ${data.discountAed > 0 ? totalRow("Discount", `− ${aed(data.discountAed)}`) : ""}
       ${totalRow("Delivery", data.shippingFeeAed > 0 ? aed(data.shippingFeeAed) : "Complimentary")}
-      ${totalRow("Total due on delivery", aed(data.totalAed), true)}
+      ${totalRow(totalLabel(data), aed(data.totalAed), true)}
     </table>`;
 }
 
@@ -183,7 +199,7 @@ function plainOrder(data: OrderEmailData): string {
     `Subtotal: ${aed(data.subtotalAed)}`,
     ...(data.discountAed > 0 ? [`Discount: -${aed(data.discountAed)}`] : []),
     `Delivery: ${data.shippingFeeAed > 0 ? aed(data.shippingFeeAed) : "Complimentary"}`,
-    `Total due on delivery: ${aed(data.totalAed)}`,
+    `${totalLabel(data)}: ${aed(data.totalAed)}`,
   ].join("\n");
 }
 
@@ -194,13 +210,19 @@ const greeting = (name?: string | null) =>
 
 export function orderConfirmationEmail(data: OrderEmailData) {
   const trackUrl = `${SITE_URL}/track?order=${encodeURIComponent(data.orderId)}`;
+  const online = paidOnline(data);
+  const card = data.payment?.cardLabel ? ` (${data.payment.cardLabel})` : "";
   return {
     subject: `Your Gharib order ${data.orderId} is confirmed`,
     html: shell({
-      preheader: `We have received order ${data.orderId}. Payment is collected on delivery.`,
+      preheader: online
+        ? `We have received your payment for order ${data.orderId}.`
+        : `We have received order ${data.orderId}. Payment is collected on delivery.`,
       eyebrow: "Order confirmed",
       heading: "Thank you for your order",
-      intro: `${greeting(data.customerName)} we have received your order and it is now being prepared. <strong>Payment is collected in cash or by card when your parcel arrives</strong> — nothing is charged before then.`,
+      intro: online
+        ? `${greeting(data.customerName)} we have received your order and your payment${esc(card)}, and your order is now being prepared. <strong>It is paid in full</strong> — there is nothing to pay on delivery.`
+        : `${greeting(data.customerName)} we have received your order and it is now being prepared. <strong>Payment is collected in cash or by card when your parcel arrives</strong> — nothing is charged before then.`,
       bodyHtml: lineItemsTable(data),
       ctaLabel: "Track your order",
       ctaHref: trackUrl,
@@ -208,8 +230,15 @@ export function orderConfirmationEmail(data: OrderEmailData) {
     text: [
       greeting(data.customerName).replace(/<[^>]+>/g, ""),
       "",
-      "We have received your order and it is now being prepared.",
-      "Payment is collected in cash or by card when your parcel arrives.",
+      ...(online
+        ? [
+            `We have received your order and your payment${card}, and your order is now being prepared.`,
+            "It is paid in full — there is nothing to pay on delivery.",
+          ]
+        : [
+            "We have received your order and it is now being prepared.",
+            "Payment is collected in cash or by card when your parcel arrives.",
+          ]),
       "",
       plainOrder(data),
       "",
@@ -236,7 +265,9 @@ export function outForDeliveryEmail(data: OrderEmailData) {
       preheader: `Order ${data.orderId} is with our courier today.`,
       eyebrow: "On its way",
       heading: "Your order is out for delivery",
-      intro: `${greeting(data.customerName)} your parcel is with our courier and arrives today. Please have <strong>${aed(data.totalAed)}</strong> ready in cash, or a card for the courier's terminal.`,
+      intro: paidOnline(data)
+        ? `${greeting(data.customerName)} your parcel is with our courier and arrives today. It is paid in full, so there is nothing to pay on delivery.`
+        : `${greeting(data.customerName)} your parcel is with our courier and arrives today. Please have <strong>${aed(data.totalAed)}</strong> ready in cash, or a card for the courier's terminal.`,
       bodyHtml: trackingBlock + `<div style="margin-top:24px;">${lineItemsTable(data)}</div>`,
       ctaLabel: "Track your order",
       ctaHref: trackUrl,
@@ -245,7 +276,9 @@ export function outForDeliveryEmail(data: OrderEmailData) {
       greeting(data.customerName).replace(/<[^>]+>/g, ""),
       "",
       "Your parcel is with our courier and arrives today.",
-      `Please have ${aed(data.totalAed)} ready in cash, or a card for the courier's terminal.`,
+      paidOnline(data)
+        ? "It is paid in full, so there is nothing to pay on delivery."
+        : `Please have ${aed(data.totalAed)} ready in cash, or a card for the courier's terminal.`,
       ...(data.trackingNumber ? ["", `Tracking number: ${data.trackingNumber}`] : []),
       "",
       plainOrder(data),
@@ -332,7 +365,11 @@ function reassuranceHtml(): string {
   const line = (text: string) =>
     `<p style="margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.7;color:#333333;">${text}</p>`;
   return `<div style="margin-top:26px;padding:20px 22px;background:#f5f5f5;">
-    ${line("<strong>Pay on delivery.</strong> Nothing is charged before your parcel is in your hands.")}
+    ${line(
+      storefrontPaymentMode() === "online"
+        ? "<strong>Secure payment.</strong> Pay by card, Apple Pay or Google Pay on our payment partner&rsquo;s secure page."
+        : "<strong>Pay on delivery.</strong> Nothing is charged before your parcel is in your hands."
+    )}
     ${line(`<strong>Complimentary delivery</strong> on orders over ${esc(aed(FREE_SHIPPING_THRESHOLD_AED))}.`)}
     ${line("<strong>Two discovery samples</strong> accompany every order.")}
   </div>`;
@@ -396,7 +433,10 @@ export function abandonedCartRecoveryEmail(data: RecoveryEmailData) {
   return {
     subject,
     html: shell({
-      preheader: `${copy.plain} Payment is collected on delivery.`,
+      preheader:
+        storefrontPaymentMode() === "online"
+          ? `${copy.plain} Secure payment at checkout.`
+          : `${copy.plain} Payment is collected on delivery.`,
       eyebrow: copy.eyebrow,
       heading: copy.heading,
       intro: copy.intro(salutation),
@@ -422,7 +462,9 @@ export function abandonedCartRecoveryEmail(data: RecoveryEmailData) {
       "",
       `Subtotal: ${aed(data.subtotalAed)}`,
       "",
-      "Payment is collected on delivery — nothing is charged before your parcel arrives.",
+      storefrontPaymentMode() === "online"
+        ? "Secure payment by card, Apple Pay or Google Pay at checkout."
+        : "Payment is collected on delivery — nothing is charged before your parcel arrives.",
       `Complimentary delivery on orders over ${aed(FREE_SHIPPING_THRESHOLD_AED)}.`,
       "",
       `${copy.cta}: ${link}`,
@@ -572,14 +614,23 @@ export function newOrderOwnerEmail(data: OwnerOrderEmailData) {
     ? `<a href="tel:${esc(phone.replace(/[^\d+]/g, ""))}" style="color:#000000;">${esc(phone)}</a>`
     : "Not given";
 
+  const online = paidOnline(data);
+  const card = data.payment?.cardLabel ? ` · ${data.payment.cardLabel}` : "";
+
   return {
-    subject: `New order ${data.orderId} — ${aed(data.totalAed)}${city ? ` — ${city}` : ""}`,
+    subject: `New order ${data.orderId} — ${aed(data.totalAed)}${online ? " paid" : ""}${city ? ` — ${city}` : ""}`,
     html: alertShell({
-      preheader: `${aed(data.totalAed)} to collect on delivery${city ? ` in ${city}` : ""}.`,
+      preheader: online
+        ? `${aed(data.totalAed)} paid online — nothing to collect${city ? `. Deliver in ${city}` : ""}.`
+        : `${aed(data.totalAed)} to collect on delivery${city ? ` in ${city}` : ""}.`,
       heading: `New order ${data.orderId}`,
       bodyHtml: `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          ${detailRow("Collect", `<strong>${esc(aed(data.totalAed))}</strong> in cash or by card on delivery`)}
+          ${
+            online
+              ? detailRow("Paid", `<strong>${esc(aed(data.totalAed))}</strong> online${esc(card)} — nothing to collect`)
+              : detailRow("Collect", `<strong>${esc(aed(data.totalAed))}</strong> in cash or by card on delivery`)
+          }
           ${detailRow("Customer", esc(name) || "Not given")}
           ${detailRow("Phone", phoneHtml)}
           ${email ? detailRow("Email", mailtoLink(email)) : ""}
@@ -590,12 +641,106 @@ export function newOrderOwnerEmail(data: OwnerOrderEmailData) {
     text: [
       `New order ${data.orderId}`,
       "",
-      `Collect on delivery: ${aed(data.totalAed)}`,
+      online
+        ? `Paid online: ${aed(data.totalAed)}${card} — nothing to collect`
+        : `Collect on delivery: ${aed(data.totalAed)}`,
       `Customer: ${name || "Not given"}`,
       `Phone: ${phone || "Not given"}`,
       ...(email ? [`Email: ${email}`] : []),
       "Deliver to:",
       ...(address.length ? address.map((l) => `  ${l}`) : ["  No address supplied"]),
+      "",
+      plainOrder(data),
+    ].join("\n"),
+  };
+}
+
+/** What each payment attention flag means, and what the owner should do. */
+const ATTENTION_COPY: Record<string, { title: string; action: string }> = {
+  duplicate_payment: {
+    title: "Paid twice",
+    action: "A second successful payment arrived for this order. Refund the extra payment from the order's payment panel.",
+  },
+  paid_after_close: {
+    title: "Paid after the order was released",
+    action: "The payment arrived after the payment window closed, so the stock was released. Refund it, or reinstate the order by hand if the stock is still there.",
+  },
+  amount_mismatch: {
+    title: "Paid a different amount",
+    action: "Paymob reported a successful payment for a different amount or currency than the order. The order was NOT marked paid. Check the transaction in the Paymob dashboard and refund it.",
+  },
+  unknown_integration: {
+    title: "Paid through an unconfigured payment method",
+    action: "The payment came through a Paymob integration that is not in PAYMOB_INTEGRATION_IDS, so the order was NOT marked paid. Add the integration id if it is yours, or refund it.",
+  },
+  authorized_not_captured: {
+    title: "Authorised but not captured",
+    action: "Paymob authorised the card without capturing it, so no money has moved. Capture or void it in the Paymob dashboard; the store uses sale (not auth/capture) integrations.",
+  },
+};
+
+/** Owner alert for a payment that needs a decision. No card data. */
+export function paymentAttentionOwnerEmail(data: OwnerOrderEmailData, alerts: string[]) {
+  const known = alerts.filter((a) => ATTENTION_COPY[a]);
+  const headline = known.length === 1 ? ATTENTION_COPY[known[0]].title : "Payment needs your attention";
+  const items = known.map((a) => ATTENTION_COPY[a]);
+
+  return {
+    subject: `Payment attention — order ${data.orderId}: ${headline}`,
+    html: alertShell({
+      preheader: `Order ${data.orderId}: ${headline}.`,
+      heading: `Order ${data.orderId}: ${headline}`,
+      bodyHtml: `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          ${items.map((i) => detailRow(i.title, esc(i.action))).join("")}
+          ${detailRow("Order total", esc(aed(data.totalAed)))}
+          ${data.customerEmail ? detailRow("Customer", mailtoLink(data.customerEmail.trim())) : ""}
+        </table>
+        <p style="margin:22px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.7;color:${MUTED};">
+          Open the order in the admin panel (Orders) to see every payment attempt and to refund.
+        </p>`,
+    }),
+    text: [
+      `Order ${data.orderId}: ${headline}`,
+      "",
+      ...items.map((i) => `${i.title}: ${i.action}`),
+      "",
+      `Order total: ${aed(data.totalAed)}`,
+      ...(data.customerEmail ? [`Customer: ${data.customerEmail.trim()}`] : []),
+      "",
+      "Open the order in the admin panel (Orders) to see every payment attempt and to refund.",
+    ].join("\n"),
+  };
+}
+
+/** Customer notice that money is on its way back (refund) or was never taken (void). */
+export function paymentRefundEmail(data: OrderEmailData, refund: { amountAed: number; voided: boolean }) {
+  const subject = refund.voided
+    ? `Your payment for Gharib order ${data.orderId} has been cancelled`
+    : `A refund for your Gharib order ${data.orderId}`;
+  const intro = refund.voided
+    ? `${greeting(data.customerName)} the payment of <strong>${aed(data.totalAed)}</strong> for order ${esc(data.orderId)} has been cancelled before it settled. You have not been charged; any temporary hold on your card is released by your bank.`
+    : `${greeting(data.customerName)} we have issued a refund of <strong>${aed(refund.amountAed)}</strong> for order ${esc(data.orderId)} to your original payment method. Depending on your bank, it can take several business days to appear on your statement.`;
+
+  return {
+    subject,
+    html: shell({
+      preheader: refund.voided
+        ? `You have not been charged for order ${data.orderId}.`
+        : `${aed(refund.amountAed)} is on its way back to you.`,
+      eyebrow: refund.voided ? "Payment cancelled" : "Refund issued",
+      heading: refund.voided ? "Your payment was cancelled" : "Your refund is on its way",
+      intro,
+      bodyHtml: lineItemsTable(data),
+      ctaLabel: "View your order",
+      ctaHref: `${SITE_URL}/track?order=${encodeURIComponent(data.orderId)}`,
+    }),
+    text: [
+      greeting(data.customerName).replace(/<[^>]+>/g, ""),
+      "",
+      refund.voided
+        ? `The payment of ${aed(data.totalAed)} for order ${data.orderId} has been cancelled before it settled. You have not been charged.`
+        : `We have issued a refund of ${aed(refund.amountAed)} for order ${data.orderId} to your original payment method. Depending on your bank, it can take several business days to appear.`,
       "",
       plainOrder(data),
     ].join("\n"),

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { readCart, writeCart, type CartLine } from "../lib/cart";
+import { mergeIntoCart, type CartLine } from "../lib/cart";
 import { useCurrency } from "../lib/currency";
 import { openCartDrawer } from "../components/CartDrawer";
 import { amountToFreeShipping } from "../lib/shipping";
@@ -22,43 +22,26 @@ export type RecoverableLine = {
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
 /**
- * Puts a saved selection back in the bag.
- *
- * MERGES rather than replaces: a shopper who followed the reminder after
- * putting something new in their bag must not lose it. Where the same product
- * and size appear in both, the larger quantity wins — restoring cannot silently
- * reduce what is already there.
+ * Puts a saved selection back in the bag — merging, never replacing (see
+ * mergeIntoCart in lib/cart.ts): a shopper who followed the reminder after
+ * putting something new in their bag must not lose it.
  */
-function mergeIntoCart(lines: RecoverableLine[]): void {
-  const current = [...readCart()];
-
-  for (const line of lines) {
-    const index = current.findIndex(
-      (c) => c.product.id === line.productId && c.selectedSize === line.size
-    );
-    const restored: CartLine = {
-      product: {
-        id: line.productId,
-        brand: line.brand,
-        name: line.name,
-        price: line.priceAed,
-        image_url: line.imageUrl,
-      },
-      selectedSize: line.size,
-      quantity: Math.max(1, Math.min(20, line.quantity)),
-    };
-
-    if (index > -1) {
-      current[index] = {
-        ...restored,
-        quantity: Math.max(current[index].quantity, restored.quantity),
-      };
-    } else {
-      current.push(restored);
-    }
-  }
-
-  writeCart(current);
+function restoreSelection(lines: RecoverableLine[]): void {
+  mergeIntoCart(
+    lines.map(
+      (line): CartLine => ({
+        product: {
+          id: line.productId,
+          brand: line.brand,
+          name: line.name,
+          price: line.priceAed,
+          image_url: line.imageUrl,
+        },
+        selectedSize: line.size,
+        quantity: Math.max(1, Math.min(20, line.quantity)),
+      })
+    )
+  );
 }
 
 export default function RecoverClient({ lines }: { lines: RecoverableLine[] }) {
@@ -71,7 +54,7 @@ export default function RecoverClient({ lines }: { lines: RecoverableLine[] }) {
   useEffect(() => {
     if (done.current) return;
     done.current = true;
-    mergeIntoCart(lines);
+    restoreSelection(lines);
     setRestored(true);
   }, [lines]);
 

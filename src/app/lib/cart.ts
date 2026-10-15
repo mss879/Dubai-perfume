@@ -131,6 +131,32 @@ export function clearCart() {
   persist([]);
 }
 
+/**
+ * Puts saved lines back in the bag (a recovery link, or an unpaid order the
+ * shopper chose to change). MERGES rather than replaces: anything already in
+ * the bag stays, and where the same product and size appear in both the larger
+ * quantity wins — restoring can never silently reduce what is there.
+ */
+export function mergeIntoCart(lines: CartLine[]) {
+  const current = [...readCart()];
+  for (const line of lines) {
+    const normalized = normalizeLine(line);
+    if (!normalized) continue;
+    const index = current.findIndex(
+      (c) => c.product.id === normalized.product.id && c.selectedSize === normalized.selectedSize
+    );
+    if (index > -1) {
+      current[index] = {
+        ...normalized,
+        quantity: Math.max(current[index].quantity, normalized.quantity),
+      };
+    } else {
+      current.push(normalized);
+    }
+  }
+  persist(current);
+}
+
 export function cartCount(lines: CartLine[]): number {
   return lines.reduce((sum, l) => sum + l.quantity, 0);
 }

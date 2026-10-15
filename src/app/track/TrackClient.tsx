@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Price from "../components/Price";
 import { ORDER_STEPS, isCancelledOrder, stepIndexForStatus } from "../lib/orders";
+import { paymentStatusLabel } from "../lib/payments/status";
 
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
@@ -21,6 +22,9 @@ type TrackedOrder = {
   created_at: string | null;
   tracking_number: string | null;
   tracking_url: string | null;
+  /** Present once migration 63 is applied; absent means cash on delivery. */
+  payment_method?: string | null;
+  payment_status?: string | null;
   tracking: TrackingEntry[];
 };
 
@@ -134,6 +138,12 @@ export default function TrackClient({ initialOrderId }: { initialOrderId: string
             <div className="mt-4 flex flex-wrap items-baseline justify-between gap-4">
               <span className="maison-body">Order total</span>
               <Price amountAed={parseFloat(String(order.total_price)) || 0} />
+            </div>
+            <div className="mt-2 flex flex-wrap items-baseline justify-between gap-4">
+              <span className="maison-body">Payment</span>
+              <span className="text-[14px] font-light text-black">
+                {paymentStatusLabel(order.payment_method, order.payment_status)}
+              </span>
             </div>
 
             {cancelled ? (

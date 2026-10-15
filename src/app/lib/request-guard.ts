@@ -83,6 +83,24 @@ async function readCapped(request: NextRequest, maxBytes: number): Promise<strin
 }
 
 /**
+ * For cookie-authenticated routes that move money or change settings: the
+ * request must come from this site's own pages. Browsers always send Origin on
+ * a cross-site POST, so a forged form or fetch from another site fails here
+ * even before SameSite cookies would stop it.
+ */
+export function isSameOrigin(request: NextRequest, siteUrl: string): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  let site = "";
+  try {
+    site = new URL(siteUrl).origin;
+  } catch {
+    site = "";
+  }
+  return origin === request.nextUrl.origin || (site !== "" && origin === site);
+}
+
+/**
  * The "company" field is on every public form but hidden from people, so only
  * a form-filling bot ever supplies a value.
  */

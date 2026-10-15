@@ -6,6 +6,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Music2, Users, MessageCircle } from "lucide-react";
 import { useCurrency, SUPPORTED_CURRENCIES } from "../lib/currency";
+import { usePaymentMode } from "./PaymentModeProvider";
 import {
   INSTAGRAM_URL,
   TIKTOK_URL,
@@ -57,7 +58,10 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   },
 ];
 
-const PAYMENT_MARKS = ["Cash on Delivery"];
+const PAYMENT_MARKS = {
+  online: ["Visa", "Mastercard", "Apple Pay", "Google Pay"],
+  cod: ["Cash on Delivery"],
+} as const;
 
 /**
  * Where to find the maison. Each entry survives the filter only once its handle
@@ -82,6 +86,7 @@ const LINK_CLASS =
 type NewsletterStatus = "idle" | "sending" | "success" | "error";
 
 export default function Footer() {
+  const paymentMode = usePaymentMode();
   const [subscribedEmail, setSubscribedEmail] = useState("");
   const [newsletterStatus, setNewsletterStatus] = useState<NewsletterStatus>("idle");
   const { currency, setCurrency } = useCurrency();
@@ -279,7 +284,7 @@ export default function Footer() {
 
           <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
             <div className="flex items-center gap-2">
-              {PAYMENT_MARKS.map((mark) => (
+              {PAYMENT_MARKS[paymentMode].map((mark) => (
                 <span
                   key={mark}
                   className="flex h-6 items-center border border-[rgba(0,0,0,0.12)] px-2.5 text-[10px] font-normal uppercase tracking-[0.12em] text-[#757575]"

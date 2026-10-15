@@ -55,12 +55,25 @@ export type SendResult =
   | { ok: false; skipped: true; reason: string }
   | { ok: false; skipped: false; reason: string };
 
-export async function sendEmail(params: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}): Promise<SendResult> {
+export type SendOptions = {
+  /**
+   * Resend's idempotency key: the same key within 24 hours is delivered once,
+   * so a retried payment confirmation can never reach the customer twice.
+   */
+  idempotencyKey?: string;
+  /** Print nothing, ever — the payment path's rule. Failures are returned. */
+  quiet?: boolean;
+};
+
+export async function sendEmail(
+  params: {
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+  },
+  options: SendOptions = {}
+): Promise<SendResult> {
   const to = params.to?.trim();
 
   if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
@@ -69,9 +82,11 @@ export async function sendEmail(params: {
   if (!isEmailConfigured) {
     // Not an error: the store runs fine without email configured, it just
     // does not notify. Logged loudly so this is never a silent surprise.
-    console.warn(
-      `[email] RESEND_API_KEY / RESEND_FROM_EMAIL not set — skipped "${params.subject}" to ${to}`
-    );
+    if (!options.quiet) {
+      console.warn(
+        `[email] RESEND_API_KEY / RESEND_FROM_EMAIL not set — skipped "${params.subject}" to ${to}`
+      );
+    }
     return { ok: false, skipped: true, reason: "email not configured" };
   }
 
@@ -79,23 +94,30 @@ export async function sendEmail(params: {
     const resend = getClient();
     if (!resend) return { ok: false, skipped: true, reason: "no client" };
 
-    const { data, error } = await resend.emails.send({
-      from: fromAddress,
-      to,
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
-      ...(replyTo ? { replyTo } : {}),
-    });
+    const { data, error } = await resend.emails.send(
+      {
+        from: fromAddress,
+        to,
+        subject: params.subject,
+        html: params.html,
+        text: params.text,
+        ...(replyTo ? { replyTo } : {}),
+      },
+      options.idempotencyKey ? { idempotencyKey: options.idempotencyKey.slice(0, 256) } : undefined
+    );
 
     if (error) {
-      console.error(`[email] send failed for "${params.subject}":`, error.message);
+      if (!options.quiet) {
+        console.error(`[email] send failed for "${params.subject}":`, error.message);
+      }
       return { ok: false, skipped: false, reason: error.message };
     }
     return { ok: true, id: data?.id ?? null };
   } catch (err) {
     const reason = err instanceof Error ? err.message : "unknown error";
-    console.error(`[email] threw for "${params.subject}":`, reason);
+    if (!options.quiet) {
+      console.error(`[email] threw for "${params.subject}":`, reason);
+    }
     return { ok: false, skipped: false, reason };
   }
 }

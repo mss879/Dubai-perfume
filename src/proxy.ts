@@ -41,6 +41,12 @@ const ALWAYS_OPEN = [
   // running through a lock.
   "/api/cart-recovery",
   "/api/abandoned-cart",
+  // Paymob's server-to-server callback (HMAC-verified) and the payment check
+  // job (Bearer secret). Neither has child routes; the shopper-facing payment
+  // routes (status, retry, cancel) are siblings and stay behind the lock like
+  // the rest of checkout.
+  "/api/payments/paymob/webhook",
+  "/api/payments/reconcile",
   LAUNCHING_SOON_PATH,
 ];
 

@@ -3,6 +3,8 @@ import { Inter, Playfair_Display, Plus_Jakarta_Sans, Source_Serif_4 } from "next
 import "./globals.css";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "./lib/site";
 import { jsonLdScript } from "./lib/html";
+import { PaymentModeProvider } from "./components/PaymentModeProvider";
+import { storefrontPaymentMode } from "./lib/payments/mode";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -81,7 +83,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd) }}
         />
-        {children}
+        <PaymentModeProvider mode={storefrontPaymentMode()}>{children}</PaymentModeProvider>
       </body>
     </html>
   );

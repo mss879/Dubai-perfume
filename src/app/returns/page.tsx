@@ -3,11 +3,12 @@ import Link from "next/link";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import { SITE_EMAIL } from "../lib/site";
+import { storefrontPaymentMode } from "../lib/payments/mode";
 
 export const metadata: Metadata = {
   title: "Shipping & Returns",
   description:
-    "Gharib delivery and returns in the UAE — cash on delivery, 2 to 5 business day delivery, and a 14-day return window for unopened items.",
+    "Gharib delivery and returns in the UAE — payment, 2 to 5 business day delivery, and a 14-day return window for unopened items.",
   alternates: { canonical: "/returns" },
 };
 
@@ -41,8 +42,8 @@ export default function ReturnsPage() {
           <div className="mx-auto max-w-[720px]">
             <p className="maison-body max-w-[65ch] pb-10">
               Every parcel leaves our Dubai boutique carefully wrapped and sealed. This page
-              explains how delivery works across the United Arab Emirates, how payment on delivery
-              is handled, and how to return an item should you change your mind.
+              explains how delivery works across the United Arab Emirates, how payment is handled,
+              and how to return an item should you change your mind.
             </p>
 
             <ReturnsSection title="Delivery across the UAE">
@@ -54,13 +55,23 @@ export default function ReturnsPage() {
               </p>
             </ReturnsSection>
 
-            <ReturnsSection title="Payment on delivery">
-              <p>
-                Payment is made by cash on delivery. The courier collects the order total shown in
-                your confirmation, in AED, when the parcel is handed to you. No payment is taken on
-                the website and no card details are ever requested.
-              </p>
-            </ReturnsSection>
+            {storefrontPaymentMode() === "online" ? (
+              <ReturnsSection title="Payment">
+                <p>
+                  Payment is made online at checkout, in AED, on the secure page of our payment
+                  partner, Paymob — by card or, where available, Apple Pay or Google Pay. Your card
+                  details are entered there and never reach us. Nothing is collected on delivery.
+                </p>
+              </ReturnsSection>
+            ) : (
+              <ReturnsSection title="Payment on delivery">
+                <p>
+                  Payment is made by cash on delivery. The courier collects the order total shown in
+                  your confirmation, in AED, when the parcel is handed to you. No payment is taken on
+                  the website and no card details are ever requested.
+                </p>
+              </ReturnsSection>
+            )}
 
             <ReturnsSection title="Inspecting your order">
               <p>
@@ -85,13 +96,24 @@ export default function ReturnsPage() {
             </ReturnsSection>
 
             <ReturnsSection title="Refunds">
-              <p>
-                Because payment is made in cash on delivery, refunds for returned items are made by
-                bank transfer to an account in your name. Once the returned parcel has been received
-                and inspected, the refund is issued within 14 days. Any collection fee for a
-                change-of-mind return may be deducted from the refund; returns of damaged or
-                incorrect items are always free.
-              </p>
+              {storefrontPaymentMode() === "online" ? (
+                <p>
+                  Refunds are made to the card or wallet you paid with. Once the returned parcel has
+                  been received and inspected, the refund is issued within 14 days; depending on your
+                  bank, it can then take several business days to appear on your statement. Any
+                  collection fee for a change-of-mind return may be deducted from the refund; returns
+                  of damaged or incorrect items are always free. Orders paid in cash on delivery are
+                  refunded by bank transfer to an account in your name.
+                </p>
+              ) : (
+                <p>
+                  Because payment is made in cash on delivery, refunds for returned items are made by
+                  bank transfer to an account in your name. Once the returned parcel has been received
+                  and inspected, the refund is issued within 14 days. Any collection fee for a
+                  change-of-mind return may be deducted from the refund; returns of damaged or
+                  incorrect items are always free.
+                </p>
+              )}
             </ReturnsSection>
 
             <ReturnsSection title="Questions">
