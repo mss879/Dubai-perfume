@@ -62,6 +62,64 @@
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
+-- Prerequisites, checked before anything changes
+--
+-- This migration REPLACES functions from earlier ones. CREATE OR REPLACE with
+-- a signature the database does not have adds a second copy instead of
+-- replacing the first, and an older place_order left callable would go on
+-- taking cash on delivery after the switch to online payment. So unless every
+-- function and column below is exactly as migrations 38, 40, 44 and 45 left
+-- them, stop here. This is the first statement, so stopping changes nothing.
+-- ---------------------------------------------------------------------------
+
+DO $$
+DECLARE
+    v_missing TEXT[] := '{}';
+    v_item TEXT;
+BEGIN
+    FOREACH v_item IN ARRAY ARRAY[
+        'public.place_order(text,text,text,text,jsonb,jsonb,text,uuid,text,numeric,text,text)',
+        'public.track_guest_order(text,text)',
+        'public.claim_abandoned_carts_for_recovery(text,smallint,integer,integer,integer,integer)',
+        'public.verify_job_secret(text,text)',
+        'public.is_admin(uuid)'
+    ] LOOP
+        IF to_regprocedure(v_item) IS NULL THEN
+            v_missing := v_missing || v_item;
+        END IF;
+    END LOOP;
+
+    IF (SELECT count(*) FROM pg_proc
+        WHERE proname = 'place_order' AND pronamespace = 'public'::regnamespace) > 1 THEN
+        v_missing := v_missing || 'a single public.place_order (there is more than one)'::TEXT;
+    END IF;
+
+    IF to_regclass('public.app_config') IS NULL THEN
+        v_missing := v_missing || 'table public.app_config'::TEXT;
+    END IF;
+
+    FOREACH v_item IN ARRAY ARRAY[
+        'payment_method', 'payment_status', 'payment_ref', 'total_price', 'shipping_fee',
+        'discount_amount', 'discount_code', 'converted_total', 'currency', 'exchange_rate',
+        'phone', 'email', 'shipping_address', 'customer_id', 'status', 'updated_at'
+    ] LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = v_item
+        ) THEN
+            v_missing := v_missing || ('public.orders.' || v_item);
+        END IF;
+    END LOOP;
+
+    IF cardinality(v_missing) > 0 THEN
+        RAISE EXCEPTION 'Migration 63 stopped before changing anything. Missing: %',
+            array_to_string(v_missing, '; ')
+            USING HINT = 'Apply the earlier migrations it builds on first (38, 40, 44, 45), then run 63 again.';
+    END IF;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 0. Close the secret oracle
 --
 -- verify_job_secret was revoked from PUBLIC only (45). Supabase's default
