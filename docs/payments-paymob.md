@@ -71,7 +71,11 @@ You also generate one value yourself:
 
 Optional:
 
-- `PAYMOB_MERCHANT_ID` adds an extra check on every callback.
+- `PAYMOB_OWNER_ID` pins every callback to your account. Leave it empty
+  unless you know the number. It is the `owner` field on Paymob's
+  transactions (your Paymob **user** id), **not** the "MID" shown under your
+  name in the dashboard. A wrong value makes the store reject every callback;
+  payments would then confirm only through the slower inquiry.
 - `PAYMOB_HMAC_SECRET_PREVIOUS` is only used during a rotation (section 4).
 
 Add them all in **Netlify → Site configuration → Environment variables**, for
@@ -230,7 +234,7 @@ curl -X POST https://<domain>/api/payments/reconcile -H "Authorization: Bearer $
 **Webhook**
 - Checks run in this order: strict JSON types and formats first (closing
   field-boundary sliding in the separator-less signed string), then the
-  configured integration IDs (and optional merchant ID), then HMAC-SHA512
+  configured integration IDs (and the optional owner id), then HMAC-SHA512
   compared in constant time, with the previous secret accepted during rotation.
 - An unverified callback changes nothing. At most it triggers a throttled
   inquiry to Paymob.

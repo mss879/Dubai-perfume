@@ -220,7 +220,7 @@ function claimedOrderId(obj: unknown): number | null {
 }
 
 /**
- * Strict shape -> pins (integration id, optional merchant id) -> HMAC, in that
+ * Strict shape -> pins (integration id, optional owner id) -> HMAC, in that
  * order. Anything short of all three is unverified, and an unverified callback
  * may at most prompt the server to ask Paymob itself.
  */
@@ -230,7 +230,7 @@ export function verifyCallback(obj: unknown, hmac: string | null, config: Paymob
   const t = parsed.data;
   const pinned =
     config.integrationIds.includes(t.integration_id) &&
-    (config.merchantId === null || t.owner === config.merchantId);
+    (config.ownerId === null || t.owner === config.ownerId);
   if (!pinned || !hmacMatches(hmac, canonicalString(t), config.hmacSecrets)) {
     return { verified: false, paymobOrderId: t.order.id };
   }

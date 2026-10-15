@@ -27,8 +27,13 @@ export type PaymobConfig = {
   /** Current first; the previous one is accepted during a rotation. */
   hmacSecrets: string[];
   integrationIds: number[];
-  /** Optional pin on the `owner` field of signed transactions. */
-  merchantId: number | null;
+  /**
+   * Optional pin on the `owner` field of signed transactions: Paymob's USER id
+   * for the account (the same number as a transaction's `user_id` and
+   * `created_by`). NOT the merchant id (MID) the dashboard shows; that is
+   * `profile_id`, which the signature does not cover.
+   */
+  ownerId: number | null;
   rpcSecret: string;
   mode: PaymobKeyMode;
 };
@@ -81,7 +86,7 @@ export function readPaymobConfig(): ReadResult {
   const hmac = env("PAYMOB_HMAC_SECRET");
   const hmacPrevious = env("PAYMOB_HMAC_SECRET_PREVIOUS");
   const rpcSecret = env("PAYMENTS_RPC_SECRET");
-  const merchantRaw = env("PAYMOB_MERCHANT_ID");
+  const ownerRaw = env("PAYMOB_OWNER_ID");
 
   const secretMatch = secretKey ? SECRET_KEY.exec(secretKey) : null;
   const publicMatch = publicKey ? PUBLIC_KEY.exec(publicKey) : null;
@@ -99,10 +104,10 @@ export function readPaymobConfig(): ReadResult {
   const ids = env("PAYMOB_INTEGRATION_IDS") ? parseIds(env("PAYMOB_INTEGRATION_IDS")) : null;
   if (env("PAYMOB_INTEGRATION_IDS") && !ids) invalid.push("PAYMOB_INTEGRATION_IDS");
 
-  let merchantId: number | null = null;
-  if (merchantRaw) {
-    merchantId = /^[1-9][0-9]{0,15}$/.test(merchantRaw) ? Number(merchantRaw) : null;
-    if (merchantId === null) invalid.push("PAYMOB_MERCHANT_ID");
+  let ownerId: number | null = null;
+  if (ownerRaw) {
+    ownerId = /^[1-9][0-9]{0,15}$/.test(ownerRaw) ? Number(ownerRaw) : null;
+    if (ownerId === null) invalid.push("PAYMOB_OWNER_ID");
   }
 
   const mode = (secretMatch?.[1] as PaymobKeyMode | undefined) ?? null;
@@ -125,7 +130,7 @@ export function readPaymobConfig(): ReadResult {
       apiKey,
       hmacSecrets: hmacPrevious ? [hmac, hmacPrevious] : [hmac],
       integrationIds: ids,
-      merchantId,
+      ownerId,
       rpcSecret,
       mode,
     },
