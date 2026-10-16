@@ -29,6 +29,8 @@ async function snapshot() {
   const base = SITE_URL.replace(/\/+$/, "");
   return {
     configured: cfg.ok,
+    /** Paymob inquiry (missed-callback recovery, refund read-back) needs PAYMOB_API_KEY. */
+    inquiry: cfg.ok && cfg.config.apiKey !== null,
     keyMode: cfg.status.mode,
     missing: cfg.status.missing,
     invalid: cfg.status.invalid,

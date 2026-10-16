@@ -12,7 +12,8 @@ page (`uae.checkout.paymob.com`), where card details are entered — they never
 touch this site. Paymob then tells the server the result in two ways:
 
 - **Webhook:** a callback signed with HMAC-SHA512.
-- **Inquiry:** an authenticated server-to-server lookup.
+- **Inquiry:** an authenticated server-to-server lookup. This needs the
+  optional `PAYMOB_API_KEY`; see "Without the API key" below.
 
 The order becomes **paid** only from one of those, never from anything the
 browser says. Confirmation emails go out at that moment. An order that is never
@@ -59,7 +60,6 @@ In the Paymob dashboard (UAE), with the **Test** toggle on to begin with:
 | --- | --- |
 | `PAYMOB_SECRET_KEY` | Settings → API Keys → Secret key |
 | `PAYMOB_PUBLIC_KEY` | Settings → API Keys → Public key |
-| `PAYMOB_API_KEY` | Settings → API Keys → API key (same in test and live) |
 | `PAYMOB_HMAC_SECRET` | Settings → API Keys → HMAC secret (only the **main** account user sees it) |
 | `PAYMOB_INTEGRATION_IDS` | Settings → Payment Integrations — the IDs, comma-separated (card; in live also Apple Pay / Google Pay) |
 
@@ -71,12 +71,33 @@ You also generate one value yourself:
 
 Optional:
 
+- `PAYMOB_API_KEY` (Settings → API Keys → API key, the same in test and live)
+  turns on the backup checks. See "Without the API key" below.
 - `PAYMOB_OWNER_ID` pins every callback to your account. Leave it empty
   unless you know the number. It is the `owner` field on Paymob's
   transactions (your Paymob **user** id), **not** the "MID" shown under your
-  name in the dashboard. A wrong value makes the store reject every callback;
-  payments would then confirm only through the slower inquiry.
+  name in the dashboard. A wrong value makes the store reject every callback.
 - `PAYMOB_HMAC_SECRET_PREVIOUS` is only used during a rotation (section 4).
+
+#### Without the API key ("notifications only")
+Paymob may keep the API key greyed out. The store still takes card payments
+without it: an order is marked paid the moment Paymob's signed notification
+arrives, exactly as with the key. What the key adds is the ability to *ask*
+Paymob:
+
+- **A notification that never arrives** (for example, the site was mid-deploy)
+  cannot be recovered automatically. With the key, **Check payments now** or the
+  shopper's payment page would find the payment. Without it, check the
+  payment in Paymob's dashboard and contact the customer.
+- **Refunds made in Paymob's own dashboard** do not show in the store.
+  Refunds made from the store's admin do, because they are recorded from
+  Paymob's own answer.
+- **Unpaid orders** are released at the first check after their payment
+  window closes, as with the key. Paymob's payment page closes at least ten
+  minutes before that window does.
+
+The admin panel shows **Backup checks: OFF** while the key is missing. Add it
+whenever Paymob allows and redeploy: the backup checks switch themselves on.
 
 Add them all in **Netlify → Site configuration → Environment variables**, for
 every scope (Builds and Functions), then redeploy. All of them are server-only.
@@ -107,6 +128,8 @@ green:
 - **Keys:** TEST
 - **Database secret:** OK
 - **Scheduler:** SET
+- **Backup checks:** ON, or OFF without `PAYMOB_API_KEY`. OFF is amber
+  but does not block the switch (see "Without the API key").
 
 Then press **Switch to online payment**. From this moment:
 
@@ -213,8 +236,10 @@ curl -X POST https://<domain>/api/payments/reconcile -H "Authorization: Bearer $
   but the variables or the database secret are wrong. The admin panel's
   **Setup** lists exactly which variable names are missing or unusable.
 - **Paid at Paymob but the order still says awaiting payment.** The webhook did
-  not arrive or did not verify. **Check payments now** (or simply the shopper
-  reloading their payment page) asks Paymob directly and fixes it.
+  not arrive or did not verify. With `PAYMOB_API_KEY` set, **Check payments
+  now** (or simply the shopper reloading their payment page) asks Paymob
+  directly and fixes it. Without the key, see "Without the API key" in
+  section 1.3.
 - **Repeated webhook rejections.** The HMAC secret is wrong, or the integration
   ID is not in `PAYMOB_INTEGRATION_IDS`. Paymob's wizard
   (`wizard.paymob.com`) has an HMAC troubleshooter, and `hooks.paymob.com`

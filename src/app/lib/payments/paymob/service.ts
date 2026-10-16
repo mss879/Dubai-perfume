@@ -276,12 +276,26 @@ export async function refreshRefundState(config: PaymobConfig, transactionId: nu
   const fetched = await getTransaction(config, transactionId);
   if (!fetched.ok || !fetched.transaction) return false;
   const t = fetched.transaction;
-  const applied = await rpc.applyRefundState(
-    config.rpcSecret,
-    transactionId,
-    t.refunded_amount_cents ?? 0,
-    t.is_voided
-  );
+  return recordRefundState(config, transactionId, t.refunded_amount_cents ?? 0, t.is_voided);
+}
+
+/**
+ * Records a refund total / void for a payment transaction, then tells the
+ * customer and flags anything new. The database only ever moves these forward
+ * (refunds grow, voids stay), so a later, fuller read can only confirm them.
+ *
+ * Callers pass numbers Paymob itself gave this server: a read-back of the
+ * transaction (refreshRefundState), or Paymob's answer to the refund or void
+ * the admin just made (the refund route, when there is no API key to read it
+ * back). Never a webhook's unsigned fields.
+ */
+export async function recordRefundState(
+  config: PaymobConfig,
+  transactionId: number,
+  refundedFils: number,
+  voided: boolean
+): Promise<boolean> {
+  const applied = await rpc.applyRefundState(config.rpcSecret, transactionId, refundedFils, voided);
   if (!applied.ok) return false;
   const r = applied.data;
 
@@ -327,6 +341,17 @@ export async function syncOrder(config: PaymobConfig, orderId: string, minInterv
   if (!claim.ok) return "error";
   if (!claim.data.claimed) return "throttled";
 
+  if (!config.apiKey) {
+    // Notifications only: Paymob's signed callbacks are the whole record and
+    // there is no one to ask. "Synced" therefore means no callback has reported
+    // a payment by now. Past the deadline that is what releases an unpaid order,
+    // and Paymob's own page closed at least ten minutes before it (the
+    // intention's expiry), so a payment cannot still be on its way. One that is
+    // anyway arrives as paid_after_close and is flagged to the owner.
+    await rpc.noteSync(config.rpcSecret, orderId, true, null);
+    return "synced";
+  }
+
   let allAnswered = true;
   for (const paymobOrderId of (claim.data.paymob_order_ids ?? []).slice(0, 5)) {
     const inquiry = await inquireOrder(config, paymobOrderId);
@@ -366,6 +391,7 @@ export async function syncOrder(config: PaymobConfig, orderId: string, minInterv
 
 /** For a webhook that did not verify: ask Paymob directly, at most once a minute per order. */
 export async function syncForPaymobOrder(config: PaymobConfig, paymobOrderId: number): Promise<void> {
+  if (!config.apiKey) return; // nothing to ask without the API key
   const found = await rpc.orderForPaymobOrder(config.rpcSecret, paymobOrderId);
   if (found.ok && found.data) await syncOrder(config, found.data, 60);
 }

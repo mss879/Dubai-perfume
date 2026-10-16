@@ -204,18 +204,21 @@ export function voidTransaction(config: PaymobConfig, transactionId: number) {
 let cachedToken: { key: string; token: string; expires: number } | null = null;
 
 async function authToken(config: PaymobConfig, force = false): Promise<{ ok: true; token: string } | PaymobFailure> {
-  if (!force && cachedToken && cachedToken.key === config.apiKey && cachedToken.expires > Date.now()) {
+  const apiKey = config.apiKey;
+  // Notifications-only: there is nothing to ask Paymob with.
+  if (!apiKey) return { ok: false, code: "no_api_key" };
+  if (!force && cachedToken && cachedToken.key === apiKey && cachedToken.expires > Date.now()) {
     return { ok: true, token: cachedToken.token };
   }
   const result = await request("/api/auth/tokens", {
     method: "POST",
     timeoutMs: 10_000,
-    body: { api_key: config.apiKey },
+    body: { api_key: apiKey },
   });
   if (!result.ok) return result;
   const parsed = authTokenResponseSchema.safeParse(result.body);
   if (!parsed.success) return { ok: false, code: "bad_response" };
-  cachedToken = { key: config.apiKey, token: parsed.data.token, expires: Date.now() + 45 * 60_000 };
+  cachedToken = { key: apiKey, token: parsed.data.token, expires: Date.now() + 45 * 60_000 };
   return { ok: true, token: parsed.data.token };
 }
 

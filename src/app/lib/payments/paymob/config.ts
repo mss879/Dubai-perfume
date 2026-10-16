@@ -23,7 +23,12 @@ export type PaymobKeyMode = "test" | "live";
 export type PaymobConfig = {
   secretKey: string;
   publicKey: string;
-  apiKey: string;
+  /**
+   * Optional. Enables Paymob's transaction inquiry: the recovery path for a
+   * missed callback and the read-back of refunds. Without it the store runs on
+   * Paymob's signed callbacks alone ("notifications only").
+   */
+  apiKey: string | null;
   /** Current first; the previous one is accepted during a rotation. */
   hmacSecrets: string[];
   integrationIds: number[];
@@ -50,7 +55,6 @@ export type PaymobConfigStatus = {
 const REQUIRED = [
   "PAYMOB_SECRET_KEY",
   "PAYMOB_PUBLIC_KEY",
-  "PAYMOB_API_KEY",
   "PAYMOB_HMAC_SECRET",
   "PAYMOB_INTEGRATION_IDS",
   "PAYMENTS_RPC_SECRET",
@@ -127,7 +131,7 @@ export function readPaymobConfig(): ReadResult {
     config: {
       secretKey,
       publicKey,
-      apiKey,
+      apiKey: apiKey || null,
       hmacSecrets: hmacPrevious ? [hmac, hmacPrevious] : [hmac],
       integrationIds: ids,
       ownerId,

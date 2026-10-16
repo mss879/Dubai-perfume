@@ -14,6 +14,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 
 type Settings = {
   configured: boolean;
+  inquiry: boolean;
   keyMode: "test" | "live" | null;
   missing: string[];
   invalid: string[];
@@ -140,6 +141,11 @@ export default function PaymentsPanel({ onToast }: { onToast: (message: string) 
               <span className={chip(settings.cronConfigured)}>
                 SCHEDULER: {settings.cronConfigured ? "SET" : "NOT SET"}
               </span>
+              {settings.configured && (
+                <span className={chip(settings.inquiry)}>
+                  BACKUP CHECKS: {settings.inquiry ? "ON" : "OFF"}
+                </span>
+              )}
             </>
           )}
         </div>
@@ -180,6 +186,14 @@ export default function PaymentsPanel({ onToast }: { onToast: (message: string) 
             <p className="text-amber-400">
               <span className="text-[#EAE3DB]/40">Set but not usable: </span>
               {settings.invalid.join(", ")}
+            </p>
+          )}
+          {settings.configured && !settings.inquiry && (
+            <p>
+              Running on Paymob&rsquo;s notifications alone (PAYMOB_API_KEY is not set). Payments are confirmed
+              the moment Paymob reports them. Without the key the store cannot ask Paymob about a notification that
+              never arrived, and refunds made in Paymob&rsquo;s own dashboard do not show here. Refunds made from
+              this panel do.
             </p>
           )}
           {settings.configured && !settings.secretAccepted && (

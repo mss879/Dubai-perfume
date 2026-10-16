@@ -5,7 +5,7 @@ import { isSameOrigin, readJsonBody } from "../../../../lib/request-guard";
 import { SITE_URL } from "../../../../lib/site";
 import { createSessionSupabase } from "../../../../lib/supabase-server";
 import { readPaymobConfig } from "../../../../lib/payments/paymob/config";
-import { executeRefund, refreshRefundState } from "../../../../lib/payments/paymob/service";
+import { executeRefund, recordRefundState, refreshRefundState } from "../../../../lib/payments/paymob/service";
 
 /**
  * Admin refund / void of a Paymob payment.
@@ -19,7 +19,9 @@ import { executeRefund, refreshRefundState } from "../../../../lib/payments/paym
  *   3. admin_payment_refund_finish records the outcome. A timeout is recorded
  *      as UNKNOWN and is never retried automatically;
  *   4. the transaction is re-read from Paymob and its authoritative refund
- *      state applied (which also emails the customer).
+ *      state applied (which also emails the customer). Without an API key
+ *      there is no read-back, so a refund Paymob has just confirmed is
+ *      recorded from that confirmation instead.
  *
  * Same-origin JSON only, so another site cannot drive an admin's browser here.
  */
@@ -126,7 +128,24 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.status !== "failed") {
-      await refreshRefundState(cfg.config, Number(started.transaction_id));
+      const transactionId = Number(started.transaction_id);
+      const readBack = await refreshRefundState(cfg.config, transactionId);
+      if (!readBack && result.status === "succeeded") {
+        // Paymob's own answer to this request, over this server's authenticated
+        // call: the total is what was refunded before it plus this amount.
+        const { data: row } = await supabase
+          .from("payment_refunds")
+          .select("kind, amount_fils, refunded_fils_before")
+          .eq("id", started.refund_id)
+          .maybeSingle();
+        if (row) {
+          const voided = row.kind === "void";
+          const total = voided ? 0 : Number(row.refunded_fils_before) + Number(row.amount_fils);
+          if (Number.isSafeInteger(total) && total >= 0) {
+            await recordRefundState(cfg.config, transactionId, total, voided);
+          }
+        }
+      }
     }
 
     return reply(200, {
