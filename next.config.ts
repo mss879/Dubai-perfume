@@ -82,6 +82,14 @@ const nextConfig: NextConfig = {
      * accepts anywhere.
      */
     proxyClientMaxBodySize: "640kb",
+    /**
+     * Next 16.3 turned on Turbopack's build cache by default. It records the
+     * server's environment in .next/cache/turbopack, secrets included, and
+     * Netlify keeps that folder between builds, so its secret scanner fails
+     * the deploy. Builds take ~25s without it. The "prebuild" script in
+     * package.json deletes any copy an earlier build left behind.
+     */
+    turbopackFileSystemCacheForBuild: false,
   },
   compress: true,
   // Stop advertising the framework and its version to attackers.
