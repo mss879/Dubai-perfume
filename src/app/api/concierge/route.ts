@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, stepCountIs, type ModelMessage } from "ai";
 import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-server";
+import { readAgentSettings } from "../../lib/agent-settings";
+import { liveStorefrontPaymentMode } from "../../lib/storefront-payment-mode";
 import { checkRateLimit, clientKey } from "../../lib/rate-limit";
 import { isBot, readJsonBody } from "../../lib/request-guard";
 import { toTitleCase } from "../../lib/catalogue";
@@ -122,6 +124,13 @@ const MAX_PER_IP = 20;
 const IP_WINDOW_SECONDS = 300;
 const MAX_PER_SESSION = 80;
 const SESSION_WINDOW_SECONDS = 3600;
+/**
+ * A ceiling for the whole store, whatever the address or session: the browser
+ * picks its own session id and addresses can be rotated, so without it a
+ * script could run up the model bill without limit. Ten a minute on average is
+ * far above a busy day's real conversations.
+ */
+const MAX_STORE_PER_HOUR = 600;
 
 /** History the model sees: recent, and bounded per message. */
 const MAX_HISTORY = 12;
@@ -159,6 +168,13 @@ export async function POST(request: NextRequest) {
   if (!isSupabaseConfigured || !isModelConfigured) {
     return fail(503, AWAY);
   }
+
+  // The owner's switches (Admin → Agent, migration 65). Off: it answers nothing.
+  const agent = await readAgentSettings(createServerSupabase());
+  if (!agent.enabled) {
+    return fail(503, AWAY);
+  }
+  const paymentMode = await liveStorefrontPaymentMode();
 
   const parsed = await readJsonBody<ConciergeRequest>(request, CONCIERGE_MAX_BODY_BYTES);
   if (!parsed.ok) {
@@ -228,8 +244,10 @@ export async function POST(request: NextRequest) {
   // that the turn fails — the shopper still gets an answer to what they typed.
   // But it is said out loud: dropping a picture in silence has the agent reply
   // as though nothing was sent, which reads as the agent ignoring them.
-  const image = isVisionEnabled ? parsedImage : null;
-  const visionRefused = Boolean(parsedImage) && !isVisionEnabled;
+  // Photographs need both the model (CONCIERGE_VISION) and the owner's switch.
+  const photosOn = isVisionEnabled && agent.photosEnabled;
+  const image = photosOn ? parsedImage : null;
+  const visionRefused = Boolean(parsedImage) && !photosOn;
 
   const supabase = createServerSupabase();
   const key = clientKey(request);
@@ -239,6 +257,11 @@ export async function POST(request: NextRequest) {
     checkRateLimit(supabase, `concierge:session:${sessionId}`, MAX_PER_SESSION, SESSION_WINDOW_SECONDS),
   ]);
   if (!ipAllowed || !sessionAllowed) {
+    return fail(429, BUSY);
+  }
+  // Counted only for turns that passed the per-visitor limits, so one noisy
+  // visitor who is already being refused can't use up the store's allowance.
+  if (!(await checkRateLimit(supabase, "concierge:store", MAX_STORE_PER_HOUR, 3600))) {
     return fail(429, BUSY);
   }
 
@@ -347,12 +370,15 @@ export async function POST(request: NextRequest) {
       clientKey: key,
       cartSubtotalAed,
       hasImage: withImage,
+      offersEnabled: agent.offersEnabled,
+      orderHelpEnabled: agent.orderHelpEnabled,
     });
 
     const generation = await generateText({
       model: withImage ? getConciergeVisionModel() : getConciergeModel(),
       providerOptions: CONCIERGE_PROVIDER_OPTIONS,
       system: buildSystemPrompt({
+        paymentMode,
         digest: snapshot.digest,
         page,
         pageProductLine,

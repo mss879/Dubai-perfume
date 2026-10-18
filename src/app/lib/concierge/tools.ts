@@ -107,6 +107,10 @@ export function buildTools(input: {
   cartSubtotalAed: number | null;
   /** True when this turn carries a photograph. */
   hasImage: boolean;
+  /** The owner's switch (Admin → Agent): may the agent discuss and offer codes? */
+  offersEnabled?: boolean;
+  /** The owner's switch (Admin → Agent): may it help find an existing order? */
+  orderHelpEnabled?: boolean;
 }) {
   const { snapshot, supabase, collector } = input;
 
@@ -316,6 +320,13 @@ export function buildTools(input: {
           .describe("Only if the customer already typed their order reference; otherwise omit"),
       }),
       execute: async ({ orderRef }) => {
+        // Switched off by the owner: say where to look instead, stage nothing.
+        if (input.orderHelpEnabled === false) {
+          return {
+            ok: false,
+            note: "Order lookup is not available in this chat. Tell them they can follow their order on the tracking page at /track with their order number and email, or write to us at /contact.",
+          };
+        }
         collector.stagedOrderLookup = { prefillOrderRef: orderRef?.trim() || null };
         // The stage holds one thing at a time — claiming it clears the rest.
         collector.stagedIds = [];
@@ -358,13 +369,24 @@ export function buildTools(input: {
 
     list_offers: tool({
       description:
-        "The offers running right now. Call it when the customer asks about discounts, offers, deals or codes — never answer from memory. Codes marked exclusive are the maison's own for this conversation and you may offer them; every other code is public, and you may name it but must not compute what it saves unless the customer asks about that code by name.",
+        "The offers running right now. Call it when the customer asks about discounts, offers, deals, sets, bundles, gifts or codes — never answer from memory. `automatic` lists the maison's sets, buy-more savings and gift over a spend: no code needed, the bag applies them. Codes marked exclusive are the maison's own for this conversation and you may offer them; every other code is public, and you may name it but must not compute what it saves unless the customer asks about that code by name.",
       inputSchema: z.object({}),
       execute: async () => {
         if (collector.offerCalls >= MAX_OFFER_CALLS) {
           return { offers: [], note: "Already checked the offers this turn." };
         }
         collector.offerCalls += 1;
+        // The shop's automatic offers (migration 69): public on the site and
+        // applied by the bag itself, so the chat may always describe them.
+        const automatic = await automaticOffers(supabase);
+        // Switched off by the owner: no codes through the chat.
+        if (input.offersEnabled === false) {
+          return {
+            offers: [],
+            automatic,
+            note: "No codes are available through this chat; a customer who has one can enter it at checkout. The automatic offers apply in the bag without a code.",
+          };
+        }
         const allowed = await checkRateLimit(
           supabase,
           `concierge:offers:${input.clientKey}`,
@@ -377,20 +399,25 @@ export function buildTools(input: {
         const subtotal = input.cartSubtotalAed;
 
         return {
+          automatic,
           offers: offers.map((o) => {
             // A public code is named, never priced. The asymmetry is the whole
             // point: the model cannot volunteer arithmetic it was not given.
+            // What the code covers. Only a whole-order code can be priced from the
+            // bag total; one for chosen perfumes, a collection or delivery says so.
+            const covers = o.appliesTo === "order" ? undefined : o.appliesLabel || o.appliesTo;
             if (!o.exclusive) {
               return {
                 code: o.code,
                 headline: o.title,
+                appliesTo: covers,
                 minimumAed: o.minimumAed || undefined,
                 endsOn: o.endsOn || undefined,
                 exclusive: false as const,
               };
             }
             const priced =
-              subtotal != null && subtotal > 0
+              o.appliesTo === "order" && subtotal != null && subtotal > 0
                 ? bagWithOffer(
                     subtotal,
                     o.kind === "percentage" ? (subtotal * o.value) / 100 : Math.min(o.value, subtotal)
@@ -399,7 +426,11 @@ export function buildTools(input: {
             return {
               code: o.code,
               headline: o.title,
-              saves: o.kind === "percentage" ? `${o.value}%` : `AED ${o.value}`,
+              saves:
+                o.appliesTo === "delivery" && o.kind === "percentage" && o.value >= 100
+                  ? "free delivery"
+                  : `${o.kind === "percentage" ? `${o.value}%` : `AED ${o.value}`}${covers ? ` off ${covers}` : ""}`,
+              appliesTo: covers,
               minimumAed: o.minimumAed || undefined,
               endsOn: o.endsOn || undefined,
               exclusive: true as const,
@@ -417,7 +448,7 @@ export function buildTools(input: {
           }),
           bagSubtotalAed: subtotal ?? undefined,
           note:
-            "Delivery is decided on the basket BEFORE any discount, so a code never costs someone free delivery.",
+            "Delivery is decided on the basket BEFORE any discount, so a code never costs someone free delivery. A code with appliesTo covers only that (some perfumes, a collection, or delivery); say so, and never quote its saving on the whole bag.",
         };
       },
     }),
@@ -433,6 +464,9 @@ export function buildTools(input: {
           .describe("Only when the customer has clearly accepted the code"),
       }),
       execute: async ({ code, saveForCheckout }) => {
+        if (input.offersEnabled === false) {
+          return { ok: false, note: "Codes are not checked in this chat. The customer can enter the code at checkout, which applies it if it is valid." };
+        }
         if (collector.offerCalls >= MAX_OFFER_CALLS) {
           return { ok: false, note: "Already checked the offers this turn." };
         }
@@ -455,15 +489,30 @@ export function buildTools(input: {
             note:
               priced.reason === "minimum_not_met"
                 ? "The code is real but their basket is below its minimum — tell them what it would take."
-                : "Say only that it is not valid; do not speculate about why.",
+                : priced.reason === "delivery_already_free"
+                  ? "It is a delivery code, and their delivery is already free — nothing for it to take off."
+                  : priced.reason === "not_applicable" && priced.appliesLabel
+                    ? `It only covers ${priced.appliesLabel}, which is not in their bag.`
+                    : "Say only that it is not valid; do not speculate about why.",
           };
         }
         if (saveForCheckout) collector.offerCode = priced.code;
+        if (priced.discountAed === null) {
+          // A code for chosen perfumes or a collection: priced at checkout, against the bag.
+          return {
+            ok: true,
+            code: priced.code,
+            appliesTo: priced.appliesLabel ?? priced.appliesTo,
+            note: "It covers only what appliesTo names. The exact saving appears at checkout once those are in the bag; do not estimate it.",
+            saved: Boolean(saveForCheckout),
+          };
+        }
         const bag = bagWithOffer(subtotal, priced.discountAed);
         return {
           ok: true,
           code: priced.code,
           discountAed: priced.discountAed,
+          appliesTo: priced.appliesTo === "order" ? undefined : priced.appliesLabel ?? priced.appliesTo,
           bag: subtotal > 0
             ? {
                 subtotalAed: bag.subtotalAed,
@@ -510,4 +559,79 @@ export function buildTools(input: {
       },
     }),
   };
+}
+
+/**
+ * The shop's automatic offers, shaped for the model: each set with its perfumes
+ * (ids for add_to_cart), set price and saving; each buy-more offer's steps; the
+ * gift and its threshold. Empty when the database can't answer.
+ */
+async function automaticOffers(supabase: SupabaseClient) {
+  try {
+    const { data, error } = await supabase.rpc("live_offer_cards", { p_product_id: null });
+    if (error || !Array.isArray(data)) return [];
+    return (data as Record<string, unknown>[]).slice(0, 12).flatMap((raw): Record<string, unknown>[] => {
+      const card = raw as {
+        kind: string;
+        title: string;
+        description: string | null;
+        ends_at: string | null;
+        free_delivery: boolean;
+        gift_wrap: boolean;
+        scope: string;
+        scope_label: string | null;
+        count_by: "items" | "same_product";
+        tiers: { min_qty: number; percent: number; free_delivery?: boolean }[];
+        bundle: { base: number; price: number; lines: { product_id: number; name: string; brand: string; size: string; qty?: number }[] } | null;
+        product: { product_id: number; name: string; brand: string } | null;
+        min_subtotal: number;
+      };
+      if (card.kind === "bundle" && card.bundle) {
+        return [
+          {
+            kind: "set",
+            title: card.title,
+            perfumes: card.bundle.lines.map((l) => ({
+              productId: l.product_id,
+              name: `${toTitleCase(l.brand)} ${l.name}`,
+              size: l.size,
+              quantity: Number(l.qty) || 1,
+            })),
+            setPriceAed: Number(card.bundle.price),
+            savesAed: Math.round((Number(card.bundle.base) - Number(card.bundle.price)) * 100) / 100,
+            freeDelivery: card.free_delivery || undefined,
+            giftWrapped: card.gift_wrap || undefined,
+            endsOn: card.ends_at ? card.ends_at.slice(0, 10) : undefined,
+          },
+        ];
+      }
+      if (card.kind === "tiered") {
+        return [
+          {
+            kind: card.count_by === "same_product" ? "two_of_the_same" : "buy_more_save_more",
+            title: card.title,
+            covers: card.scope === "all" ? "any perfume" : card.scope_label ?? "selected perfumes",
+            steps: (card.tiers ?? []).map((t) => ({
+              bottles: Number(t.min_qty),
+              percentOff: Number(t.percent),
+              freeDelivery: Boolean(t.free_delivery) || undefined,
+            })),
+          },
+        ];
+      }
+      if (card.kind === "gift" && card.product) {
+        return [
+          {
+            kind: "gift_over_spend",
+            title: card.title,
+            gift: `${toTitleCase(card.product.brand)} ${card.product.name}`,
+            spendAed: Number(card.min_subtotal),
+          },
+        ];
+      }
+      return [];
+    });
+  } catch {
+    return [];
+  }
 }

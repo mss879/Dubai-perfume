@@ -8,6 +8,10 @@ import { X } from "lucide-react";
 import { useCart } from "../lib/cart";
 import { useCurrency } from "../lib/currency";
 import FreeDeliveryProgress from "./FreeDeliveryProgress";
+import WalletBadges from "./features/WalletBadges";
+import RecentlyViewed from "./features/RecentlyViewed";
+import { OfferNudges, OfferRows } from "./offers/BagOffers";
+import { useBagQuote } from "../lib/use-bag-quote";
 import { usePaymentMode } from "./PaymentModeProvider";
 
 const OPEN_EVENT = "gharib:cart:open";
@@ -31,6 +35,9 @@ export default function CartDrawer() {
   const { lines, count, subtotal, setQuantity, remove } = useCart();
   const { format } = useCurrency();
   const panelRef = useRef<HTMLDivElement>(null);
+  // The bag priced by the database (offers, gift, delivery), only while open.
+  const { quote } = useBagQuote(isOpen ? lines : []);
+  const offerDelivery = (quote?.offer_delivery ?? 0) > 0;
 
   useEffect(() => {
     const open = () => setIsOpen(true);
@@ -110,6 +117,7 @@ export default function CartDrawer() {
                   >
                     Continue shopping
                   </button>
+                  <RecentlyViewed place="bag" className="w-full text-left" />
                 </div>
               ) : (
                 <ul className="flex flex-col">
@@ -202,16 +210,38 @@ export default function CartDrawer() {
                   </span>
                 </div>
 
+                {/* Offer savings and the free gift (migration 69), as the order
+                    will be priced. */}
+                {quote && (quote.applied.length > 0 || quote.gift) ? (
+                  <div className="-my-2">
+                    <OfferRows quote={quote} />
+                    <div className="flex items-baseline justify-between gap-4 py-2">
+                      <span className="text-[14px] font-light text-black">Delivery</span>
+                      <span className="text-[14px] font-light text-black">
+                        {quote.shipping_fee - quote.offer_delivery > 0 ? format(quote.shipping_fee - quote.offer_delivery) : "Complimentary"}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-4 py-2">
+                      <span className="text-[14px] text-black">Total</span>
+                      <span className="text-[14px] text-black">{format(quote.total)}</span>
+                    </div>
+                  </div>
+                ) : null}
+
                 {/* The gap to complimentary delivery, stated in money. Sits
                     directly under the subtotal, where the shopper is already
-                    looking and can still act on it. */}
-                <FreeDeliveryProgress subtotalAed={subtotal} />
+                    looking and can still act on it. Not shown when an offer has
+                    already made delivery free. */}
+                {offerDelivery ? null : <FreeDeliveryProgress subtotalAed={subtotal} />}
+
+                <OfferNudges quote={quote} lines={lines} />
 
                 <p className="text-[12px] font-light leading-relaxed text-[#646464]">
                   {paymentMode === "online"
                     ? "Secure payment by card, Apple Pay or Google Pay."
                     : "Payment is collected on delivery."}
                 </p>
+                <WalletBadges place="bag" />
 
                 <Link href="/checkout" className="maison-btn w-full">
                   Proceed to checkout

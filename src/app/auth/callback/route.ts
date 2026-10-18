@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionSupabase, isSupabaseConfigured } from "../../lib/supabase-server";
+import { safeLocalPath, type SigninNotice } from "../../lib/safe-path";
 
 /**
  * Where a confirmation link lands.
@@ -20,15 +21,12 @@ export const dynamic = "force-dynamic";
 
 /**
  * Only a same-origin app path may be used as the post-confirmation
- * destination. `//evil.com` is a valid *relative* URL to the browser, so
- * checking for a leading "/" alone is not enough to keep this off an open
- * redirect.
+ * destination. `//evil.com` and `/\evil.com` are both valid *relative* URLs
+ * to the browser, so checking for a leading "/" alone is not enough to keep
+ * this off an open redirect.
  */
 function safeNext(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/customer/dashboard";
-  }
-  return value;
+  return safeLocalPath(value) ?? "/customer/dashboard";
 }
 
 export async function GET(request: NextRequest) {
@@ -39,17 +37,17 @@ export async function GET(request: NextRequest) {
   // Supabase reports an expired or already-used link on the query string.
   const linkError = searchParams.get("error_description") || searchParams.get("error");
 
-  const toSignin = (notice: string) =>
+  const toSignin = (notice: SigninNotice) =>
     NextResponse.redirect(
       new URL(`/signin?notice=${encodeURIComponent(notice)}&redirect=${encodeURIComponent(next)}`, origin)
     );
 
   if (linkError) {
-    return toSignin("That confirmation link has expired or has already been used. Please sign in, or request a new link.");
+    return toSignin("link-expired");
   }
 
   if (!code || !isSupabaseConfigured) {
-    return toSignin("Please sign in to continue.");
+    return toSignin("please-sign-in");
   }
 
   const supabase = await createSessionSupabase();
@@ -60,7 +58,7 @@ export async function GET(request: NextRequest) {
     // one that signed up, so the PKCE verifier cookie is not present. The
     // address is confirmed either way — only the automatic sign-in is lost.
     console.error("Auth callback exchange failed:", error.message);
-    return toSignin("Your email address is confirmed. Please sign in to continue.");
+    return toSignin("confirmed");
   }
 
   return NextResponse.redirect(new URL(next, origin));

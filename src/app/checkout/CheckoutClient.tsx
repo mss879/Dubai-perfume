@@ -8,7 +8,19 @@ import Footer from "../components/Footer";
 import CartDrawer from "../components/CartDrawer";
 import ConciergeWidget from "../components/concierge/ConciergeWidget";
 import FreeDeliveryProgress from "../components/FreeDeliveryProgress";
-import { useCart, readCart, type CartLine } from "../lib/cart";
+import { useCart, readCart, addToCart, type CartLine } from "../lib/cart";
+import { useCheckoutQuote } from "../lib/use-checkout-quote";
+import type { AddonOffer as AddonOfferData } from "../lib/offers";
+import { useFeature } from "../components/StoreFeaturesProvider";
+import TrustStrip from "../components/features/TrustStrip";
+import WalletBadges from "../components/features/WalletBadges";
+import PayLaterNote from "../components/features/PayLaterNote";
+import DeliveryEstimateLine from "../components/features/DeliveryEstimateLine";
+import GiftOptionsSection, { type GiftChoice } from "./GiftOptionsSection";
+import RecipientFields, { type RecipientChoice } from "./RecipientFields";
+import CreditsBlock from "./CreditsBlock";
+import { AddonOffer, OfferNudges, OfferRows } from "../components/offers/BagOffers";
+import { refreshCartFromCatalogue } from "../lib/cart-refresh";
 import { useCurrency } from "../lib/currency";
 import { shippingFeeForSubtotal } from "../lib/shipping";
 import { takeOfferCode, OFFER_CODE_EVENT } from "../lib/offer-code";
@@ -84,6 +96,13 @@ interface OrderResult {
   shipping_fee: number;
   discount_amount: number;
   total: number;
+  /** Migration 69/70: offers, gift wrap, points and a gift card (absent on older receipts). */
+  offer_saving?: number;
+  gift_wrap_fee?: number;
+  points_value?: number;
+  points_earned?: number;
+  gift_card_amount?: number;
+  paid_by_credit?: boolean;
 }
 
 /**
@@ -151,12 +170,36 @@ const formatAed = (amount: number) =>
 
 export type CheckoutPaymentMode = "cod" | "online" | "unavailable";
 
+/** The referral link's code (/r/CODE sets it), if this browser came through one. */
+function readReferralCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)gharib_ref=([A-Z0-9-]{4,20})/);
+  return match ? match[1] : null;
+}
+
 export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: CheckoutPaymentMode }) {
   const { lines, count, subtotal, remove, setQuantity, clear } = useCart();
   const { currency, format, rate } = useCurrency();
   const online = paymentMode === "online";
 
-  const [step, setStep] = useState<"selection" | "details">("selection");
+  // The owner's switches (Admin → Feature switches), as the shop received them.
+  const onePage = useFeature("one_page_checkout");
+  const giftSettings = useFeature("gift_options");
+  const sendSettings = useFeature("send_to_someone");
+  const loyalty = useFeature("loyalty");
+  const giftCardsFeature = useFeature("gift_cards");
+  const referralsFeature = useFeature("referrals");
+  const giftCardsOn = Boolean(giftCardsFeature) || Boolean(referralsFeature);
+
+  const [step, setStep] = useState<"selection" | "details">(onePage ? "details" : "selection");
+
+  // Migration 70: gift options, a recipient, points and a gift card.
+  const [gift, setGift] = useState<GiftChoice>({ isGift: false, wrap: false, message: "", hidePrices: false });
+  const [recipient, setRecipient] = useState<RecipientChoice>({ sendToOther: false, name: "", phone: "", date: "" });
+  const [usePoints, setUsePoints] = useState(false);
+  const [giftCard, setGiftCard] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
+  const [credits, setCredits] = useState<{ code: string; balance: number; kind: string }[]>([]);
 
   // The cart hydrates from localStorage after mount (useSyncExternalStore
   // serves the empty server snapshot first) — hold the skeleton until then so
@@ -199,6 +242,19 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
   // flash the empty-bag screen while the browser leaves for Paymob.
   const [leavingForPayment, setLeavingForPayment] = useState(false);
 
+  // Today's prices, not the ones saved with the bag: the order is priced by
+  // the database, so the summary must match it before the shopper commits.
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    refreshCartFromCatalogue().then((note) => {
+      if (live && note) setCartNotice(note);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   // Prefill from the signed-in shopper's saved profile: the contact email from
   // the session, and the name, telephone and delivery address they stored under
   // Settings (migration 51).
@@ -223,6 +279,17 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
         }
 
         if (!user) return;
+        if (!cancelled) setSignedIn(true);
+
+        // Their own gift cards and referral credit, to pick from (migration 70).
+        if (giftCardsOn) {
+          supabase.rpc("my_rewards").then(({ data: rewards }: { data: unknown }) => {
+            const cards = ((rewards as { gift_cards?: { code: string; balance: number; kind: string }[] } | null)?.gift_cards ?? [])
+              .map((c) => ({ code: String(c.code), balance: Number(c.balance) || 0, kind: String(c.kind) }))
+              .filter((c) => c.balance > 0);
+            if (!cancelled) setCredits(cards);
+          });
+        }
 
         const { data: row } = await supabase
           .from("customers")
@@ -259,7 +326,7 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [giftCardsOn]);
 
   // The confirmation lived in component state alone, so a reload lost it. It is
   // now kept for the session and read back through the same external-store
@@ -330,7 +397,44 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
 
   // Client-side estimate only — the server reprices everything on placement.
   const shippingFee = subtotal === 0 ? 0 : shippingFeeForSubtotal(subtotal);
-  const total = Math.max(0, subtotal + shippingFee - discountAmount);
+  const estimate = Math.max(0, subtotal + shippingFee - discountAmount);
+
+  // The bag as the database prices it (bag_quote, migration 69): sets,
+  // buy-more savings, the free gift, the code and delivery. place_order() runs
+  // the same calculation, so these are the figures the order is charged. The
+  // estimate above stands in until it answers (or if it can't).
+  const giftWrapChosen = Boolean(giftSettings) && gift.isGift && gift.wrap;
+  const { quote } = useCheckoutQuote(lines, discountCode, {
+    gift_wrap: giftWrapChosen,
+    use_points: Boolean(loyalty) && signedIn && usePoints,
+    gift_card: giftCard,
+  });
+  const shownDelivery = quote ? Math.max(0, quote.shipping_fee - quote.offer_delivery) : shippingFee;
+  const shownCode = quote ? quote.code_goods + quote.code_delivery : discountAmount;
+  const total = quote ? quote.total : estimate;
+  const codeGift = quote?.code?.valid ? quote.code.gift ?? null : null;
+
+  // The checkout add-on: the one the bag qualifies for, or the one just ticked
+  // (kept on screen so it can be unticked).
+  const [takenAddon, setTakenAddon] = useState<AddonOfferData | null>(null);
+  const addonInBag = takenAddon
+    ? lines.some((l) => l.product.id === takenAddon.product_id && l.selectedSize === takenAddon.size)
+    : false;
+  const shownAddon = addonInBag ? takenAddon : quote?.addons?.[0] ?? null;
+  const toggleAddon = (offer: AddonOfferData, next: boolean) => {
+    if (next) {
+      addToCart(
+        { id: offer.product_id, brand: offer.brand, name: offer.name, price: offer.price, image_url: offer.image_url || "" },
+        offer.size,
+        1
+      );
+      setTakenAddon(offer);
+    } else {
+      const line = lines.find((l) => l.product.id === offer.product_id && l.selectedSize === offer.size);
+      if (line) setQuantity(line.product.id, line.selectedSize, line.quantity - 1);
+      setTakenAddon(null);
+    }
+  };
 
   /**
    * Re-price an applied code whenever the basket changes.
@@ -346,6 +450,13 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
    * and a second implementation of them would be a second thing to get wrong.
    */
   const pricedForSubtotal = useRef<number | null>(null);
+  // The bag's lines, for pricing a code that covers chosen perfumes or a
+  // collection. Read through a ref so the quote still re-runs only when the
+  // subtotal changes, as before.
+  const linesRef = useRef(lines);
+  useEffect(() => {
+    linesRef.current = lines;
+  });
 
   /**
    * A code the concierge offered, waiting in the field.
@@ -355,21 +466,26 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
    * silently discounted an order would be an agent nobody could audit.
    * Read-and-clear, so it cannot resurface on a later order.
    */
-  // set-state-in-effect is disabled deliberately here. The rule guards against
-  // effects that mirror React state into React state; this reads once from an
-  // external store (localStorage) that cannot be read during render, because
-  // taking the code also clears it. A lazy useState initialiser would run on the
-  // server too and mismatch on hydration.
+  // State is set from an effect on purpose: this reads once from an external
+  // store (localStorage, or the referral cookie) that cannot be read during
+  // render, because taking the code also clears it. A lazy useState
+  // initialiser would run on the server too and mismatch on hydration.
   useEffect(() => {
     const claim = () => {
       const parked = takeOfferCode();
-      if (!parked) return;
-      setDiscountInput(parked);
-      setDiscountNote("The concierge saved this code for you — press Apply to use it.");
+      if (parked) {
+        setDiscountInput(parked);
+        setDiscountNote("Your code is waiting: press Apply to use it.");
+        return;
+      }
+      // A friend's referral link (migration 70): their code, ready to apply.
+      const referral = readReferralCookie();
+      if (referral) {
+        setDiscountInput(referral);
+        setDiscountNote("Your friend's referral code is ready: press Apply to use it on your first order.");
+      }
     };
-    /* eslint-disable react-hooks/set-state-in-effect */
     claim();
-    /* eslint-enable react-hooks/set-state-in-effect */
     // The concierge is mounted on this very page, so a code accepted mid-checkout
     // arrives without a navigation to pick it up.
     window.addEventListener(OFFER_CODE_EVENT, claim);
@@ -390,7 +506,12 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
         const res = await fetch("/api/discount", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: discountCode, subtotal }),
+          body: JSON.stringify({
+            code: discountCode,
+            subtotal,
+            // So a code for chosen perfumes or a collection can be priced.
+            items: linesRef.current.map((l) => ({ product_id: l.product.id, size: l.selectedSize, quantity: l.quantity })),
+          }),
         });
         const json = (await res.json().catch(() => null)) as {
           valid?: boolean | null;
@@ -484,6 +605,8 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
     total, currency, rate, getAbandonedCartId,
   ]);
 
+  const sendingToOther = Boolean(sendSettings) && recipient.sendToOther;
+
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -504,11 +627,22 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
           lastName: lastName.trim(),
           phone: phone.trim(),
           shipping: {
-            name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+            name: sendingToOther ? recipient.name.trim() : `${firstName.trim()} ${lastName.trim()}`.trim(),
             street: street.trim(),
             city: city.trim(),
             country: country.trim(),
             postal_code: postalCode.trim(),
+          },
+          options: {
+            gift_wrap: giftWrapChosen,
+            gift_message: giftSettings && gift.isGift ? gift.message.trim() : "",
+            hide_prices: Boolean(giftSettings) && gift.isGift && gift.hidePrices,
+            send_to_other: sendingToOther,
+            recipient_name: sendingToOther ? recipient.name.trim() : "",
+            recipient_phone: sendingToOther ? recipient.phone.trim() : "",
+            delivery_date: sendingToOther ? recipient.date : "",
+            use_points: Boolean(loyalty) && signedIn && usePoints,
+            gift_card: giftCard ?? "",
           },
           items: lines.map((l) => ({
             productId: l.product.id,
@@ -531,6 +665,12 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
         subtotal?: number;
         shipping_fee?: number;
         discount_amount?: number;
+        offer_saving?: number;
+        gift_wrap_fee?: number;
+        points_value?: number;
+        points_earned?: number;
+        gift_card_amount?: number;
+        paid_by_credit?: boolean;
         total?: number;
         error?: string;
         payment?: { returnPath?: unknown; redirectUrl?: unknown };
@@ -539,6 +679,11 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
         json = await res.json();
       } catch {
         json = null;
+      }
+
+      // A friend's referral code is for one first order: forget the link once it's used.
+      if (res.ok && json?.ok) {
+        document.cookie = "gharib_ref=; Max-Age=0; path=/; SameSite=Lax";
       }
 
       const returnPath = json?.payment?.returnPath;
@@ -570,8 +715,14 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
           order_id: String(json.order_id ?? ""),
           subtotal: Number(json.subtotal) || 0,
           shipping_fee: Number(json.shipping_fee) || 0,
-          discount_amount: Number(json.discount_amount) || 0,
+          // The code's saving and the offers' together, as the receipt's "Discount".
+          discount_amount: (Number(json.discount_amount) || 0) + (Number(json.offer_saving) || 0),
           total: Number(json.total) || 0,
+          gift_wrap_fee: Number(json.gift_wrap_fee) || 0,
+          points_value: Number(json.points_value) || 0,
+          points_earned: Number(json.points_earned) || 0,
+          gift_card_amount: Number(json.gift_card_amount) || 0,
+          paid_by_credit: json.paid_by_credit === true,
           email: email.trim(),
           code: discountCode,
         };
@@ -611,7 +762,11 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
       const res = await fetch("/api/discount", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, subtotal }),
+        body: JSON.stringify({
+          code,
+          subtotal,
+          items: lines.map((l) => ({ product_id: l.product.id, size: l.selectedSize, quantity: l.quantity })),
+        }),
       });
 
       let json: {
@@ -669,11 +824,12 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
 
   /* ── Shared fragments ─────────────────────────────────────────── */
 
+  const steps = onePage ? CHECKOUT_STEPS.filter((s) => s.id !== "selection") : CHECKOUT_STEPS;
   const stepIndicator = (current: "selection" | "details" | "confirmation") => {
-    const activeIndex = CHECKOUT_STEPS.findIndex((s) => s.id === current);
+    const activeIndex = steps.findIndex((s) => s.id === current);
     return (
       <div className="mt-6 flex items-center justify-center gap-3 md:gap-5">
-        {CHECKOUT_STEPS.map((s, i) => (
+        {steps.map((s, i) => (
           <React.Fragment key={s.id}>
             {i > 0 && (
               <span aria-hidden="true" className="block h-px w-6 md:w-10" style={{ background: HAIRLINE }} />
@@ -697,30 +853,63 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
         <span className="text-[14px] font-light text-black">Subtotal</span>
         <span className="text-[14px] font-light text-black">{format(subtotal)}</span>
       </div>
+      <OfferRows quote={quote} />
       <div className="flex items-baseline justify-between py-2">
         <span className="text-[14px] font-light text-black">Delivery</span>
         <span className="text-[14px] font-light text-black">
-          {shippingFee === 0 ? "Complimentary" : format(shippingFee)}
+          {shownDelivery === 0 ? "Complimentary" : format(shownDelivery)}
         </span>
       </div>
-      {discountAmount > 0 && (
+      {/* The delivery estimate (Admin → Delivery estimate), for UAE addresses. */}
+      {country === "United Arab Emirates" ? (
+        <DeliveryEstimateLine place="checkout" className="pb-1 text-[12px] font-light text-[#646464]" />
+      ) : null}
+      {shownCode > 0 && (
         <div className="flex items-baseline justify-between py-2">
           <span className="text-[14px] font-light text-black">
             Discount{discountCode ? ` (${discountCode})` : ""}
           </span>
           <span className="text-[14px] font-light text-black">
-            &minus;{format(discountAmount)}
+            &minus;{format(shownCode)}
           </span>
         </div>
       )}
+      {codeGift ? (
+        <div className="flex items-baseline justify-between gap-4 py-2">
+          <span className="text-[14px] font-light text-black">
+            Gift: {codeGift.name}
+            {codeGift.size ? ` (${codeGift.size})` : ""}
+          </span>
+          <span className="whitespace-nowrap text-[14px] font-light text-black">Complimentary</span>
+        </div>
+      ) : null}
+      {quote && (quote.gift_wrap_fee > 0 || (giftWrapChosen && quote.gift_wrap_included)) ? (
+        <div className="flex items-baseline justify-between py-2">
+          <span className="text-[14px] font-light text-black">Gift wrap</span>
+          <span className="text-[14px] font-light text-black">{quote.gift_wrap_fee > 0 ? format(quote.gift_wrap_fee) : "Complimentary"}</span>
+        </div>
+      ) : null}
+      {quote?.points && quote.points.value > 0 ? (
+        <div className="flex items-baseline justify-between py-2">
+          <span className="text-[14px] font-light text-black">Points ({quote.points.used.toLocaleString("en-AE")})</span>
+          <span className="text-[14px] font-light text-black">&minus;{format(quote.points.value)}</span>
+        </div>
+      ) : null}
+      {quote?.gift_card && quote.gift_card.amount > 0 ? (
+        <div className="flex items-baseline justify-between py-2">
+          <span className="text-[14px] font-light text-black">Gift card</span>
+          <span className="text-[14px] font-light text-black">&minus;{format(quote.gift_card.amount)}</span>
+        </div>
+      ) : null}
       {/* The same nudge the cart drawer shows, so a shopper who ignored it
           there meets it once more with the total in front of them.
           Only while there is still a fee to lose: the Delivery row above
           already reads "Complimentary" once they qualify, and saying it twice
           in adjacent lines reads as a mistake. */}
-      {shippingFee > 0 && (
+      {shownDelivery > 0 && (
         <FreeDeliveryProgress subtotalAed={subtotal} className="pt-2 pb-1" />
       )}
+      <OfferNudges quote={quote} lines={lines} className="pt-2 pb-1" />
       <div
         className="mt-4 pt-5 flex items-baseline justify-between gap-4"
         style={{ borderTop: `1px solid ${HAIRLINE}` }}
@@ -732,6 +921,7 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
           {format(total)}
         </span>
       </div>
+      <PayLaterNote amountAed={total} place="checkout" className="pt-3" />
     </div>
   );
 
@@ -877,9 +1067,16 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
 
               <p className="mt-6 text-[14px] font-light leading-[1.8] text-black">
                 Your fragrances are being prepared in our Dubai atelier. A confirmation has been sent
-                to {confirmedOrder.email || "your inbox"}. Your order is payable in cash or by card to
-                the courier on delivery.
+                to {confirmedOrder.email || "your inbox"}.{" "}
+                {confirmedOrder.paid_by_credit
+                  ? "It is paid in full with your gift card and points: there is nothing to pay on delivery."
+                  : "Your order is payable in cash or by card to the courier on delivery."}
               </p>
+              {(confirmedOrder.points_earned ?? 0) > 0 ? (
+                <p className="mt-4 text-[13px] font-light leading-[1.8] text-[#646464]">
+                  This order earns {(confirmedOrder.points_earned ?? 0).toLocaleString("en-AE")} points, added to your account once it&rsquo;s delivered.
+                </p>
+              ) : null}
 
               {/* Server-computed figures — the authoritative record. */}
               <div className="mt-10 mx-auto max-w-[380px] text-left">
@@ -905,12 +1102,30 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
                     </span>
                   </div>
                 )}
+                {(confirmedOrder.gift_wrap_fee ?? 0) > 0 && (
+                  <div className="flex items-baseline justify-between py-2">
+                    <span className="text-[14px] font-light text-black">Gift wrap</span>
+                    <span className="text-[14px] font-light text-black">{format(confirmedOrder.gift_wrap_fee ?? 0)}</span>
+                  </div>
+                )}
+                {(confirmedOrder.points_value ?? 0) > 0 && (
+                  <div className="flex items-baseline justify-between py-2">
+                    <span className="text-[14px] font-light text-black">Points</span>
+                    <span className="text-[14px] font-light text-black">&minus;{format(confirmedOrder.points_value ?? 0)}</span>
+                  </div>
+                )}
+                {(confirmedOrder.gift_card_amount ?? 0) > 0 && (
+                  <div className="flex items-baseline justify-between py-2">
+                    <span className="text-[14px] font-light text-black">Gift card</span>
+                    <span className="text-[14px] font-light text-black">&minus;{format(confirmedOrder.gift_card_amount ?? 0)}</span>
+                  </div>
+                )}
                 <div
                   className="mt-4 pt-5 flex items-baseline justify-between gap-4"
                   style={{ borderTop: `1px solid ${HAIRLINE}` }}
                 >
                   <span className="font-display text-[16px] uppercase tracking-[0.08em] text-black">
-                    Total due on delivery
+                    {confirmedOrder.paid_by_credit ? "Paid in full" : "Total due on delivery"}
                   </span>
                   <span className="font-display text-[16px] uppercase tracking-[0.08em] text-black">
                     {format(confirmedOrder.total)}
@@ -1010,6 +1225,11 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
               {step === "selection" ? "Your selection" : "Checkout"}
             </h1>
             {stepIndicator(step)}
+            {cartNotice ? (
+              <p role="status" className="mt-6 text-[13px] text-[#646464]">
+                {cartNotice}
+              </p>
+            ) : null}
           </div>
 
           <hr className="maison-rule" />
@@ -1197,9 +1417,10 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
                   {/* Delivery address */}
                   <section>
                     <h2 className="maison-eyebrow pb-4" style={{ borderBottom: `1px solid ${HAIRLINE}` }}>
-                      Delivery address
+                      {sendingToOther ? "Their delivery address" : "Delivery address"}
                     </h2>
                     <div className="pt-8 flex flex-col gap-6">
+                      {sendSettings ? <RecipientFields settings={sendSettings} value={recipient} onChange={setRecipient} /> : null}
                       <div>
                         <label htmlFor="street" className="maison-label">Street address</label>
                         <input
@@ -1251,20 +1472,41 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
                         </div>
 
                         <div>
-                          <label htmlFor="postalCode" className="maison-label">Postal code</label>
+                          {/* Optional: addresses in the UAE have no postal code. */}
+                          <label htmlFor="postalCode" className="maison-label">Postal code (optional)</label>
                           <input
                             id="postalCode"
                             type="text"
-                            required
+                            autoComplete="postal-code"
                             value={postalCode}
                             onChange={(e) => setPostalCode(e.target.value)}
-                            placeholder="00000"
                             className="maison-input"
                           />
                         </div>
                       </div>
                     </div>
                   </section>
+
+                  {/* Gift options (migration 70): wrap, a message, a slip without prices. */}
+                  {giftSettings ? (
+                    <GiftOptionsSection
+                      settings={giftSettings}
+                      value={gift}
+                      onChange={setGift}
+                      wrapIncluded={Boolean(quote?.gift_wrap_included)}
+                    />
+                  ) : null}
+
+                  {/* The checkout add-on (migration 69): one tick box. */}
+                  {shownAddon ? (
+                    <section>
+                      <AddonOffer
+                        offer={shownAddon}
+                        checked={addonInBag}
+                        onToggle={(next) => toggleAddon(shownAddon, next)}
+                      />
+                    </section>
+                  ) : null}
 
                   {/* Payment — the store's mode decides, the server enforces it */}
                   <section>
@@ -1277,6 +1519,7 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
                           <p className="text-[13px] uppercase tracking-[0.1em] text-black">
                             Card, Apple Pay or Google Pay
                           </p>
+                          <WalletBadges place="checkout" className="mt-4" />
                           <p className="mt-3 text-[13px] font-light leading-[1.7] text-[#646464]">
                             You will complete your payment on the secure page of our payment partner,
                             Paymob. Your card details are entered there and never reach us. Your
@@ -1345,7 +1588,7 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
                       disabled={isSubmitting || !acceptedTerms || paymentMode === "unavailable"}
                       className="maison-btn w-full"
                     >
-                      {online
+                      {online && !(quote && quote.total <= 0 && quote.total_before_credits > 0)
                         ? isSubmitting
                           ? "Reserving your order"
                           : "Continue to secure payment"
@@ -1353,13 +1596,16 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
                           ? "Placing order"
                           : "Place order"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setStep("selection")}
-                      className="maison-link cursor-pointer"
-                    >
-                      Return to selection
-                    </button>
+                    <TrustStrip place="checkout" className="w-full" />
+                    {onePage ? null : (
+                      <button
+                        type="button"
+                        onClick={() => setStep("selection")}
+                        className="maison-link cursor-pointer"
+                      >
+                        Return to selection
+                      </button>
+                    )}
                   </div>
                 </form>
               )}
@@ -1395,6 +1641,37 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
                         <p className="mt-1.5 text-[12px] uppercase tracking-[0.08em] text-[#646464]">
                           {line.selectedSize} &nbsp;·&nbsp; Qty {line.quantity}
                         </p>
+                        {onePage && onePage.show_bag_editor !== false ? (
+                          <div className="mt-2 flex items-center gap-4">
+                            <div className="inline-flex items-center" style={{ border: `1px solid ${HAIRLINE}` }}>
+                              <button
+                                type="button"
+                                aria-label={`Decrease quantity of ${line.product.name}`}
+                                onClick={() => setQuantity(line.product.id, line.selectedSize, line.quantity - 1)}
+                                disabled={line.quantity <= 1}
+                                className="flex h-7 w-7 items-center justify-center text-[13px] text-[#646464] hover:text-black disabled:opacity-30"
+                              >
+                                &minus;
+                              </button>
+                              <span className="w-7 text-center text-[12px] font-light text-black">{line.quantity}</span>
+                              <button
+                                type="button"
+                                aria-label={`Increase quantity of ${line.product.name}`}
+                                onClick={() => setQuantity(line.product.id, line.selectedSize, line.quantity + 1)}
+                                className="flex h-7 w-7 items-center justify-center text-[13px] text-[#646464] hover:text-black"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => remove(line.product.id, line.selectedSize)}
+                              className="text-[11px] uppercase tracking-[0.1em] text-[#646464] hover:text-black"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                       <span className="maison-price shrink-0">
                         {format(line.product.price * line.quantity)}
@@ -1409,6 +1686,18 @@ export default function CheckoutClient({ paymentMode = "cod" }: { paymentMode?: 
               </div>
 
               {discountBlock}
+
+              <CreditsBlock
+                quote={quote}
+                loyalty={loyalty}
+                giftCardsOn={giftCardsOn}
+                signedIn={signedIn}
+                usePoints={usePoints}
+                onUsePoints={setUsePoints}
+                giftCard={giftCard}
+                onGiftCard={setGiftCard}
+                credits={credits}
+              />
 
               {step === "selection" && (
                 <div className="mt-10 flex flex-col items-center gap-6">

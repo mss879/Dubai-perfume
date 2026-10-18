@@ -7,6 +7,8 @@ import {
   bypassCookieOptions,
   invalidateSiteLockCache,
 } from "../../../lib/site-lock";
+import { shapeLockState } from "../../../lib/site-lock-admin";
+import { guardAdminWrite, readAdminJson } from "../../../lib/admin-route";
 
 /**
  * Read and write the site lock from the admin panel.
@@ -20,32 +22,8 @@ import {
  * locking the site never locks out the person who locked it.
  */
 
-type LockState = {
-  locked: boolean;
-  effectiveLocked: boolean;
-  headline: string;
-  message: string;
-  launchAt: string | null;
-  autoUnlock: boolean;
-  hasPin: boolean;
-  updatedAt: string | null;
-  serverNow: string;
-};
-
-function shape(row: Record<string, unknown> | undefined | null): LockState | null {
-  if (!row) return null;
-  return {
-    locked: row.locked === true,
-    effectiveLocked: row.effective_locked === true,
-    headline: String(row.headline ?? ""),
-    message: String(row.message ?? ""),
-    launchAt: (row.launch_at as string | null) ?? null,
-    autoUnlock: row.auto_unlock !== false,
-    hasPin: row.has_pin === true,
-    updatedAt: (row.updated_at as string | null) ?? null,
-    serverNow: (row.server_now as string | null) ?? new Date().toISOString(),
-  };
-}
+// The admin pages render the same state on the server; one mapping for both.
+const shape = shapeLockState;
 
 const NOT_APPLIED =
   "The site lock is not available yet — database migration 52 has not been applied.";
@@ -88,19 +66,16 @@ type Body = {
 };
 
 export async function POST(request: NextRequest) {
-  if (!isSupabaseConfigured) {
-    return NextResponse.json({ error: "Store database is not configured." }, { status: 503 });
-  }
-  if (!(await getAdminIdentity())) {
-    return NextResponse.json({ error: "Not authorised." }, { status: 403 });
-  }
-
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
+  // A verified admin, on this site's own pages (so another site can't make an
+  // admin's browser lock or unlock the shop), with a small JSON body.
+  const gate = await guardAdminWrite(request);
+  if (!gate.ok) return gate.response;
+  const parsed = await readAdminJson(request, 8 * 1024);
+  if (!parsed.ok) return parsed.response;
+  if (!parsed.body || typeof parsed.body !== "object") {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
+  const body = parsed.body as Body;
 
   const pin = typeof body.pin === "string" ? body.pin.trim() : "";
   if (pin && !/^\d{4,12}$/.test(pin)) {

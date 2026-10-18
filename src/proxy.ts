@@ -47,6 +47,11 @@ const ALWAYS_OPEN = [
   // the rest of checkout.
   "/api/payments/paymob/webhook",
   "/api/payments/reconcile",
+  // Migration 70: the email job (Bearer secret), and the unsubscribe link every
+  // marketing email carries, which must work whatever the lock says.
+  "/api/jobs/marketing",
+  "/api/unsubscribe",
+  "/unsubscribe",
   LAUNCHING_SOON_PATH,
 ];
 
@@ -114,7 +119,9 @@ async function adminGate(
 
   if (!user) {
     const signin = new URL("/admin/signin", request.url);
-    signin.searchParams.set("redirect", pathname);
+    // Keep the query too (e.g. /admin/orders?view=pack), so signing in lands
+    // exactly where the admin was going.
+    signin.searchParams.set("redirect", pathname + request.nextUrl.search);
     return NextResponse.redirect(signin);
   }
 

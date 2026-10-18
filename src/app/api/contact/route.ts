@@ -3,6 +3,8 @@ import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-s
 import { isMissingFunction } from "../../lib/rpc-errors";
 import { checkRateLimit, clientKey } from "../../lib/rate-limit";
 import { isBot, readJsonBody } from "../../lib/request-guard";
+import { getOwnerNotificationAddress, sendEmail } from "../../lib/email/send";
+import { contactInquiryOwnerEmail } from "../../lib/email/templates";
 
 /**
  * Contact form submissions. Replaces the direct browser insert into
@@ -112,6 +114,7 @@ export async function POST(request: NextRequest) {
           { status: 503 }
         );
       }
+      await tellOwner({ name, email, subject, message });
       return NextResponse.json({ ok: true });
     }
     const mapped = mapDbError(error.message || "");
@@ -121,5 +124,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: mapped.error }, { status: mapped.status });
   }
 
+  await tellOwner({ name, email, subject, message });
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * The message is saved either way; this is the heads-up, so an enquiry is not
+ * only seen when someone happens to open Messages in the admin. Quiet: a
+ * missing email setup or a failed send never fails the customer's request.
+ */
+async function tellOwner(inquiry: { name: string; email: string; subject: string; message: string }) {
+  const owner = getOwnerNotificationAddress();
+  if (!owner) return;
+  try {
+    await sendEmail({ to: owner, ...contactInquiryOwnerEmail(inquiry) }, { quiet: true });
+  } catch {
+    // Saved already; the admin's Messages list still has it.
+  }
 }

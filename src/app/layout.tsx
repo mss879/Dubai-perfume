@@ -4,7 +4,11 @@ import "./globals.css";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "./lib/site";
 import { jsonLdScript } from "./lib/html";
 import { PaymentModeProvider } from "./components/PaymentModeProvider";
-import { storefrontPaymentMode } from "./lib/payments/mode";
+import { liveStorefrontPaymentMode } from "./lib/storefront-payment-mode";
+import { StoreFeaturesProvider } from "./components/StoreFeaturesProvider";
+import GrowthOverlays from "./components/features/GrowthOverlays";
+import { liveStoreFeatures } from "./lib/features-server";
+import { publicFeatures } from "./lib/features";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -68,11 +72,14 @@ const organizationJsonLd = {
   logo: `${SITE_URL}/logo.png`,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The wording follows the owner's switch in Settings → Payments, as checkout does.
+  // The feature switches (Admin → Features): only the ones that are on reach the browser.
+  const [paymentMode, features] = await Promise.all([liveStorefrontPaymentMode(), liveStoreFeatures()]);
   return (
     <html
       lang="en"
@@ -83,7 +90,12 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd) }}
         />
-        <PaymentModeProvider mode={storefrontPaymentMode()}>{children}</PaymentModeProvider>
+        <PaymentModeProvider mode={paymentMode}>
+          <StoreFeaturesProvider value={publicFeatures(features)}>
+            {children}
+            <GrowthOverlays />
+          </StoreFeaturesProvider>
+        </PaymentModeProvider>
       </body>
     </html>
   );

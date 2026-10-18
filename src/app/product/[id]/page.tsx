@@ -9,6 +9,8 @@ import ProductClient, {
   type ProductDetailProps,
   type RelatedItemProps
 } from "./ProductClient";
+import { loadOfferCards } from "../../lib/offers-server";
+import { liveStoreFeatures } from "../../lib/features-server";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +74,55 @@ const getProduct = cache(async (productId: number): Promise<ProductRow | null> =
   }
   return (data as ProductRow | null) ?? null;
 });
+
+/**
+ * Sizes that have run out. Read through the same public stock lookup the
+ * concierge uses, so exact counts never reach the browser. A size with no
+ * stock row is untracked and always available, as checkout treats it.
+ */
+async function getSoldOutSizes(productId: number): Promise<string[]> {
+  if (!isSupabaseConfigured) return [];
+  const { data, error } = await createServerSupabase().rpc("get_product_availability", {
+    p_product_ids: [productId],
+  });
+  if (error || !Array.isArray(data)) return [];
+  return (data as { size: string; stock_level: number | null }[])
+    .filter((row) => (Number(row.stock_level) || 0) <= 0)
+    .map((row) => row.size);
+}
+
+/**
+ * Migration 70: the "inspired by" line and the popularity counts, each only
+ * while its switch is on. Read separately and tolerantly, so the page never
+ * depends on the new columns existing.
+ */
+async function getGrowthExtras(productId: number): Promise<{
+  inspiredBy: string | null;
+  demand: { recentOrders: number | null; windowDays: number; family: string | null } | null;
+}> {
+  if (!isSupabaseConfigured) return { inspiredBy: null, demand: null };
+  const features = await liveStoreFeatures();
+  const supabase = createServerSupabase();
+  const wantInspired = features.inspired_by.enabled && features.inspired_by.settings.show_on_product !== false;
+  const [inspired, signals] = await Promise.all([
+    wantInspired ? supabase.from("products").select("inspired_by").eq("id", productId).maybeSingle() : Promise.resolve(null),
+    features.demand_signals.enabled ? supabase.rpc("demand_signals", { p_product_ids: [productId] }) : Promise.resolve(null),
+  ]);
+  const inspiredBy =
+    inspired && !inspired.error && typeof (inspired.data as { inspired_by?: unknown } | null)?.inspired_by === "string"
+      ? String((inspired.data as { inspired_by: string }).inspired_by)
+      : null;
+  const row = signals && !signals.error && Array.isArray(signals.data) ? (signals.data[0] as Record<string, unknown> | undefined) : undefined;
+  const demand =
+    row && (row.recent_orders != null || row.family != null)
+      ? {
+          recentOrders: row.recent_orders == null ? null : Number(row.recent_orders),
+          windowDays: Number(row.window_days) || 7,
+          family: typeof row.family === "string" ? row.family : null,
+        }
+      : null;
+  return { inspiredBy, demand };
+}
 
 function normalizeProduct(row: ProductRow): ProductDetailProps {
   const galleryImages = (() => {
@@ -186,7 +237,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!row) notFound();
 
   const product = normalizeProduct(row);
-  const related = await getRelated(product);
+  const [related, soldOutSizes, offers, extras] = await Promise.all([
+    getRelated(product),
+    getSoldOutSizes(product.id),
+    loadOfferCards(product.id),
+    getGrowthExtras(product.id),
+  ]);
+  const allSoldOut = product.sizes.length > 0 && product.sizes.every((size) => soldOutSizes.includes(size));
 
   const productJsonLd = {
     "@context": "https://schema.org",
@@ -201,7 +258,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       "@type": "Offer",
       price: product.priceAed,
       priceCurrency: "AED",
-      availability: "https://schema.org/InStock",
+      availability: allSoldOut ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
       url: `${SITE_URL}/product/${product.id}`
     }
   };
@@ -226,7 +283,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd) }}
       />
-      <ProductClient product={product} related={related} />
+      <ProductClient
+        product={product}
+        related={related}
+        soldOutSizes={soldOutSizes}
+        offers={offers}
+        inspiredBy={extras.inspiredBy}
+        demand={extras.demand}
+      />
     </>
   );
 }

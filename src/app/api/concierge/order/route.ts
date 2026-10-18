@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, isSupabaseConfigured } from "../../../lib/supabase-server";
+import { readAgentSettings } from "../../../lib/agent-settings";
 import { checkRateLimit, clientKey } from "../../../lib/rate-limit";
 import { isBot, readJsonBody } from "../../../lib/request-guard";
 import { isMissingFunction } from "../../../lib/rpc-errors";
@@ -40,6 +41,9 @@ function fail(status: number, error: string) {
 
 export async function POST(request: NextRequest) {
   if (!isSupabaseConfigured) return fail(503, AWAY);
+  // The owner's switches (Admin → Agent, migration 65).
+  const agent = await readAgentSettings(createServerSupabase());
+  if (!agent.enabled || !agent.orderHelpEnabled) return fail(503, AWAY);
 
   const parsed = await readJsonBody<ConciergeOrderLookupRequest>(request, MAX_BODY);
   if (!parsed.ok) return fail(parsed.status, AWAY);

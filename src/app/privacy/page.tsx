@@ -3,7 +3,7 @@ import Link from "next/link";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import { SITE_EMAIL } from "../lib/site";
-import { storefrontPaymentMode } from "../lib/payments/mode";
+import { liveStorefrontPaymentMode } from "../lib/storefront-payment-mode";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -25,7 +25,12 @@ function PolicySection({ title, children }: { title: string; children: React.Rea
   );
 }
 
-export default function PrivacyPage() {
+// Re-rendered at most once a minute, so the payment wording follows the
+// owner's switch in Settings → Payments without a redeploy.
+export const revalidate = 60;
+
+export default async function PrivacyPage() {
+  const online = (await liveStorefrontPaymentMode()) === "online";
   return (
     <div className="maison min-h-screen flex flex-col relative overflow-x-hidden">
       <AppHeader />
@@ -58,7 +63,7 @@ export default function PrivacyPage() {
                 you place an order we collect the recipient&rsquo;s name, delivery address, contact
                 telephone number and email address so that we can prepare, dispatch and deliver your
                 parcel.{" "}
-                {storefrontPaymentMode() === "online"
+                {online
                   ? "Card payments are made on the secure page of our payment partner, Paymob: your card number and security code are entered there and never reach us or this site. We keep only the card brand, its last four digits and Paymob's transaction reference, to confirm, reconcile and refund payments."
                   : "As payment is made in cash on delivery, we do not collect card numbers or other payment credentials on this site."}
               </p>
@@ -86,7 +91,7 @@ export default function PrivacyPage() {
               <p>
                 We share delivery details with the courier companies who carry your parcel within
                 the UAE, and we use trusted service providers to host the site and store its data.
-                {storefrontPaymentMode() === "online"
+                {online
                   ? " When you pay online, we share your name, email address, telephone number and billing address with our payment partner, Paymob, so that it can process and secure the payment."
                   : ""}{" "}
                 These parties receive only the information needed to perform their service.

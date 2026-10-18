@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isMissingFunction } from "../rpc-errors";
 import {
   FREE_SHIPPING_THRESHOLD_AED,
   amountToFreeShipping,
@@ -28,6 +29,10 @@ export type LiveOffer = {
   minimumAed: number;
   endsOn: string | null;
   exclusive: boolean;
+  /** What the code covers (migration 67); "order" before it. */
+  appliesTo: "order" | "products" | "collections" | "delivery";
+  /** A few words naming it, e.g. "Lattafa collection" or "delivery". */
+  appliesLabel: string | null;
 };
 
 type OfferRow = {
@@ -38,6 +43,8 @@ type OfferRow = {
   min_requirement: number | string;
   ends_at: string | null;
   exclusive: boolean;
+  applies_to?: string | null;
+  applies_label?: string | null;
 };
 
 /** Live codes, exclusive ones only if this session has earned them. */
@@ -58,6 +65,9 @@ export async function fetchLiveOffers(
       minimumAed: Number(r.min_requirement) || 0,
       endsOn: r.ends_at ? String(r.ends_at).slice(0, 10) : null,
       exclusive: Boolean(r.exclusive),
+      appliesTo:
+        r.applies_to === "products" || r.applies_to === "collections" || r.applies_to === "delivery" ? r.applies_to : "order",
+      appliesLabel: r.applies_label ? String(r.applies_label) : null,
     }));
   } catch {
     // The concierge must still be able to talk about perfume.
@@ -66,8 +76,20 @@ export async function fetchLiveOffers(
 }
 
 export type PricedCode =
-  | { valid: true; code: string; discountAed: number }
-  | { valid: false; reason: "invalid" | "expired" | "exhausted" | "minimum_not_met"; minimumAed: number | null };
+  | {
+      valid: true;
+      code: string;
+      /** null: it covers chosen perfumes or a collection, so it can only be priced against the bag at checkout. */
+      discountAed: number | null;
+      appliesTo: "order" | "products" | "collections" | "delivery";
+      appliesLabel: string | null;
+    }
+  | {
+      valid: false;
+      reason: "invalid" | "expired" | "exhausted" | "minimum_not_met" | "not_applicable" | "delivery_already_free";
+      minimumAed: number | null;
+      appliesLabel?: string | null;
+    };
 
 /** Prices one code against a subtotal, through the same function checkout uses. */
 export async function priceCode(
@@ -76,22 +98,57 @@ export async function priceCode(
   subtotalAed: number
 ): Promise<PricedCode> {
   try {
-    const { data, error } = await supabase.rpc("validate_discount", {
+    // check_discount (migration 67) knows what a code covers; before it, the
+    // whole-order check is all there is.
+    let { data, error } = await supabase.rpc("check_discount", {
       p_code: code,
+      p_items: null,
       p_subtotal: subtotalAed,
     });
+    if (error && isMissingFunction(error)) {
+      ({ data, error } = await supabase.rpc("validate_discount", {
+        p_code: code,
+        p_subtotal: subtotalAed,
+      }));
+    }
     if (error || !data || typeof data !== "object") {
       return { valid: false, reason: "invalid", minimumAed: null };
     }
-    const result = data as { valid?: boolean; discount_amount?: number; reason?: string; minimum?: number };
+    const result = data as {
+      valid?: boolean;
+      discount_amount?: number | null;
+      reason?: string;
+      minimum?: number;
+      applies_to?: string;
+      applies_label?: string | null;
+    };
+    const appliesTo =
+      result.applies_to === "products" || result.applies_to === "collections" || result.applies_to === "delivery"
+        ? result.applies_to
+        : "order";
     if (result.valid) {
-      return { valid: true, code: code.toUpperCase(), discountAed: Number(result.discount_amount) || 0 };
+      return {
+        valid: true,
+        code: code.toUpperCase(),
+        discountAed: result.discount_amount == null ? null : Number(result.discount_amount) || 0,
+        appliesTo,
+        appliesLabel: result.applies_label ?? null,
+      };
     }
     const reason =
-      result.reason === "expired" || result.reason === "exhausted" || result.reason === "minimum_not_met"
+      result.reason === "expired" ||
+      result.reason === "exhausted" ||
+      result.reason === "minimum_not_met" ||
+      result.reason === "not_applicable" ||
+      result.reason === "delivery_already_free"
         ? result.reason
         : "invalid";
-    return { valid: false, reason, minimumAed: result.minimum != null ? Number(result.minimum) : null };
+    return {
+      valid: false,
+      reason,
+      minimumAed: result.minimum != null ? Number(result.minimum) : null,
+      appliesLabel: result.applies_label ?? null,
+    };
   } catch {
     return { valid: false, reason: "invalid", minimumAed: null };
   }

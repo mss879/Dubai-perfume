@@ -14,6 +14,9 @@ import Price from "../components/Price";
 import { useCart } from "../lib/cart";
 import { toArray } from "../lib/catalogue";
 import { getBrowserSupabase } from "../lib/supabase-browser";
+import { useFeature } from "../components/StoreFeaturesProvider";
+import RecentlyViewed from "../components/features/RecentlyViewed";
+import { LONGEVITY, OCCASIONS, SEASONS, STRENGTHS } from "../lib/scent-attributes";
 
 export interface CatalogProduct {
   id: number;
@@ -38,6 +41,12 @@ export interface CatalogProduct {
   topNotes?: string[] | null;
   heartNotes?: string[] | null;
   baseNotes?: string[] | null;
+  /* Migration 70: the shop filters and "inspired by" (Admin → Shop filters, Inspired-by matches). */
+  strength?: string | null;
+  longevity?: string | null;
+  seasons?: string[] | null;
+  occasions?: string[] | null;
+  inspiredBy?: string | null;
 }
 
 export interface DbCollectionRow {
@@ -61,6 +70,11 @@ export interface ShopInitialFilters {
   collection: string | null;
   search: string;
   sort: string;
+  note?: string | null;
+  occasion?: string | null;
+  season?: string | null;
+  strength?: string | null;
+  lasts?: string | null;
 }
 
 export interface ShopClientProps {
@@ -68,7 +82,13 @@ export interface ShopClientProps {
   collections: DbCollectionRow[];
   productCollections: DbProductCollectionRow[];
   initialFilters: ShopInitialFilters;
+  /** Migration 70: bestsellers in their family, from real orders (Admin → Popularity badges). */
+  popularIds?: number[];
 }
+
+/** The extra filters (Admin → Shop filters), kept in the URL like the rest. */
+type ExtraFilters = { note: string | null; occasion: string | null; season: string | null; strength: string | null; lasts: string | null };
+const EXTRA_KEYS = ["note", "occasion", "season", "strength", "lasts"] as const;
 
 const OLFACTORY_FAMILIES = [
   { id: "Woody & Oud", label: "Woody & Oud" },
@@ -112,10 +132,21 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 
 const PAGE_SIZE = 12;
 
-function ShopContent({ products, collections, productCollections, initialFilters }: ShopClientProps) {
+function ShopContent({ products, collections, productCollections, initialFilters, popularIds = [] }: ShopClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { add: addLineToCart } = useCart();
+  const filterSettings = useFeature("shop_filters");
+  const inspiredSettings = useFeature("inspired_by");
+  const searchInspired = Boolean(inspiredSettings) && inspiredSettings?.search !== false;
+  const popular = new Set(popularIds);
+  const [extra, setExtra] = useState<ExtraFilters>({
+    note: initialFilters.note ?? null,
+    occasion: initialFilters.occasion ?? null,
+    season: initialFilters.season ?? null,
+    strength: initialFilters.strength ?? null,
+    lasts: initialFilters.lasts ?? null,
+  });
 
   // URL parameters sync
   const urlOlfactory = searchParams.get("olfactory");
@@ -164,6 +195,13 @@ function ShopContent({ products, collections, productCollections, initialFilters
     setSelectedCollection(urlCollection);
     setSearchQuery(urlSearch);
     setSortBy(urlSort);
+    setExtra({
+      note: searchParams.get("note"),
+      occasion: searchParams.get("occasion"),
+      season: searchParams.get("season"),
+      strength: searchParams.get("strength"),
+      lasts: searchParams.get("lasts"),
+    });
   }
 
   // Load the signed-in shopper's saved favourites so the Favourites tab is not
@@ -242,6 +280,8 @@ function ShopContent({ products, collections, productCollections, initialFilters
         ...toArray(prod.topNotes),
         ...toArray(prod.heartNotes),
         ...toArray(prod.baseNotes),
+        // "aventus" finds the perfumes matched to it (Admin → Inspired-by matches).
+        searchInspired ? prod.inspiredBy : null,
       ];
       if (!haystack.some((field) => typeof field === "string" && field.toLowerCase().includes(q))) {
         return false;
@@ -251,6 +291,15 @@ function ShopContent({ products, collections, productCollections, initialFilters
     // Olfactory filter
     if (selectedOlfactory && prod.olfactory !== selectedOlfactory) {
       return false;
+    }
+
+    // The extra filters (migration 70), only while the owner has them on.
+    if (filterSettings) {
+      if (extra.note && !notesOf(prod).some((n) => n.includes(extra.note!.toLowerCase()))) return false;
+      if (extra.occasion && !(prod.occasions ?? []).includes(extra.occasion)) return false;
+      if (extra.season && !(prod.seasons ?? []).includes(extra.season)) return false;
+      if (extra.strength && prod.strength !== extra.strength) return false;
+      if (extra.lasts && prod.longevity !== extra.lasts) return false;
     }
 
     // Gender filter — "unisex" shows only unisex compositions; "men"/"women"
@@ -367,7 +416,8 @@ function ShopContent({ products, collections, productCollections, initialFilters
 
   // Reset the visible window whenever the result set changes
   const filterSignature = [
-    searchQuery, selectedOlfactory, selectedGender, selectedBrand, selectedCollection, sortBy
+    searchQuery, selectedOlfactory, selectedGender, selectedBrand, selectedCollection, sortBy,
+    ...EXTRA_KEYS.map((k) => extra[k] ?? "")
   ].join("|");
   if (filterSignature !== lastFilterSignature) {
     setLastFilterSignature(filterSignature);
@@ -385,10 +435,39 @@ function ShopContent({ products, collections, productCollections, initialFilters
     setSelectedCollection(null);
     setSearchQuery("");
     setSortBy("featured");
+    setExtra({ note: null, occasion: null, season: null, strength: null, lasts: null });
     router.push("/shop");
   };
 
-  const isAnyFilterActive = !!(selectedOlfactory || selectedGender || selectedBrand || selectedCollection || searchQuery.trim());
+  const isAnyFilterActive = !!(
+    selectedOlfactory || selectedGender || selectedBrand || selectedCollection || searchQuery.trim() ||
+    (filterSettings && EXTRA_KEYS.some((k) => extra[k]))
+  );
+
+  // The extra filters' choices: only values at least one perfume has.
+  const has = (pick: (p: CatalogProduct) => string[] | string | null | undefined, value: string) =>
+    products.some((p) => {
+      const v = pick(p);
+      return Array.isArray(v) ? v.includes(value) : v === value;
+    });
+  const noteChips = filterSettings && filterSettings.notes !== false
+    ? (Array.isArray(filterSettings.note_chips) ? (filterSettings.note_chips as string[]) : []).filter((note) =>
+        products.some((p) => notesOf(p).some((n) => n.includes(note.toLowerCase())))
+      )
+    : [];
+  const occasionChoices = filterSettings && filterSettings.occasion !== false ? OCCASIONS.filter((o) => has((p) => p.occasions, o.value)) : [];
+  const seasonChoices = filterSettings && filterSettings.season !== false ? SEASONS.filter((o) => has((p) => p.seasons, o.value)) : [];
+  const strengthChoices = filterSettings && filterSettings.strength !== false ? STRENGTHS.filter((o) => has((p) => p.strength, o.value)) : [];
+  const lastsChoices = filterSettings && filterSettings.longevity !== false ? LONGEVITY.filter((o) => has((p) => p.longevity, o.value)) : [];
+  const setExtraFilter = (key: (typeof EXTRA_KEYS)[number], value: string | null) => {
+    setExtra((e) => ({ ...e, [key]: value }));
+    updateUrlFilters({ [key]: value });
+  };
+  const extraLabel = (key: (typeof EXTRA_KEYS)[number], value: string) => {
+    if (key === "note") return `Note: ${value}`;
+    const list = { occasion: OCCASIONS, season: SEASONS, strength: STRENGTHS, lasts: LONGEVITY }[key];
+    return list.find((o) => o.value === value)?.label ?? value;
+  };
 
   // Current collection name shown under the eyebrow
   const collectionTitle = (() => {
@@ -437,6 +516,12 @@ function ShopContent({ products, collections, productCollections, initialFilters
       label: collectionLabelFor(selectedCollection),
       clear: () => { setSelectedCollection(null); updateUrlFilters({ collection: null }); }
     });
+  }
+  if (filterSettings) {
+    for (const key of EXTRA_KEYS) {
+      const value = extra[key];
+      if (value) activeFilterChips.push({ key, label: extraLabel(key, value), clear: () => setExtraFilter(key, null) });
+    }
   }
 
   /**
@@ -660,7 +745,7 @@ function ShopContent({ products, collections, productCollections, initialFilters
                     ? "Iconic"
                     : prod.isNew
                       ? "New"
-                      : prod.isBestSeller
+                      : prod.isBestSeller || popular.has(prod.id)
                         ? "Best seller"
                         : null;
                   const sizes = prod.sizes && prod.sizes.length > 0 ? prod.sizes : ["100ml"];
@@ -775,6 +860,8 @@ function ShopContent({ products, collections, productCollections, initialFilters
               )}
             </>
           )}
+
+          <RecentlyViewed place="shop" className="border-t border-[rgba(0,0,0,0.12)] pt-14 mt-20" />
 
           {/* bottom air */}
           <div className="pb-20 md:pb-28" />
@@ -950,6 +1037,23 @@ function ShopContent({ products, collections, productCollections, initialFilters
                     })}
                   </ul>
                 </div>
+
+                {/* The extra filters (Admin → Shop filters) */}
+                {noteChips.length > 0 ? (
+                  <ChipGroup label="Notes" options={noteChips.map((n) => ({ value: n, label: n }))} value={extra.note} onChange={(v) => setExtraFilter("note", v)} />
+                ) : null}
+                {occasionChoices.length > 0 ? (
+                  <ChipGroup label="Occasion" options={occasionChoices} value={extra.occasion} onChange={(v) => setExtraFilter("occasion", v)} />
+                ) : null}
+                {seasonChoices.length > 0 ? (
+                  <ChipGroup label="Season" options={seasonChoices} value={extra.season} onChange={(v) => setExtraFilter("season", v)} />
+                ) : null}
+                {strengthChoices.length > 0 ? (
+                  <ChipGroup label="Strength" options={strengthChoices} value={extra.strength} onChange={(v) => setExtraFilter("strength", v)} />
+                ) : null}
+                {lastsChoices.length > 0 ? (
+                  <ChipGroup label="How long it lasts" options={lastsChoices} value={extra.lasts} onChange={(v) => setExtraFilter("lasts", v)} />
+                ) : null}
               </div>
 
               {/* Drawer foot */}
@@ -978,6 +1082,46 @@ function ShopContent({ products, collections, productCollections, initialFilters
 
       {/* Main App Footer */}
       <Footer />
+    </div>
+  );
+}
+
+/** Every note of a perfume, lower-cased, for the Notes filter. */
+function notesOf(p: CatalogProduct): string[] {
+  return [...toArray(p.topNotes), ...toArray(p.heartNotes), ...toArray(p.baseNotes)].map((n) => n.toLowerCase());
+}
+
+function ChipGroup({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { value: string; label: string }[];
+  value: string | null;
+  onChange: (next: string | null) => void;
+}) {
+  return (
+    <div>
+      <span className="maison-label">{label}</span>
+      <div className="flex flex-wrap gap-2">
+        {options.map((o) => {
+          const active = value === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(active ? null : o.value)}
+              className={`h-9 px-4 text-[13px] transition-colors duration-300 cursor-pointer ${active ? "bg-black text-white" : "bg-white text-black hover:bg-[#F5F5F5]"}`}
+              style={{ border: "1px solid rgba(0,0,0,0.12)", fontWeight: 300 }}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

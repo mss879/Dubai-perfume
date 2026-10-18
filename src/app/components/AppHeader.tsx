@@ -22,7 +22,7 @@ import { toTitleCase } from "../lib/catalogue";
 import { FREE_SHIPPING_NOTE } from "../lib/shipping";
 
 export interface AppHeaderProps {
-  activePage?: "home" | "brands" | "shop" | "discover" | "blogs" | "contact" | "wishlist";
+  activePage?: "home" | "brands" | "shop" | "offers" | "discover" | "blogs" | "contact" | "wishlist";
 }
 
 /* Hairline used across the header — matches --line in globals.css */
@@ -42,6 +42,7 @@ const NAV_ITEMS: { key: NavKey; label: string; href: string }[] = [
   { key: "home", label: "Home", href: "/" },
   { key: "brands", label: "Brands", href: "/collections" },
   { key: "shop", label: "Shop", href: "/shop" },
+  { key: "offers", label: "Offers", href: "/offers" },
   { key: "blogs", label: "Blogs", href: "/blogs" },
   { key: "contact", label: "Contact", href: "/contact" },
   // The fragrance finder, last. Two words so it sits level with the rest of the

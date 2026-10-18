@@ -10,11 +10,13 @@ import CartDrawer, { openCartDrawer } from "../../components/CartDrawer";
 import Price from "../../components/Price";
 import { getBrowserSupabase } from "../../lib/supabase-browser";
 import { useCart } from "../../lib/cart";
+import RewardsPanel from "./RewardsPanel";
+import { useStoreFeatures } from "../../components/StoreFeaturesProvider";
 import { ORDER_STEPS, isCancelledOrder, stepIndexForStatus } from "../../lib/orders";
 import { countsAsRevenue, isOnlinePayment, paymentStatusLabel } from "../../lib/payments/status";
 import { PRODUCT_FIELDS, toArray } from "../../lib/catalogue";
 
-type TabKey = "orders" | "wishlist" | "tracking" | "settings";
+type TabKey = "orders" | "wishlist" | "tracking" | "rewards" | "settings";
 
 type WishlistType = "favorite" | "buy_later";
 
@@ -161,6 +163,12 @@ export default function DashboardClient() {
   // auth.uid() of the cookie session — RLS on `wishlists` keys on it.
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("orders");
+  // Migration 70: a Rewards tab while points, referrals or gift cards are on.
+  const storeFeatures = useStoreFeatures();
+  const showRewards = Boolean(storeFeatures.loyalty || storeFeatures.referrals || storeFeatures.gift_cards);
+  const navItems = showRewards
+    ? [...NAV_ITEMS.slice(0, 3), { key: "rewards" as TabKey, label: "Rewards" }, ...NAV_ITEMS.slice(3)]
+    : NAV_ITEMS;
   const [wishlistTab, setWishlistTab] = useState<"favorite" | "buy_later">("favorite");
 
   // Data States
@@ -635,7 +643,7 @@ export default function DashboardClient() {
 
             {/* Sidebar nav — horizontal tab row on mobile */}
             <nav className="flex lg:flex-col gap-8 lg:gap-0 overflow-x-auto no-scrollbar border-b lg:border-b-0 border-[rgba(0,0,0,0.12)] pb-4 lg:pb-0 lg:border-t lg:border-t-[rgba(0,0,0,0.12)]">
-              {NAV_ITEMS.map(item => (
+              {navItems.map(item => (
                 <button
                   key={item.key}
                   onClick={() => setActiveTab(item.key)}
@@ -1111,6 +1119,8 @@ export default function DashboardClient() {
               )}
 
               {/* ── SETTINGS ──────────────────────────────────────── */}
+              {activeTab === "rewards" && showRewards && sessionUserId && <RewardsPanel userId={sessionUserId} />}
+
               {activeTab === "settings" && (
                 <motion.section key="settings-panel" {...panelMotion}>
                   <span className="maison-eyebrow block">Your details</span>

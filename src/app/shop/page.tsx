@@ -5,6 +5,7 @@ import ShopClient, {
   type DbProductCollectionRow,
 } from "./ShopClient";
 import { createServerSupabase, isSupabaseConfigured } from "../lib/supabase-server";
+import { liveStoreFeatures } from "../lib/features-server";
 
 /* Never bake stale catalogue data into the build. */
 export const dynamic = "force-dynamic";
@@ -33,6 +34,15 @@ interface DbProductRow {
   description?: string | null;
   olfactory_group?: string | null;
   tags?: string[] | null;
+  top_notes?: string[] | null;
+  heart_notes?: string[] | null;
+  base_notes?: string[] | null;
+  /* Migration 70: filters and "inspired by" (absent before it runs). */
+  strength?: string | null;
+  longevity?: string | null;
+  seasons?: string[] | null;
+  occasions?: string[] | null;
+  inspired_by?: string | null;
 }
 
 /** Maps a DB row to the shape the grid renders. Same logic the client used. */
@@ -62,7 +72,26 @@ function mapProduct(p: DbProductRow): CatalogProduct {
     description: p.description ?? undefined,
     olfactory: p.olfactory_group || "Woody & Oud",
     gender,
+    // Search reads the pyramid, so "oud" finds what wears it without naming it.
+    topNotes: p.top_notes ?? null,
+    heartNotes: p.heart_notes ?? null,
+    baseNotes: p.base_notes ?? null,
+    strength: p.strength ?? null,
+    longevity: p.longevity ?? null,
+    seasons: p.seasons ?? null,
+    occasions: p.occasions ?? null,
+    inspiredBy: p.inspired_by ?? null,
   };
+}
+
+/** Migration 70: "Bestseller" labels from real orders, while Popularity badges are on. */
+async function fetchPopular(productIds: number[]): Promise<number[]> {
+  if (!isSupabaseConfigured || productIds.length === 0) return [];
+  const features = await liveStoreFeatures();
+  if (!features.demand_signals.enabled || features.demand_signals.settings.show_family === false) return [];
+  const { data, error } = await createServerSupabase().rpc("demand_signals", { p_product_ids: productIds.slice(0, 200) });
+  if (error || !Array.isArray(data)) return [];
+  return (data as { product_id: number; family: string | null }[]).filter((r) => r.family).map((r) => Number(r.product_id));
 }
 
 async function fetchCatalogue(): Promise<{
@@ -105,9 +134,11 @@ const first = (value: string | string[] | undefined): string | null =>
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const [params, catalogue] = await Promise.all([searchParams, fetchCatalogue()]);
+  const popular = await fetchPopular(catalogue.products.map((p) => p.id));
 
   return (
     <ShopClient
+      popularIds={popular}
       products={catalogue.products}
       collections={catalogue.collections}
       productCollections={catalogue.productCollections}
@@ -118,6 +149,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         collection: first(params.collection),
         search: first(params.search) ?? "",
         sort: first(params.sort) ?? "featured",
+        note: first(params.note),
+        occasion: first(params.occasion),
+        season: first(params.season),
+        strength: first(params.strength),
+        lasts: first(params.lasts),
       }}
     />
   );

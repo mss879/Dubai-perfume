@@ -7,7 +7,7 @@ import RecoverClient, { type RecoverableLine } from "./RecoverClient";
 import { createServerSupabase, isSupabaseConfigured } from "../lib/supabase-server";
 import { isMissingFunction } from "../lib/rpc-errors";
 import { normalizeRecoveryItems } from "../lib/cart-recovery";
-import { storefrontPaymentMode } from "../lib/payments/mode";
+import { liveStorefrontPaymentMode } from "../lib/storefront-payment-mode";
 
 /**
  * Where the "return to your selection" link in a recovery email lands.
@@ -138,7 +138,7 @@ export default async function RecoverPage({
               </h1>
               <p className="maison-body mt-6 mx-auto max-w-[52ch]">
                 Your selection has been returned to your bag, exactly as you left it.{" "}
-                {storefrontPaymentMode() === "online"
+                {(await liveStorefrontPaymentMode()) === "online"
                   ? "Payment is made securely online at checkout."
                   : "Payment is collected on delivery — nothing is charged before your parcel arrives."}
               </p>

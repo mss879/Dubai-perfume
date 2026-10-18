@@ -31,7 +31,8 @@ export type OrderLine = {
  * mode.
  */
 export type OrderPaymentInfo = {
-  method: "cod" | "paymob";
+  /** "credit": paid in full by a gift card and/or loyalty points (migration 70). */
+  method: "cod" | "paymob" | "credit";
   /** Card brand and last four only, e.g. "Mastercard ending 2346". */
   cardLabel?: string | null;
 };
@@ -44,12 +45,27 @@ export type OrderEmailData = {
   shippingFeeAed: number;
   discountAed: number;
   totalAed: number;
+  /** Cash on delivery only: added when the order is packed, collected on top of the total. */
+  packingAed?: number;
   trackingNumber?: string | null;
+  /** The courier's own tracking page (http/https only; checked by the order-status route). */
+  trackingUrl?: string | null;
   payment?: OrderPaymentInfo | null;
+  /** Migration 70: the gift wrap charge, and what loyalty points and a gift card paid. */
+  giftWrapAed?: number;
+  pointsAed?: number;
+  giftCardAed?: number;
 };
 
 const paidOnline = (data: OrderEmailData) => data.payment?.method === "paymob";
-const totalLabel = (data: OrderEmailData) => (paidOnline(data) ? "Total paid" : "Total due on delivery");
+/** Nothing is collected on delivery: paid online, or by a gift card and points. */
+const paidInFull = (data: OrderEmailData) => paidOnline(data) || data.payment?.method === "credit";
+const totalLabel = (data: OrderEmailData) =>
+  paidOnline(data) ? "Total paid" : data.payment?.method === "credit" ? "Left to pay" : "Total due on delivery";
+/** Packing, when the courier collects it (never on an order paid online). */
+const packingOf = (data: OrderEmailData) => (paidInFull(data) ? 0 : Math.max(0, data.packingAed ?? 0));
+/** What the customer pays in all: the total, plus packing for cash on delivery. */
+const amountDueAed = (data: OrderEmailData) => data.totalAed + packingOf(data);
 
 /** The shipping object as checkout posts it. Every field is optional. */
 export type ShippingAddress = {
@@ -65,6 +81,10 @@ export type OwnerOrderEmailData = OrderEmailData & {
   customerEmail?: string | null;
   phone?: string | null;
   shipping?: ShippingAddress | null;
+  /** Migration 70: what the packer needs for a gift (wrap, message, slip without prices). */
+  giftNote?: { wrap: boolean; message: string | null; hidePrices: boolean } | null;
+  /** Migration 70: sent to someone else. */
+  recipient?: { name: string; phone: string | null; deliveryDate: string | null } | null;
 };
 
 export type NewsletterSignupData = {
@@ -79,16 +99,16 @@ export type ContactInquiryData = {
   message: string;
 };
 
-const HAIRLINE = "#dcdcdc";
-const MUTED = "#646464";
+export const HAIRLINE = "#dcdcdc";
+export const MUTED = "#646464";
 
-const aed = (n: number) =>
+export const aed = (n: number) =>
   `AED ${n.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const esc = (s: string) =>
+export const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function shell(opts: {
+export function shell(opts: {
   preheader: string;
   eyebrow: string;
   heading: string;
@@ -164,7 +184,7 @@ function lineItemsTable(data: OrderEmailData): string {
           <br><span style="font-size:11px;color:${MUTED};">Qty ${l.quantity}</span>
         </td>
         <td align="right" style="padding:12px 0;border-bottom:1px solid ${HAIRLINE};font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#000000;white-space:nowrap;">
-          ${aed(l.unitPriceAed * l.quantity)}
+          ${l.unitPriceAed > 0 ? aed(l.unitPriceAed * l.quantity) : "Gift"}
         </td>
       </tr>`
     )
@@ -181,15 +201,19 @@ function lineItemsTable(data: OrderEmailData): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       ${rows}
       ${totalRow("Subtotal", aed(data.subtotalAed))}
-      ${data.discountAed > 0 ? totalRow("Discount", `− ${aed(data.discountAed)}`) : ""}
+      ${data.discountAed > 0 ? totalRow("Savings", `− ${aed(data.discountAed)}`) : ""}
       ${totalRow("Delivery", data.shippingFeeAed > 0 ? aed(data.shippingFeeAed) : "Complimentary")}
-      ${totalRow(totalLabel(data), aed(data.totalAed), true)}
+      ${(data.giftWrapAed ?? 0) > 0 ? totalRow("Gift wrap", aed(data.giftWrapAed ?? 0)) : ""}
+      ${(data.pointsAed ?? 0) > 0 ? totalRow("Points", `− ${aed(data.pointsAed ?? 0)}`) : ""}
+      ${(data.giftCardAed ?? 0) > 0 ? totalRow("Gift card", `− ${aed(data.giftCardAed ?? 0)}`) : ""}
+      ${packingOf(data) > 0 ? totalRow("Packing", aed(packingOf(data))) : ""}
+      ${totalRow(totalLabel(data), aed(amountDueAed(data)), true)}
     </table>`;
 }
 
 function plainOrder(data: OrderEmailData): string {
   const items = data.lines
-    .map((l) => `  - ${[l.brand, l.name].filter(Boolean).join(" ")}${l.size ? ` (${l.size})` : ""} x${l.quantity}  ${aed(l.unitPriceAed * l.quantity)}`)
+    .map((l) => `  - ${[l.brand, l.name].filter(Boolean).join(" ")}${l.size ? ` (${l.size})` : ""} x${l.quantity}  ${l.unitPriceAed > 0 ? aed(l.unitPriceAed * l.quantity) : "Gift"}`)
     .join("\n");
   return [
     `Order ${data.orderId}`,
@@ -197,9 +221,13 @@ function plainOrder(data: OrderEmailData): string {
     items,
     "",
     `Subtotal: ${aed(data.subtotalAed)}`,
-    ...(data.discountAed > 0 ? [`Discount: -${aed(data.discountAed)}`] : []),
+    ...(data.discountAed > 0 ? [`Savings: -${aed(data.discountAed)}`] : []),
     `Delivery: ${data.shippingFeeAed > 0 ? aed(data.shippingFeeAed) : "Complimentary"}`,
-    `${totalLabel(data)}: ${aed(data.totalAed)}`,
+    ...((data.giftWrapAed ?? 0) > 0 ? [`Gift wrap: ${aed(data.giftWrapAed ?? 0)}`] : []),
+    ...((data.pointsAed ?? 0) > 0 ? [`Points: -${aed(data.pointsAed ?? 0)}`] : []),
+    ...((data.giftCardAed ?? 0) > 0 ? [`Gift card: -${aed(data.giftCardAed ?? 0)}`] : []),
+    ...(packingOf(data) > 0 ? [`Packing: ${aed(packingOf(data))}`] : []),
+    `${totalLabel(data)}: ${aed(amountDueAed(data))}`,
   ].join("\n");
 }
 
@@ -211,18 +239,23 @@ const greeting = (name?: string | null) =>
 export function orderConfirmationEmail(data: OrderEmailData) {
   const trackUrl = `${SITE_URL}/track?order=${encodeURIComponent(data.orderId)}`;
   const online = paidOnline(data);
+  const credit = data.payment?.method === "credit";
   const card = data.payment?.cardLabel ? ` (${data.payment.cardLabel})` : "";
   return {
     subject: `Your Gharib order ${data.orderId} is confirmed`,
     html: shell({
       preheader: online
         ? `We have received your payment for order ${data.orderId}.`
-        : `We have received order ${data.orderId}. Payment is collected on delivery.`,
+        : credit
+          ? `We have received order ${data.orderId}. It is paid in full.`
+          : `We have received order ${data.orderId}. Payment is collected on delivery.`,
       eyebrow: "Order confirmed",
       heading: "Thank you for your order",
       intro: online
         ? `${greeting(data.customerName)} we have received your order and your payment${esc(card)}, and your order is now being prepared. <strong>It is paid in full</strong> — there is nothing to pay on delivery.`
-        : `${greeting(data.customerName)} we have received your order and it is now being prepared. <strong>Payment is collected in cash or by card when your parcel arrives</strong> — nothing is charged before then.`,
+        : credit
+          ? `${greeting(data.customerName)} we have received your order and it is now being prepared. <strong>It is paid in full with your gift card and points</strong> — there is nothing to pay on delivery.`
+          : `${greeting(data.customerName)} we have received your order and it is now being prepared. <strong>Payment is collected in cash or by card when your parcel arrives</strong> — nothing is charged before then.`,
       bodyHtml: lineItemsTable(data),
       ctaLabel: "Track your order",
       ctaHref: trackUrl,
@@ -235,7 +268,9 @@ export function orderConfirmationEmail(data: OrderEmailData) {
             `We have received your order and your payment${card}, and your order is now being prepared.`,
             "It is paid in full — there is nothing to pay on delivery.",
           ]
-        : [
+        : credit
+          ? ["We have received your order and it is now being prepared.", "It is paid in full with your gift card and points: there is nothing to pay on delivery."]
+          : [
             "We have received your order and it is now being prepared.",
             "Payment is collected in cash or by card when your parcel arrives.",
           ]),
@@ -252,22 +287,27 @@ export function orderConfirmationEmail(data: OrderEmailData) {
 
 export function outForDeliveryEmail(data: OrderEmailData) {
   const trackUrl = `${SITE_URL}/track?order=${encodeURIComponent(data.orderId)}`;
-  const trackingBlock = data.trackingNumber
+  const courierUrl = data.trackingUrl && /^https?:\/\//i.test(data.trackingUrl) ? data.trackingUrl : null;
+  const courierLink = courierUrl
+    ? `<p style="margin:12px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;"><a href="${esc(courierUrl)}" style="color:#000000;text-decoration:underline;">Follow the parcel on the courier's site</a></p>`
+    : "";
+  const trackingBlock = data.trackingNumber || courierUrl
     ? `<div style="margin-top:24px;padding:18px 20px;background:#f5f5f5;">
-         <p style="margin:0 0 6px;font-family:Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:${MUTED};">Tracking number</p>
-         <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:16px;letter-spacing:0.08em;color:#000000;">${esc(data.trackingNumber)}</p>
+         ${data.trackingNumber ? `<p style="margin:0 0 6px;font-family:Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:${MUTED};">Tracking number</p>
+         <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:16px;letter-spacing:0.08em;color:#000000;">${esc(data.trackingNumber)}</p>` : ""}
+         ${courierLink}
        </div>`
     : "";
 
   return {
     subject: `Your Gharib order ${data.orderId} is out for delivery`,
     html: shell({
-      preheader: `Order ${data.orderId} is with our courier today.`,
+      preheader: `Order ${data.orderId} is with our courier.`,
       eyebrow: "On its way",
       heading: "Your order is out for delivery",
-      intro: paidOnline(data)
-        ? `${greeting(data.customerName)} your parcel is with our courier and arrives today. It is paid in full, so there is nothing to pay on delivery.`
-        : `${greeting(data.customerName)} your parcel is with our courier and arrives today. Please have <strong>${aed(data.totalAed)}</strong> ready in cash, or a card for the courier's terminal.`,
+      intro: paidInFull(data)
+        ? `${greeting(data.customerName)} your parcel is with our courier and on its way to you. It is paid in full, so there is nothing to pay on delivery.`
+        : `${greeting(data.customerName)} your parcel is with our courier and on its way to you. Please have <strong>${aed(amountDueAed(data))}</strong> ready in cash, or a card for the courier's terminal.`,
       bodyHtml: trackingBlock + `<div style="margin-top:24px;">${lineItemsTable(data)}</div>`,
       ctaLabel: "Track your order",
       ctaHref: trackUrl,
@@ -275,11 +315,12 @@ export function outForDeliveryEmail(data: OrderEmailData) {
     text: [
       greeting(data.customerName).replace(/<[^>]+>/g, ""),
       "",
-      "Your parcel is with our courier and arrives today.",
-      paidOnline(data)
+      "Your parcel is with our courier and on its way to you.",
+      paidInFull(data)
         ? "It is paid in full, so there is nothing to pay on delivery."
-        : `Please have ${aed(data.totalAed)} ready in cash, or a card for the courier's terminal.`,
+        : `Please have ${aed(amountDueAed(data))} ready in cash, or a card for the courier's terminal.`,
       ...(data.trackingNumber ? ["", `Tracking number: ${data.trackingNumber}`] : []),
+      ...(courierUrl ? [`Courier tracking: ${courierUrl}`] : []),
       "",
       plainOrder(data),
       "",
@@ -325,7 +366,39 @@ export type RecoveryEmailData = {
   subtotalAed: number;
   /** abandoned_carts.recovery_token — the credential in both links. */
   token: string;
+  /** How the store takes payment now (the owner's switch); defaults to the deployment's setup. */
+  paymentMode?: "online" | "cod";
+  /** Migration 70, last reminder only: a single-use code made for this cart. */
+  code?: { code: string; percent: number; endsAt: string | null; minOrder: number };
+  /** Migration 70, last reminder only: a set that includes something they left. */
+  bundle?: { title: string; priceAed: number; baseAed: number; names: string[]; url: string };
 };
+
+const reminderDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", hour: "numeric", minute: "2-digit", timeZone: "Asia/Dubai" });
+
+/** The last reminder's code and set suggestion (migration 70), when there are any. */
+function reminderExtrasHtml(data: RecoveryEmailData): string {
+  let html = "";
+  if (data.code) {
+    const until = data.code.endsAt ? ` until ${esc(reminderDate.format(new Date(data.code.endsAt)))}` : "";
+    const min = data.code.minOrder > 0 ? ` on orders of ${esc(aed(data.code.minOrder))} or more` : "";
+    html += `<div style="margin-top:26px;padding:22px;border:1px solid ${HAIRLINE};text-align:center;">
+      <p style="margin:0 0 10px;font-family:Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:${MUTED};">${esc(String(data.code.percent))}% off, just for you</p>
+      <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:22px;letter-spacing:0.12em;color:#000000;">${esc(data.code.code)}</p>
+      <p style="margin:12px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:${MUTED};">Use it once${min}${until}. Enter it at checkout with this email address.</p>
+    </div>`;
+  }
+  if (data.bundle) {
+    const saving = Math.max(0, data.bundle.baseAed - data.bundle.priceAed);
+    html += `<div style="margin-top:22px;padding:20px 22px;background:#f5f5f5;">
+      <p style="margin:0 0 6px;font-family:Helvetica,Arial,sans-serif;font-size:10px;letter-spacing:0.24em;text-transform:uppercase;color:${MUTED};">Or complete the set</p>
+      <p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.7;color:#000000;">${esc(data.bundle.title)}: ${esc(data.bundle.names.join(" + "))}</p>
+      <p style="margin:6px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#333333;">${esc(aed(data.bundle.priceAed))}${saving > 0 ? ` <span style="color:${MUTED};text-decoration:line-through;">${esc(aed(data.bundle.baseAed))}</span>` : ""}
+        &nbsp;<a href="${data.bundle.url}" style="color:#000000;">See the set</a></p>
+    </div>`;
+  }
+  return html;
+}
 
 /**
  * The saved selection, priced. Deliberately not lineItemsTable(): there is no
@@ -343,7 +416,7 @@ function recoveryItemsTable(items: NormalizedRecoveryItem[], subtotalAed: number
           ${l.quantity > 1 ? `<br><span style="font-size:11px;color:${MUTED};">Qty ${l.quantity}</span>` : ""}
         </td>
         <td align="right" style="padding:12px 0;border-bottom:1px solid ${HAIRLINE};font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#000000;white-space:nowrap;">
-          ${aed(l.unitPriceAed * l.quantity)}
+          ${l.unitPriceAed > 0 ? aed(l.unitPriceAed * l.quantity) : "Gift"}
         </td>
       </tr>`
     )
@@ -361,12 +434,12 @@ function recoveryItemsTable(items: NormalizedRecoveryItem[], subtotalAed: number
 }
 
 /** A reassurance strip: the three things that stop a first order in the UAE. */
-function reassuranceHtml(): string {
+function reassuranceHtml(mode: "online" | "cod"): string {
   const line = (text: string) =>
     `<p style="margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.7;color:#333333;">${text}</p>`;
   return `<div style="margin-top:26px;padding:20px 22px;background:#f5f5f5;">
     ${line(
-      storefrontPaymentMode() === "online"
+      mode === "online"
         ? "<strong>Secure payment.</strong> Pay by card, Apple Pay or Google Pay on our payment partner&rsquo;s secure page."
         : "<strong>Pay on delivery.</strong> Nothing is charged before your parcel is in your hands."
     )}
@@ -413,6 +486,7 @@ const STAGE_COPY: Record<
  */
 export function abandonedCartRecoveryEmail(data: RecoveryEmailData) {
   const copy = STAGE_COPY[data.stage] ?? STAGE_COPY[1];
+  const paymentMode = data.paymentMode ?? storefrontPaymentMode();
   const name = (data.firstName ?? "").trim();
   const salutation = name ? `Dear ${esc(name)},` : "Hello,";
   const link = recoveryUrl(SITE_URL, data.token);
@@ -434,13 +508,13 @@ export function abandonedCartRecoveryEmail(data: RecoveryEmailData) {
     subject,
     html: shell({
       preheader:
-        storefrontPaymentMode() === "online"
+        paymentMode === "online"
           ? `${copy.plain} Secure payment at checkout.`
           : `${copy.plain} Payment is collected on delivery.`,
       eyebrow: copy.eyebrow,
       heading: copy.heading,
       intro: copy.intro(salutation),
-      bodyHtml: recoveryItemsTable(data.items, data.subtotalAed) + reassuranceHtml(),
+      bodyHtml: recoveryItemsTable(data.items, data.subtotalAed) + reminderExtrasHtml(data) + reassuranceHtml(paymentMode),
       ctaLabel: copy.cta,
       ctaHref: link,
       footerHtml: `<p style="margin:12px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:11px;line-height:1.7;color:#909090;">
@@ -461,8 +535,12 @@ export function abandonedCartRecoveryEmail(data: RecoveryEmailData) {
       ),
       "",
       `Subtotal: ${aed(data.subtotalAed)}`,
+      ...(data.code
+        ? ["", `${data.code.percent}% off, just for you: ${data.code.code} (use it once, at checkout, with this email address).`]
+        : []),
+      ...(data.bundle ? ["", `Or complete the set: ${data.bundle.title}, ${aed(data.bundle.priceAed)}. ${data.bundle.url}`] : []),
       "",
-      storefrontPaymentMode() === "online"
+      paymentMode === "online"
         ? "Secure payment by card, Apple Pay or Google Pay at checkout."
         : "Payment is collected on delivery — nothing is charged before your parcel arrives.",
       `Complimentary delivery on orders over ${aed(FREE_SHIPPING_THRESHOLD_AED)}.`,
@@ -614,7 +692,7 @@ export function newOrderOwnerEmail(data: OwnerOrderEmailData) {
     ? `<a href="tel:${esc(phone.replace(/[^\d+]/g, ""))}" style="color:#000000;">${esc(phone)}</a>`
     : "Not given";
 
-  const online = paidOnline(data);
+  const online = paidInFull(data);
   const card = data.payment?.cardLabel ? ` · ${data.payment.cardLabel}` : "";
 
   return {
@@ -627,14 +705,21 @@ export function newOrderOwnerEmail(data: OwnerOrderEmailData) {
       bodyHtml: `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           ${
-            online
-              ? detailRow("Paid", `<strong>${esc(aed(data.totalAed))}</strong> online${esc(card)} — nothing to collect`)
-              : detailRow("Collect", `<strong>${esc(aed(data.totalAed))}</strong> in cash or by card on delivery`)
+            data.payment?.method === "credit"
+              ? detailRow("Paid", "In full with a gift card and points — nothing to collect")
+              : online
+                ? detailRow("Paid", `<strong>${esc(aed(data.totalAed))}</strong> online${esc(card)} — nothing to collect`)
+                : detailRow("Collect", `<strong>${esc(aed(data.totalAed))}</strong> in cash or by card on delivery`)
           }
           ${detailRow("Customer", esc(name) || "Not given")}
           ${detailRow("Phone", phoneHtml)}
           ${email ? detailRow("Email", mailtoLink(email)) : ""}
           ${detailRow("Deliver to", address.length ? address.map(esc).join("<br>") : "No address supplied")}
+          ${data.recipient ? detailRow("Recipient", esc([data.recipient.name, data.recipient.phone].filter(Boolean).join(" · "))) : ""}
+          ${data.recipient?.deliveryDate ? detailRow("Deliver on", esc(data.recipient.deliveryDate)) : ""}
+          ${data.giftNote?.wrap ? detailRow("Gift", "Gift-wrap this order") : ""}
+          ${data.giftNote?.hidePrices ? detailRow("Slip", "Leave prices off the packing slip") : ""}
+          ${data.giftNote?.message ? detailRow("Message", esc(data.giftNote.message).replace(/\n/g, "<br>")) : ""}
         </table>
         <div style="margin-top:28px;">${lineItemsTable(data)}</div>`,
     }),
@@ -649,6 +734,11 @@ export function newOrderOwnerEmail(data: OwnerOrderEmailData) {
       ...(email ? [`Email: ${email}`] : []),
       "Deliver to:",
       ...(address.length ? address.map((l) => `  ${l}`) : ["  No address supplied"]),
+      ...(data.recipient ? [`Recipient: ${[data.recipient.name, data.recipient.phone].filter(Boolean).join(" · ")}`] : []),
+      ...(data.recipient?.deliveryDate ? [`Deliver on: ${data.recipient.deliveryDate}`] : []),
+      ...(data.giftNote?.wrap ? ["Gift: gift-wrap this order"] : []),
+      ...(data.giftNote?.hidePrices ? ["Slip: leave prices off"] : []),
+      ...(data.giftNote?.message ? [`Message: ${data.giftNote.message}`] : []),
       "",
       plainOrder(data),
     ].join("\n"),

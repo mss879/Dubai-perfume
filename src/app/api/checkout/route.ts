@@ -43,7 +43,37 @@ type CheckoutBody = {
   exchangeRate?: number;
   paymentMethod?: string;
   company?: unknown;
+  /** Migration 70: gift wrap and message, a recipient, points and a gift card. */
+  options?: unknown;
 };
+
+/**
+ * The shopper's extras (migration 70), cleaned. Null when there are none, so
+ * the call to place_order stays the twelve-argument one it always was.
+ * place_order re-checks every one against the owner's switches.
+ */
+function cleanOptions(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const out: Record<string, unknown> = {};
+  if (o.gift_wrap === true) out.gift_wrap = true;
+  if (o.hide_prices === true) out.hide_prices = true;
+  const message = text(o.gift_message, 500);
+  if (message) out.gift_message = message;
+  if (o.send_to_other === true) {
+    out.send_to_other = true;
+    out.recipient_name = text(o.recipient_name, 120);
+    const phone = text(o.recipient_phone, 50);
+    if (phone) out.recipient_phone = phone;
+    const date = text(o.delivery_date, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) out.delivery_date = date;
+  }
+  if (o.use_points === true) out.use_points = true;
+  const card = text(o.gift_card, 40).replace(/[^A-Za-z0-9-]/g, "");
+  if (card) out.gift_card = card;
+  return Object.keys(out).length > 0 ? out : null;
+}
 
 /** Orders per IP, and per email address, before the route stops accepting them. */
 const MAX_ORDERS_PER_IP = 5;
@@ -61,6 +91,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_quantity: "Quantities must be between 1 and 20.",
   invalid_discount_code: "This code is not valid.",
   discount_exhausted: "This code has reached its usage limit.",
+  discount_not_applicable: "This code doesn't apply to the items in your bag. Remove it to place your order.",
+  discount_covered_by_offers:
+    "Your bag's offers already cover these perfumes, so this code has nothing more to take off. Remove it to place your order.",
   invalid_currency: "Unsupported display currency.",
   invalid_exchange_rate: "Unsupported display currency.",
   unsupported_payment_method: "This payment method is not available.",
@@ -68,6 +101,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   phone_required: "Please enter a phone number. Our payment partner needs one to confirm the payment.",
   online_payment_not_needed:
     "Your order comes to AED 0, so there is nothing to pay online. Please write to us and we will complete it for you.",
+  // Migration 70
+  discount_not_yours: "This code was made for another email address. Use the address it was sent to.",
+  discount_first_order_only: "This code is for a first order, and this email address has ordered with us before.",
+  referral_own_code: "That's your own referral code: share it with a friend instead.",
+  discount_gift_unavailable: "The perfume this code adds is out of stock just now. Remove the code, or write to us.",
+  recipient_name_required: "Please enter the name of the person you're sending this to.",
+  invalid_delivery_date: "Please choose a delivery date within the dates shown.",
+  gift_card_invalid: "That gift card code isn't valid.",
+  gift_card_expired: "That gift card has expired.",
+  gift_card_empty: "That gift card has nothing left on it.",
 };
 
 const ONLINE_UNAVAILABLE =
@@ -164,10 +207,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: ERROR_MESSAGES.invalid_items }, { status: 422 });
   }
 
+  // Hidden perfumes are not for sale. The shop's public read leaves them out,
+  // so a perfume the catalogue doesn't return here can't be ordered (a bag
+  // saved before it was hidden, or an old tab). A failed read is left to
+  // place_order, which checks every line again.
+  const productIds = [...new Set(items.map((i) => i.product_id))];
+  const { data: onSale, error: onSaleError } = await supabase.from("products").select("id").in("id", productIds);
+  if (!onSaleError && (onSale ?? []).length < productIds.length) {
+    return NextResponse.json({ error: "An item in your bag is no longer available." }, { status: 409 });
+  }
+
   // The provider declares how the order should be recorded. The database
   // re-validates the (method, payment status) pair, so this cannot be used to
   // mark an order paid.
   const payment = await provider.begin();
+  const options = cleanOptions(body.options);
 
   const { data, error } = await supabase.rpc("place_order", {
     p_email: email,
@@ -182,6 +236,7 @@ export async function POST(request: NextRequest) {
     p_exchange_rate: body.exchangeRate ?? 1,
     p_payment_method: provider.method,
     p_payment_status: payment.paymentStatus,
+    ...(options ? { p_options: options } : {}),
   });
 
   if (error) {
@@ -198,11 +253,23 @@ export async function POST(request: NextRequest) {
     subtotal?: number;
     shipping_fee?: number;
     discount_amount?: number;
+    /** Migration 69: the automatic offers' saving, and the free gift. */
+    offer_saving?: number;
+    gift?: { product_id: number; size: string; name: string; brand: string | null } | null;
     total?: number;
     currency?: string;
     payment_method?: string;
     payment_status?: string;
     payment_token?: string | null;
+    /** Migration 70 */
+    code_gift?: { product_id: number; size: string; name: string; brand: string | null } | null;
+    gift_wrap?: boolean;
+    gift_wrap_fee?: number;
+    points_redeemed?: number;
+    points_value?: number;
+    points_earned?: number;
+    gift_card_amount?: number;
+    paid_by_credit?: boolean;
   } | null;
 
   const summary = {
@@ -210,13 +277,24 @@ export async function POST(request: NextRequest) {
     subtotal: result?.subtotal,
     shipping_fee: result?.shipping_fee,
     discount_amount: result?.discount_amount,
+    offer_saving: result?.offer_saving ?? 0,
+    gift: result?.gift ? { name: result.gift.name, brand: result.gift.brand, size: result.gift.size } : null,
+    code_gift: result?.code_gift ? { name: result.code_gift.name, brand: result.code_gift.brand, size: result.code_gift.size } : null,
+    gift_wrap_fee: result?.gift_wrap_fee ?? 0,
+    points_redeemed: result?.points_redeemed ?? 0,
+    points_value: result?.points_value ?? 0,
+    points_earned: result?.points_earned ?? 0,
+    gift_card_amount: result?.gift_card_amount ?? 0,
+    paid_by_credit: result?.paid_by_credit === true,
     total: result?.total,
     currency: result?.currency,
     payment_method: result?.payment_method,
     payment_status: result?.payment_status,
   };
 
-  if (provider.method === "paymob") {
+  // An order a gift card and points paid in full (migration 70) has nothing to
+  // pay online: it is confirmed here, like a cash-on-delivery order.
+  if (provider.method === "paymob" && result?.payment_method !== "credit") {
     // Online: no emails yet (they go when Paymob confirms the payment). The
     // shopper's payment page works even if opening the Paymob checkout failed
     // just now — it offers to try again.
@@ -251,6 +329,7 @@ export async function POST(request: NextRequest) {
         // The owner's alert is the dispatch note for a cash-on-delivery order,
         // so it needs somewhere to deliver to, not just who ordered.
         shipping: (body.shipping ?? null) as ShippingAddress | null,
+        options,
       });
     } catch (err) {
       console.error(`[order ${result.order_id}] notification emails failed:`, err);
@@ -267,7 +346,21 @@ export async function POST(request: NextRequest) {
  */
 async function sendOrderEmails(
   supabase: Awaited<ReturnType<typeof createSessionSupabase>>,
-  result: { order_id?: string; subtotal?: number; shipping_fee?: number; discount_amount?: number; total?: number },
+  result: {
+    order_id?: string;
+    subtotal?: number;
+    shipping_fee?: number;
+    discount_amount?: number;
+    offer_saving?: number;
+    gift?: { product_id: number; size: string; name: string; brand: string | null } | null;
+    code_gift?: { product_id: number; size: string; name: string; brand: string | null } | null;
+    gift_wrap?: boolean;
+    gift_wrap_fee?: number;
+    points_value?: number;
+    gift_card_amount?: number;
+    payment_method?: string;
+    total?: number;
+  },
   items: { product_id: number; size: string; quantity: number }[],
   customer: {
     email: string;
@@ -275,6 +368,7 @@ async function sendOrderEmails(
     firstName: string;
     lastName: string;
     shipping: ShippingAddress | null;
+    options: Record<string, unknown> | null;
   }
 ) {
   const ids = [...new Set(items.map((i) => i.product_id))];
@@ -297,6 +391,14 @@ async function sendOrderEmails(
     // Priced from the catalogue, matching what place_order charged.
     unitPriceAed: parseFloat(String(byId.get(i.product_id)?.price ?? 0)) || 0,
   }));
+  // The free gift (migration 69) rides along at no charge.
+  if (result.gift) {
+    lines.push({ name: result.gift.name, brand: result.gift.brand, size: result.gift.size || null, quantity: 1, unitPriceAed: 0 });
+  }
+  // Migration 70: a code's free perfume (the welcome offer) too.
+  if (result.code_gift) {
+    lines.push({ name: result.code_gift.name, brand: result.code_gift.brand, size: result.code_gift.size || null, quantity: 1, unitPriceAed: 0 });
+  }
 
   const order = {
     orderId: String(result.order_id),
@@ -304,8 +406,13 @@ async function sendOrderEmails(
     lines,
     subtotalAed: Number(result.subtotal) || 0,
     shippingFeeAed: Number(result.shipping_fee) || 0,
-    discountAed: Number(result.discount_amount) || 0,
+    // The code's saving and the offers' (sets, buy-more, free delivery), together.
+    discountAed: (Number(result.discount_amount) || 0) + (Number(result.offer_saving) || 0),
     totalAed: Number(result.total) || 0,
+    giftWrapAed: Number(result.gift_wrap_fee) || 0,
+    pointsAed: Number(result.points_value) || 0,
+    giftCardAed: Number(result.gift_card_amount) || 0,
+    payment: result.payment_method === "credit" ? { method: "credit" as const } : null,
   };
 
   try {
@@ -328,11 +435,24 @@ async function sendOrderEmails(
   // version sent `customerPhone`, which type-checked (both fields are optional,
   // and excess-property checking does not fire on a variable) and silently
   // dropped the number from every alert.
+  const opts = customer.options ?? {};
   const ownerData: OwnerOrderEmailData = {
     ...order,
     customerEmail: customer.email,
     phone: customer.phone || null,
     shipping: customer.shipping,
+    giftNote:
+      result.gift_wrap || opts.gift_message || opts.hide_prices
+        ? { wrap: result.gift_wrap === true, message: typeof opts.gift_message === "string" ? opts.gift_message : null, hidePrices: opts.hide_prices === true }
+        : null,
+    recipient:
+      opts.send_to_other === true && typeof opts.recipient_name === "string"
+        ? {
+            name: opts.recipient_name,
+            phone: typeof opts.recipient_phone === "string" ? opts.recipient_phone : null,
+            deliveryDate: typeof opts.delivery_date === "string" ? opts.delivery_date : null,
+          }
+        : null,
   };
   try {
     const sent = await sendEmail({ to: owner, ...newOrderOwnerEmail(ownerData) });

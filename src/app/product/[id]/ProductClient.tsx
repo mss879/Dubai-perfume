@@ -14,6 +14,16 @@ import Footer from "../../components/Footer";
 import CartDrawer, { openCartDrawer } from "../../components/CartDrawer";
 import ConciergeWidget from "../../components/concierge/ConciergeWidget";
 import Price from "../../components/Price";
+import OfferCards from "../../components/offers/OfferCards";
+import type { OfferCard } from "../../lib/offers";
+import { useFeature } from "../../components/StoreFeaturesProvider";
+import DeliveryEstimateLine from "../../components/features/DeliveryEstimateLine";
+import PayLaterNote from "../../components/features/PayLaterNote";
+import PointsTeaser from "../../components/features/PointsTeaser";
+import StockAlertForm from "../../components/features/StockAlertForm";
+import TrustStrip from "../../components/features/TrustStrip";
+import WalletBadges from "../../components/features/WalletBadges";
+import RecentlyViewed, { RecordView } from "../../components/features/RecentlyViewed";
 
 export interface ProductDetailProps {
   id: number;
@@ -64,17 +74,35 @@ const serviceNotes = [
 
 export default function ProductClient({
   product,
-  related
+  related,
+  soldOutSizes = [],
+  offers = [],
+  inspiredBy = null,
+  demand = null
 }: {
   product: ProductDetailProps;
   related: RelatedItemProps[];
+  /** Sizes with no bottles left; checkout would refuse them. */
+  soldOutSizes?: string[];
+  /** Live offers involving this perfume (migration 69): its sets, buy-more steps, the free gift. */
+  offers?: OfferCard[];
+  /** Migration 70: "If you love …" (Admin → Inspired-by matches), when it's on. */
+  inspiredBy?: string | null;
+  /** Migration 70: real orders, counted (Admin → Popularity badges), when it's on. */
+  demand?: { recentOrders: number | null; windowDays: number; family: string | null } | null;
 }) {
+  const inspiredSettings = useFeature("inspired_by");
+  const trustOnProduct = useFeature("trust_strip")?.show_on_product === true;
   const router = useRouter();
   const { add } = useCart();
 
   // Component States
   const [activeImage, setActiveImage] = useState<string>(product.image || product.images[0] || "");
-  const [selectedSize, setSelectedSize] = useState<string>(product.sizes[0] || "");
+  const soldOut = new Set(soldOutSizes);
+  const [selectedSize, setSelectedSize] = useState<string>(
+    product.sizes.find((size) => !soldOutSizes.includes(size)) || product.sizes[0] || ""
+  );
+  const selectedSoldOut = soldOut.has(selectedSize);
   const [quantity, setQuantity] = useState(1);
   const [addedSuccess, setAddedSuccess] = useState(false);
   const [isFav, setIsFav] = useState(false);
@@ -122,6 +150,7 @@ export default function ProductClient({
 
   // Add Scent to Selection Cart
   const handleAddToSelection = () => {
+    if (selectedSoldOut) return;
     add(
       {
         id: product.id,
@@ -140,6 +169,7 @@ export default function ProductClient({
 
   // Buy now — add the selection and go straight to checkout
   const handleBuyNow = () => {
+    if (selectedSoldOut) return;
     add(
       {
         id: product.id,
@@ -323,23 +353,53 @@ export default function ProductClient({
                   {product.olfactory}
                 </p>
               )}
+              {demand ? (
+                <p className="mt-3 text-[13px] font-light text-black">
+                  {[
+                    demand.recentOrders != null
+                      ? `${demand.recentOrders} ordered ${demand.windowDays === 7 ? "this week" : demand.windowDays === 30 ? "this month" : `in the last ${demand.windowDays} days`}`
+                      : null,
+                    demand.family ? `Bestseller in ${demand.family}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              ) : null}
+              {inspiredBy && inspiredSettings ? (
+                <div className="mt-4">
+                  <p className="text-[14px] font-light text-black">
+                    {String(inspiredSettings.lead || "If you love")} <span className="font-normal">{inspiredBy}</span>
+                  </p>
+                  {inspiredSettings.disclaimer ? (
+                    <p className="mt-1 text-[11px] font-light leading-[1.6] text-[#646464]">{String(inspiredSettings.disclaimer)}</p>
+                  ) : null}
+                </div>
+              ) : null}
 
               {/* 2 + 3. Size swatches and price */}
               <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5 mt-9">
                 <div className="flex flex-wrap gap-3">
                   {product.sizes.map((size: string) => {
                     const isSelected = selectedSize === size;
+                    const isSoldOut = soldOut.has(size);
                     return (
                       <button
                         key={size}
                         type="button"
                         onClick={() => setSelectedSize(size)}
-                        className={`w-[100px] h-[37px] bg-white text-black text-[12px] tracking-[0.08em] uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-colors duration-300 ${
-                          isSelected ? "border-2 border-black" : "border border-black hover:bg-[var(--surface-2)]"
+                        disabled={isSoldOut}
+                        aria-label={isSoldOut ? `${size}, sold out` : undefined}
+                        title={isSoldOut ? "Sold out" : undefined}
+                        className={`w-[100px] h-[37px] bg-white text-[12px] tracking-[0.08em] uppercase flex items-center justify-center gap-1.5 transition-colors duration-300 ${
+                          isSoldOut
+                            ? "border border-[var(--line)] text-[#646464] line-through opacity-60 cursor-not-allowed"
+                            : isSelected
+                              ? "border-2 border-black text-black cursor-pointer"
+                              : "border border-black text-black cursor-pointer hover:bg-[var(--surface-2)]"
                         }`}
                       >
                         {size}
-                        {isSelected && <Check className="w-3 h-3" strokeWidth={1.5} />}
+                        {isSelected && !isSoldOut && <Check className="w-3 h-3" strokeWidth={1.5} />}
                       </button>
                     );
                   })}
@@ -350,11 +410,26 @@ export default function ProductClient({
                   className="text-[20px] font-medium leading-none text-black"
                 />
               </div>
+              <PayLaterNote amountAed={product.priceAed * quantity} place="product" className="mt-3 text-right" />
+              <PointsTeaser priceAed={product.priceAed * quantity} className="mt-1 text-right" />
 
               {/* 4. Delivery estimate */}
-              <p className="text-[13px] font-light text-[#646464] mt-5">
-                Delivery in 2–5 business days across the UAE
-              </p>
+              {selectedSoldOut ? (
+                <>
+                  <p className="text-[13px] font-light text-[#646464] mt-5">
+                    {product.sizes.every((size) => soldOut.has(size))
+                      ? "Sold out for now. Please check back soon."
+                      : `${selectedSize} is sold out for now.`}
+                  </p>
+                  <StockAlertForm productId={product.id} size={selectedSize} />
+                </>
+              ) : (
+                <DeliveryEstimateLine
+                  place="product"
+                  className="text-[13px] font-light text-black mt-5"
+                  fallback={<p className="text-[13px] font-light text-[#646464] mt-5">Delivery in 2–5 business days across the UAE</p>}
+                />
+              )}
 
               {/* Quantity */}
               <div className="flex items-center justify-between border-t border-b border-[var(--line)] py-4 mt-6">
@@ -387,19 +462,22 @@ export default function ProductClient({
                 <button
                   type="button"
                   onClick={handleAddToSelection}
-                  disabled={addedSuccess}
-                  className="maison-btn w-full h-12"
+                  disabled={addedSuccess || selectedSoldOut}
+                  className="maison-btn w-full h-12 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {addedSuccess ? "Added to cart" : "Add to cart"}
+                  {selectedSoldOut ? "Sold out" : addedSuccess ? "Added to cart" : "Add to cart"}
                 </button>
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  className="maison-btn-outline w-full h-12"
+                  disabled={selectedSoldOut}
+                  className="maison-btn-outline w-full h-12 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Buy now
                 </button>
               </div>
+
+              <WalletBadges place="product" className="mt-4 justify-center" />
 
               <div className="mt-5 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
                 <button type="button" onClick={handleToggleFavorite} className="maison-link cursor-pointer">
@@ -417,6 +495,9 @@ export default function ProductClient({
                 )}
               </div>
 
+              {/* 5b. Sets and savings this perfume is part of */}
+              <OfferCards cards={offers} variant="product" />
+
               {/* 6. Offer panel */}
               <div className="bg-[var(--surface-2)] p-5 mt-9">
                 <span className="maison-eyebrow block">Complimentary samples</span>
@@ -426,8 +507,9 @@ export default function ProductClient({
                 </p>
               </div>
 
-              {/* 7. Reassurance grid */}
-              <div className="grid grid-cols-2 gap-x-6 mt-9">
+              {/* 7. Reassurance: the owner's own badges when switched on (Admin → Trust badges). */}
+              {trustOnProduct ? <TrustStrip place="product" className="mt-9" /> : null}
+              <div className={`grid grid-cols-2 gap-x-6 mt-9 ${trustOnProduct ? "hidden" : ""}`}>
                 {reassurance.map(({ Icon, label }) => (
                   <div
                     key={label}
@@ -564,6 +646,13 @@ export default function ProductClient({
             </blockquote>
           </div>
         </section>
+
+        <RecordView
+          product={{ id: product.id, brand: product.brand, name: product.name, price: product.priceAed, image: product.image }}
+        />
+        <div className="maison-container">
+          <RecentlyViewed place="product" excludeId={product.id} className="border-t border-[var(--line)] py-14 md:py-16" />
+        </div>
 
         {/* ── Related products rail ────────────────────────────────── */}
         {related.length > 0 && (

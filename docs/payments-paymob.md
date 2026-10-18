@@ -26,7 +26,7 @@ paid is released automatically, and its stock and discount come back.
 | Webhook (Paymob → store) | `POST /api/payments/paymob/webhook` |
 | Shopper's payment page | `/checkout/payment/<token>` (+ fallback `/checkout/payment`) |
 | Payment check job | `POST /api/payments/reconcile`, scheduled by `netlify/functions/payments-reconcile.mts` |
-| Admin | Orders tab → **Online payment — Paymob** panel; each order's invoice has a payment section with Refund / Void |
+| Admin | Settings → **Payments** (status, the switch, Check payments now); each order's page has a **Payment** card with Refund / Void |
 
 ## 1. Set it up (in this order)
 
@@ -96,7 +96,7 @@ Paymob:
   window closes, as with the key. Paymob's payment page closes at least ten
   minutes before that window does.
 
-The admin panel shows **Backup checks: OFF** while the key is missing. Add it
+Settings → Payments shows **Backup checks: Off (no API key)** while the key is missing. Add it
 whenever Paymob allows and redeploy: the backup checks switch themselves on.
 
 Add them all in **Netlify → Site configuration → Environment variables**, for
@@ -109,7 +109,7 @@ Settings → Payment Integrations and set:
 - **Webhook URL:** `https://<your domain>/api/payments/paymob/webhook`
 - **Redirect URL:** `https://<your domain>/checkout/payment`
 
-The admin panel shows both URLs, ready to copy. Card payments also pass these
+Settings → Payments shows both URLs, ready to copy. Card payments also pass these
 per payment, but wallets rely on the integration's own setting.
 
 In **Checkout Customization**, keep these **off**:
@@ -122,12 +122,11 @@ In **Checkout Customization**, keep these **off**:
 Add your logo, colours and fonts there so the page matches the maison.
 
 ### 1.5 Check, then switch
-Admin → Orders → **Online payment — Paymob** → **Setup**. Every chip should be
-green:
+Admin → Settings → **Payments**. Every line should be green:
 
-- **Keys:** TEST
-- **Database secret:** OK
-- **Scheduler:** SET
+- **Paymob keys:** Test
+- **Database secret:** Matches
+- **Payment check (every 10 min):** Scheduled
 - **Backup checks:** ON, or OFF without `PAYMOB_API_KEY`. OFF is amber
   but does not block the switch (see "Without the API key").
 
@@ -143,11 +142,12 @@ On the (locked) live site, with the preview cookie, using **test** keys:
 1. Place an order and pay with test card **5123 4567 8901 2346**, expiry
    **01/39**, CVV **123**, name **Test Account**.
 2. You land on the order's payment page, which shows **Thank you**.
-3. Admin → Orders: the order shows **Paid online**, the invoice shows the card's
-   last four, and a **Payment received** line appears in the timeline.
+3. Admin → Orders: the order shows **Paid online**. On its page, the **Payment**
+   card shows the card's last four, and **Payment received** appears under
+   **History**.
 4. The customer confirmation and the owner's new-order email arrive (owner's
    says *paid — nothing to collect*).
-5. In the invoice, **Refund** part of it. The order shows **Partially
+5. In the order's **Payment** card, **Refund** part of it. The order shows **Partially
    refunded**, and the customer gets a refund email.
 6. Place another order and press Back on Paymob's page. The order's payment
    page offers **Pay now** and **Change my order**. **Change my order** puts the
@@ -155,7 +155,7 @@ On the (locked) live site, with the preview cookie, using **test** keys:
 7. Place another order and abandon it. After about 70 minutes plus the next
    10-minute check it is released (**Payment window closed**) and its stock is
    back.
-8. Press **Check payments now** in the admin panel. It reports what it checked.
+8. Press **Check payments now** in Settings → Payments. It reports what it checked.
 
 Paymob documents no "decline" test card; ask your account manager if you want
 to test a decline.
@@ -172,18 +172,18 @@ live credentials. Then:
 3. Redeploy.
 4. Set the webhook and redirect URLs on the **live** integration IDs too
    (step 1.4).
-5. The admin panel should now show **Keys: LIVE**.
+5. Settings → Payments should now show **Paymob keys: Live**.
 6. Make one small real purchase and refund it.
 
 ## 4. Day to day
 
 **Orders.** A paid online order behaves like any other: accept, pack, dispatch,
-deliver. The admin panel will not let an order be accepted, packed or shipped
+deliver. The admin will not let an order be accepted, packed or shipped
 until Paymob has confirmed its payment. An unpaid order releases itself; you
 never cancel it by hand.
 
-**Refunds and voids.** Do them from the order's invoice (Refund, full or
-partial; Void, same business day only).
+**Refunds and voids.** Do them from the order's page, in its **Payment** card
+(Refund, full or partial; Void, same business day only).
 
 - The store and Paymob stay in step, and the customer is emailed.
 - A refund made in Paymob's dashboard is picked up as well, through the webhook
@@ -194,12 +194,12 @@ partial; Void, same business day only).
 - **Disputes / chargebacks:** ask Paymob before refunding a disputed payment.
   Refunding and then losing the dispute can cost the amount twice.
 
-**Attention flags** (an amber mark in the orders list; details in the invoice;
-the owner is emailed once):
+**Attention flags** (counted on Today and listed under Orders → **Payment issues**;
+details in the order's **Payment** card; the owner is emailed once):
 
 | Flag | What happened | What to do |
 | --- | --- | --- |
-| Paid twice | Two successful payments on one order | Refund the extra one (its own row in the invoice) |
+| Paid twice | Two successful payments on one order | Refund the extra one (its own row in the order's Payment card) |
 | Paid after the order was released | Money arrived after the window closed; stock was already returned | Refund, or fulfil by hand if the stock is still there |
 | Paid a different amount | Paymob reported a different amount or currency | The order was **not** marked paid; refund it in Paymob |
 | Paid through an unconfigured payment method | Integration ID not in `PAYMOB_INTEGRATION_IDS` | Add the ID if it is yours (then **Check payments now**), or refund |
@@ -233,8 +233,8 @@ curl -X POST https://<domain>/api/payments/reconcile -H "Authorization: Bearer $
 ## 5. Troubleshooting
 
 - **Checkout says secure payment is unavailable.** The store is in online mode
-  but the variables or the database secret are wrong. The admin panel's
-  **Setup** lists exactly which variable names are missing or unusable.
+  but the variables or the database secret are wrong. Settings →
+  **Payments** lists exactly which variable names are missing or unusable.
 - **Paid at Paymob but the order still says awaiting payment.** The webhook did
   not arrive or did not verify. With `PAYMOB_API_KEY` set, **Check payments
   now** (or simply the shopper reloading their payment page) asks Paymob

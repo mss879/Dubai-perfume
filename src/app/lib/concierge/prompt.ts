@@ -1,13 +1,18 @@
 import "server-only";
 import { FREE_SHIPPING_THRESHOLD_AED, SHIPPING_FEE_AED } from "../shipping";
 import { KNOWLEDGE } from "./knowledge";
-import { storefrontPaymentMode } from "../payments/mode";
 
-/** How shoppers pay, in one sentence — follows the deployment's payment setup. */
-const PAYMENT_FACT =
-  storefrontPaymentMode() === "online"
-    ? "Payment is made online at checkout — by card, Apple Pay or Google Pay — on the secure page of the store's payment partner, Paymob; card details never reach Gharib."
-    : "Payment is cash on delivery in the UAE.";
+/**
+ * How shoppers pay, in one sentence. It follows the owner's switch in
+ * Settings → Payments, so it is filled in per request (see buildSystemPrompt);
+ * the static sections below carry this marker in its place.
+ */
+const PAYMENT_FACT = "{{PAYMENT_FACT}}";
+const PAYMENT_FACTS = {
+  online:
+    "Payment is made online at checkout — by card, Apple Pay or Google Pay — on the secure page of the store's payment partner, Paymob; card details never reach Gharib.",
+  cod: "Payment is cash on delivery in the UAE.",
+} as const;
 
 /**
  * The concierge's instructions, assembled per request.
@@ -69,7 +74,8 @@ When a customer asks about offers, discounts, deals, promotions, sales or codes 
 Codes come back in two kinds, and the difference is not decoration. A code marked exclusive is the maison's own for this conversation: you may bring it up unprompted when it would genuinely help, name it, and say what it saves. Every other code is public and already advertised elsewhere: you may confirm it exists and say what basket it needs, but do not compute its saving or push it. If a customer names any code themselves, call check_offer to price it honestly.
 Only set saveForCheckout when they have clearly accepted a code. Then tell them plainly that it will be waiting in the discount field at checkout for them to apply — you do not apply it yourself, and their basket is priced by the store, not by you.
 Delivery is decided on the basket BEFORE any discount, so a code never costs anyone their free delivery. If they are close to the threshold, that is worth one tasteful sentence, not a campaign.
-Never invent a code, never guess at one from a pattern, and never imply a discount exists because a customer insists it does.`;
+Never invent a code, never guess at one from a pattern, and never imply a discount exists because a customer insists it does.
+list_offers also returns the maison's automatic offers: sets (a layering duo, His & Hers, a house trio, a gift box), buy-more savings and a gift over a spend. These need no code: the bag applies them by itself. When a customer is choosing between perfumes that form a set, or is buying a gift, one sentence about the set is welcome; if they want it, add each perfume of the set with add_to_cart (the set price then appears in their bag). Quote only the set price and saving the tool returned, never your own arithmetic.`;
 
 const PHOTO_PROTOCOL = `PHOTO PROTOCOL
 This turn carries a photograph the customer sent. Read it, then call record_photo_reading once with the house and name as best you can make them out — or "unclear" if you genuinely cannot tell. That note is how you will still know which bottle was discussed on the next turn, because the picture itself does not travel any further.
@@ -89,6 +95,8 @@ export function buildSystemPrompt(input: {
   customerSection?: string | null;
   /** True when this turn carries a photograph. */
   hasPhoto?: boolean;
+  /** How the store takes payment right now (lib/storefront-payment-mode.ts). */
+  paymentMode?: "online" | "cod";
 }): string {
   const context: string[] = [];
   if (input.page) context.push(`The customer is currently on the page ${input.page}.`);
@@ -116,5 +124,7 @@ export function buildSystemPrompt(input: {
     RULES_REPRISE,
   ]
     .filter(Boolean)
-    .join("\n\n");
+    .join("\n\n")
+    .split(PAYMENT_FACT)
+    .join(PAYMENT_FACTS[input.paymentMode ?? "cod"]);
 }

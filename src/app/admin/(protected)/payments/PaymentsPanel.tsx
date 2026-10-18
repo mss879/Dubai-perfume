@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Copy, RefreshCw } from "lucide-react";
+import { Button } from "../../_ui/Button";
+import { cn } from "../../_ui/cn";
+import { useToast } from "../../_ui/Toast";
 
 /**
  * Online payment (Paymob) at a glance, and the owner's switch.
@@ -26,11 +30,6 @@ type Settings = {
   redirectUrl: string;
 };
 
-const chip = (good: boolean) =>
-  `text-[7.5px] tracking-widest px-2 py-0.5 border font-black ${
-    good ? "border-green-800/40 bg-green-950/15 text-green-400" : "border-amber-700/40 bg-amber-950/20 text-amber-400"
-  }`;
-
 async function fetchSettings(): Promise<{ ok: true; settings: Settings } | { ok: false; error: string }> {
   try {
     const res = await fetch("/api/admin/payments/settings", { cache: "no-store" });
@@ -42,11 +41,24 @@ async function fetchSettings(): Promise<{ ok: true; settings: Settings } | { ok:
   }
 }
 
-export default function PaymentsPanel({ onToast }: { onToast: (message: string) => void }) {
+function StatusItem({ label, value, good }: { label: string; value: string; good: boolean }) {
+  return (
+    <div className="rounded-lg border border-neutral-200 px-4 py-3">
+      <dt className="text-[13px] text-neutral-500">{label}</dt>
+      <dd className="mt-1 flex items-center gap-2 text-[15px] font-semibold text-neutral-900">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", good ? "bg-emerald-500" : "bg-amber-500")} aria-hidden />
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+export default function PaymentsPanel() {
+  const toast = useToast();
+  const router = useRouter();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"mode" | "check" | null>(null);
-  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,13 +92,14 @@ export default function PaymentsPanel({ onToast }: { onToast: (message: string) 
       });
       const json = (await res.json().catch(() => null)) as (Settings & { error?: string }) | null;
       if (!res.ok || !json) {
-        onToast(json?.error || "The payment mode could not be changed.");
+        toast(json?.error || "The payment mode could not be changed.", "error");
       } else {
         setSettings(json);
-        onToast(mode === "online" ? "The store now takes payment online." : "The store is back on cash on delivery.");
+        toast(mode === "online" ? "The store now takes payment online." : "The store is back on cash on delivery.");
+        router.refresh();
       }
     } catch {
-      onToast("The payment mode could not be changed.");
+      toast("The payment mode could not be changed.", "error");
     } finally {
       setBusy(null);
     }
@@ -100,14 +113,17 @@ export default function PaymentsPanel({ onToast }: { onToast: (message: string) 
         | { ok?: boolean; checked?: number; expired?: number; emailed?: number; reason?: string }
         | null;
       if (!res.ok || !json?.ok) {
-        onToast(json?.reason === "payments_not_configured" ? "Online payments are not configured." : "The payment check failed.");
+        toast(
+          json?.reason === "payments_not_configured" ? "Online payments are not configured." : "The payment check failed.",
+          "error"
+        );
       } else {
-        onToast(
+        toast(
           `Payment check done — ${json.checked ?? 0} checked, ${json.expired ?? 0} released, ${json.emailed ?? 0} emails sent.`
         );
       }
     } catch {
-      onToast("The payment check failed.");
+      toast("The payment check failed.", "error");
     } finally {
       setBusy(null);
     }
@@ -116,136 +132,139 @@ export default function PaymentsPanel({ onToast }: { onToast: (message: string) 
   const copy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      onToast("Copied.");
+      toast("Copied.");
     } catch {
-      onToast(value);
+      toast(value, "info");
     }
   };
 
+  if (loadError) {
+    return (
+      <p role="alert" className="rounded-lg bg-amber-50 px-4 py-3 text-[14px] text-amber-900">
+        {loadError}
+      </p>
+    );
+  }
+
+  if (!settings) {
+    return <div className="h-24 animate-pulse rounded-lg bg-neutral-100" aria-busy="true" />;
+  }
+
+  const online = settings.storeMode === "online";
+
   return (
-    <div className="bg-white/[0.015] border border-white/[0.04] p-5 flex flex-col gap-4 text-[9px] tracking-wider font-semibold uppercase">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[8px] tracking-[0.35em] text-amber-500 font-black">ONLINE PAYMENT — PAYMOB</span>
-          {settings && (
-            <>
-              <span className={chip(settings.storeMode === "online")}>
-                STORE: {settings.storeMode === "online" ? "ONLINE PAYMENT" : "CASH ON DELIVERY"}
-              </span>
-              <span className={chip(settings.configured)}>
-                KEYS: {settings.configured ? (settings.keyMode === "live" ? "LIVE" : "TEST") : "NOT SET"}
-              </span>
-              <span className={chip(settings.secretAccepted)}>
-                DATABASE SECRET: {settings.secretAccepted ? "OK" : "NOT ACCEPTED"}
-              </span>
-              <span className={chip(settings.cronConfigured)}>
-                SCHEDULER: {settings.cronConfigured ? "SET" : "NOT SET"}
-              </span>
-              {settings.configured && (
-                <span className={chip(settings.inquiry)}>
-                  BACKUP CHECKS: {settings.inquiry ? "ON" : "OFF"}
-                </span>
-              )}
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={checkNow}
-            disabled={busy !== null}
-            className="flex items-center gap-1.5 bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.08] text-[8px] tracking-[0.2em] font-black px-3 py-1.5 cursor-pointer disabled:opacity-40"
-          >
-            {busy === "check" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-            CHECK PAYMENTS NOW
-          </button>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.08] text-[8px] tracking-[0.2em] font-black px-3 py-1.5 cursor-pointer"
-          >
-            {open ? "HIDE SETUP" : "SETUP"}
-          </button>
+    <div className="flex flex-col gap-5">
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <StatusItem
+          label="Customers pay"
+          value={online ? "Online (card, Apple Pay, Google Pay)" : "Cash on delivery"}
+          good={online}
+        />
+        <StatusItem
+          label="Paymob keys"
+          value={settings.configured ? (settings.keyMode === "live" ? "Live" : "Test") : "Not set"}
+          good={settings.configured}
+        />
+        <StatusItem
+          label="Database secret"
+          value={settings.secretAccepted ? "Matches" : "Not accepted"}
+          good={settings.secretAccepted}
+        />
+        <StatusItem
+          label="Payment check (every 10 min)"
+          value={settings.cronConfigured ? "Scheduled" : "Not set"}
+          good={settings.cronConfigured}
+        />
+        {settings.configured ? (
+          <StatusItem
+            label="Backup checks"
+            value={settings.inquiry ? "On" : "Off (no API key)"}
+            good={settings.inquiry}
+          />
+        ) : null}
+      </dl>
+
+      <div className="flex flex-col gap-2 text-[14px] leading-relaxed">
+        {!settings.migrationApplied ? (
+          <p className="rounded-lg bg-amber-50 px-4 py-3 text-amber-900">
+            Migration 63 has not been applied to the database yet.
+          </p>
+        ) : null}
+        {settings.missing.length > 0 ? (
+          <p className="text-neutral-700">
+            <span className="text-neutral-500">Not set on this deployment: </span>
+            {settings.missing.join(", ")}
+          </p>
+        ) : null}
+        {settings.invalid.length > 0 ? (
+          <p className="rounded-lg bg-amber-50 px-4 py-3 text-amber-900">
+            Set but not usable: {settings.invalid.join(", ")}
+          </p>
+        ) : null}
+        {settings.configured && !settings.inquiry ? (
+          <p className="text-neutral-600">
+            Running on Paymob&rsquo;s notifications alone (PAYMOB_API_KEY is not set). Payments are confirmed
+            the moment Paymob reports them. Without the key the store cannot ask Paymob about a notification that
+            never arrived, and refunds made in Paymob&rsquo;s own dashboard do not show here. Refunds made from an
+            order&rsquo;s page do.
+          </p>
+        ) : null}
+        {settings.configured && !settings.secretAccepted ? (
+          <p className="rounded-lg bg-amber-50 px-4 py-3 text-amber-900">
+            The database does not accept PAYMENTS_RPC_SECRET. Store the same value in app_config row
+            &lsquo;payments&rsquo; (see docs/payments-paymob.md).
+          </p>
+        ) : null}
+      </div>
+
+      <div className="rounded-lg border border-neutral-200 p-4">
+        <p className="text-[14px] font-medium text-neutral-900">Paymob dashboard</p>
+        <p className="mt-0.5 text-[13px] text-neutral-500">
+          Set these on every integration (card, Apple Pay, Google Pay) under Integrations &amp; Webhooks.
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          {[
+            ["Webhook URL", settings.webhookUrl],
+            ["Redirect URL", settings.redirectUrl],
+          ].map(([label, value]) => (
+            <div key={label} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+              <span className="w-28 shrink-0 text-[13px] text-neutral-500">{label}</span>
+              <code className="min-w-0 flex-1 break-all rounded-md bg-neutral-50 px-2.5 py-1.5 text-[13px] text-neutral-800">
+                {value}
+              </code>
+              <Button variant="secondary" size="sm" onClick={() => copy(value)} icon={<Copy className="h-3.5 w-3.5" aria-hidden />}>
+                Copy
+              </Button>
+            </div>
+          ))}
         </div>
       </div>
 
-      {loadError && <p className="text-amber-400 normal-case tracking-normal text-[10px]">{loadError}</p>}
-
-      {open && settings && (
-        <div className="flex flex-col gap-3 border-t border-white/[0.05] pt-4 normal-case tracking-normal text-[10px] font-medium text-[#EAE3DB]/70">
-          {!settings.migrationApplied && (
-            <p className="text-amber-400">Migration 63 has not been applied to the database yet.</p>
-          )}
-          {settings.missing.length > 0 && (
-            <p>
-              <span className="text-[#EAE3DB]/40">Not set: </span>
-              {settings.missing.join(", ")}
-            </p>
-          )}
-          {settings.invalid.length > 0 && (
-            <p className="text-amber-400">
-              <span className="text-[#EAE3DB]/40">Set but not usable: </span>
-              {settings.invalid.join(", ")}
-            </p>
-          )}
-          {settings.configured && !settings.inquiry && (
-            <p>
-              Running on Paymob&rsquo;s notifications alone (PAYMOB_API_KEY is not set). Payments are confirmed
-              the moment Paymob reports them. Without the key the store cannot ask Paymob about a notification that
-              never arrived, and refunds made in Paymob&rsquo;s own dashboard do not show here. Refunds made from
-              this panel do.
-            </p>
-          )}
-          {settings.configured && !settings.secretAccepted && (
-            <p className="text-amber-400">
-              The database does not accept PAYMENTS_RPC_SECRET. Store the same value in app_config row
-              &lsquo;payments&rsquo; (see docs/payments-paymob.md).
-            </p>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[#EAE3DB]/40">
-              In Paymob&rsquo;s dashboard, set these on every integration ID (card, Apple Pay, Google Pay):
-            </span>
-            {[
-              ["Webhook URL", settings.webhookUrl],
-              ["Redirect URL", settings.redirectUrl],
-            ].map(([label, value]) => (
-              <div key={label} className="flex flex-wrap items-center gap-2">
-                <span className="text-[#EAE3DB]/40 w-24">{label}</span>
-                <code className="text-amber-200 break-all">{value}</code>
-                <button
-                  type="button"
-                  onClick={() => copy(value)}
-                  className="text-[8px] tracking-[0.2em] font-black uppercase text-[#EAE3DB]/50 hover:text-white cursor-pointer"
-                >
-                  COPY
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="pt-1">
-            {settings.storeMode === "online" ? (
-              <button
-                type="button"
-                disabled={busy !== null}
-                onClick={() => switchMode("cod")}
-                className="bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.08] text-[8px] tracking-[0.2em] font-black uppercase px-3 py-2 cursor-pointer disabled:opacity-40"
-              >
-                SWITCH BACK TO CASH ON DELIVERY
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={busy !== null || !settings.configured || !settings.secretAccepted}
-                onClick={() => switchMode("online")}
-                className="bg-amber-600 hover:bg-amber-500 text-white text-[8px] tracking-[0.2em] font-black uppercase px-3 py-2 cursor-pointer disabled:opacity-40"
-              >
-                SWITCH TO ONLINE PAYMENT
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {online ? (
+          <Button variant="secondary" disabled={busy !== null} busy={busy === "mode"} onClick={() => switchMode("cod")}>
+            Switch back to cash on delivery
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            disabled={busy !== null || !settings.configured || !settings.secretAccepted}
+            busy={busy === "mode"}
+            onClick={() => switchMode("online")}
+          >
+            Switch to online payment
+          </Button>
+        )}
+        <Button
+          variant="secondary"
+          disabled={busy !== null}
+          busy={busy === "check"}
+          onClick={checkNow}
+          icon={<RefreshCw className="h-4 w-4" aria-hidden />}
+        >
+          Check payments now
+        </Button>
+      </div>
     </div>
   );
 }

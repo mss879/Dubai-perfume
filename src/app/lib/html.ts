@@ -90,6 +90,10 @@ function safeUrl(value: string, allowInlineImage: boolean): string | null {
   }
   if (/^(https?:|mailto:|tel:)/.test(scheme)) return value;
   if (scheme.startsWith("/") || scheme.startsWith("#") || scheme.startsWith("?")) return value;
+  // A named entity is refused outright in what would otherwise pass as a
+  // relative path: browsers decode "javascript&colon;" and "java&Tab;script:"
+  // into a working scheme, and only numeric entities are decoded above.
+  if (/&[a-z][a-z0-9]*;?/i.test(value)) return null;
   // Any other scheme (javascript:, data:, vbscript:, file:) is refused; what is
   // left has no colon before the first slash, i.e. a relative path.
   return /^[a-z0-9+.-]*:/.test(scheme) ? null : value;

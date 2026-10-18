@@ -5,6 +5,7 @@ import Link from "next/link";
 import Price from "../components/Price";
 import { ORDER_STEPS, isCancelledOrder, stepIndexForStatus } from "../lib/orders";
 import { paymentStatusLabel } from "../lib/payments/status";
+import { amountDue, packingFor } from "../lib/order-amounts";
 
 const HAIRLINE = "rgba(0,0,0,0.12)";
 
@@ -19,6 +20,8 @@ type TrackedOrder = {
   order_id: string;
   status: string;
   total_price: number | string;
+  /** Present once migration 66 is applied; added at packing for cash on delivery. */
+  packing_charges?: number | string | null;
   created_at: string | null;
   tracking_number: string | null;
   tracking_url: string | null;
@@ -137,7 +140,14 @@ export default function TrackClient({ initialOrderId }: { initialOrderId: string
 
             <div className="mt-4 flex flex-wrap items-baseline justify-between gap-4">
               <span className="maison-body">Order total</span>
-              <Price amountAed={parseFloat(String(order.total_price)) || 0} />
+              <span className="text-right">
+                <Price amountAed={amountDue(order.total_price, order.payment_method, order.packing_charges)} />
+                {packingFor(order.payment_method, order.packing_charges) > 0 && (
+                  <span className="block mt-1 text-[12px] font-light text-[#646464]">
+                    incl. <Price amountAed={packingFor(order.payment_method, order.packing_charges)} /> packing
+                  </span>
+                )}
+              </span>
             </div>
             <div className="mt-2 flex flex-wrap items-baseline justify-between gap-4">
               <span className="maison-body">Payment</span>

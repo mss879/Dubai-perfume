@@ -7,6 +7,7 @@ import { createServerSupabase, isSupabaseConfigured } from "../../lib/supabase-s
 import { isMissingFunction, MIGRATIONS_PENDING_MESSAGE } from "../../lib/rpc-errors";
 import { ORDER_STEPS, isCancelledOrder, stepIndexForStatus } from "../../lib/orders";
 import { paymentLineForShopper } from "../../lib/payments/status";
+import { amountDue, packingFor } from "../../lib/order-amounts";
 
 export const metadata: Metadata = {
   title: "Your order",
@@ -28,6 +29,8 @@ type TrackedOrder = {
   order_id: string;
   status: string;
   total_price: number | string;
+  /** Present once migration 66 is applied; added at packing for cash on delivery. */
+  packing_charges?: number | string | null;
   created_at: string | null;
   tracking_number: string | null;
   tracking_url: string | null;
@@ -138,6 +141,7 @@ export default async function OrderPage({
   const activeStep = stepIndexForStatus(order.status);
   const cancelled = isCancelledOrder(order.status);
   const payment = paymentLineForShopper(order.payment_method, order.payment_status);
+  const packing = packingFor(order.payment_method, order.packing_charges);
 
   return (
     <OrderShell>
@@ -165,10 +169,17 @@ export default async function OrderPage({
           <span className="font-display text-[16px] uppercase tracking-[0.08em] text-black">
             {payment.totalLabel}
           </span>
-          <Price
-            amountAed={parseFloat(String(order.total_price)) || 0}
-            className="font-display text-[16px] uppercase tracking-[0.08em] text-black"
-          />
+          <span className="text-right">
+            <Price
+              amountAed={amountDue(order.total_price, order.payment_method, order.packing_charges)}
+              className="font-display text-[16px] uppercase tracking-[0.08em] text-black"
+            />
+            {packing > 0 && (
+              <span className="block mt-1 text-[12px] font-light text-[#646464]">
+                incl. <Price amountAed={packing} /> packing
+              </span>
+            )}
+          </span>
         </div>
         <p className="mt-4 text-[13px] font-light leading-[1.8] text-[#646464]">{payment.note}</p>
 

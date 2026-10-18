@@ -3,7 +3,7 @@ import Link from "next/link";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import { SITE_EMAIL, TRADE_LICENCE } from "../lib/site";
-import { storefrontPaymentMode } from "../lib/payments/mode";
+import { liveStorefrontPaymentMode } from "../lib/storefront-payment-mode";
 
 export const metadata: Metadata = {
   title: "Terms of Use",
@@ -25,7 +25,12 @@ function TermsSection({ title, children }: { title: string; children: React.Reac
   );
 }
 
-export default function TermsPage() {
+// Re-rendered at most once a minute, so the payment wording follows the
+// owner's switch in Settings → Payments without a redeploy.
+export const revalidate = 60;
+
+export default async function TermsPage() {
+  const online = (await liveStorefrontPaymentMode()) === "online";
   return (
     <div className="maison min-h-screen flex flex-col relative overflow-x-hidden">
       <AppHeader />
@@ -70,14 +75,14 @@ export default function TermsPage() {
               <p>
                 Prices are set in United Arab Emirates dirhams (AED). Prices shown in other
                 currencies are indicative conversions for convenience; the amount{" "}
-                {storefrontPaymentMode() === "online" ? "charged" : "payable on delivery"} is the AED
+                {online ? "charged" : "payable on delivery"} is the AED
                 total confirmed at checkout. Prices may change at any time, but changes do not affect
                 orders we have already confirmed.
               </p>
             </TermsSection>
 
             <TermsSection title="Payment">
-              {storefrontPaymentMode() === "online" ? (
+              {online ? (
                 <p>
                   Payment is made online at checkout, by debit or credit card or, where available,
                   Apple Pay or Google Pay, through our payment partner Paymob. You enter your card

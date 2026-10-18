@@ -2,7 +2,8 @@
  * The payment vocabulary, shared by the admin panel, the order and tracking
  * pages and the customer dashboard. Client-safe: labels only, no secrets.
  *
- * orders.payment_method is 'cod' or 'paymob'; for paymob orders
+ * orders.payment_method is 'cod', 'paymob' or (migration 70) 'credit': an order
+ * a gift card and loyalty points paid in full, recorded as 'paid'. For paymob orders
  * orders.payment_status mirrors the sealed state in order_payments
  * (migration 63): awaiting_payment, paid, partially_refunded, refunded,
  * voided, expired (window closed unpaid) or cancelled (shopper cancelled).
@@ -33,8 +34,14 @@ export function countsAsRevenue(method?: string | null, paymentStatus?: string |
   return !isOnlinePayment(method) || isOnlinePaid(method, paymentStatus);
 }
 
+/** Paid in full by a gift card and points (migration 70): nothing to collect, nothing online. */
+export function isCreditPaid(method?: string | null): boolean {
+  return method === "credit";
+}
+
 /** Operator-facing label. */
 export function paymentStatusLabel(method?: string | null, status?: string | null): string {
+  if (isCreditPaid(method)) return "Paid with gift card / points";
   if (!isOnlinePayment(method)) return "Cash on delivery";
   switch (status) {
     case "awaiting_payment":
@@ -61,6 +68,9 @@ export function paymentLineForShopper(method?: string | null, status?: string | 
   totalLabel: string;
   note: string;
 } {
+  if (isCreditPaid(method)) {
+    return { totalLabel: "Left to pay", note: "Paid in full with your gift card and points. There is nothing to pay on delivery." };
+  }
   if (!isOnlinePayment(method)) {
     return {
       totalLabel: "Total due on delivery",

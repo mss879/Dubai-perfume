@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Music2, Users, MessageCircle } from "lucide-react";
 import { useCurrency, SUPPORTED_CURRENCIES } from "../lib/currency";
 import { usePaymentMode } from "./PaymentModeProvider";
+import { useStoreFeatures } from "./StoreFeaturesProvider";
 import {
   INSTAGRAM_URL,
   TIKTOK_URL,
@@ -31,6 +32,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { label: "Shop all fragrances", href: "/shop" },
       { label: "New arrivals", href: "/shop?collection=new" },
       { label: "Brands", href: "/collections" },
+      { label: "Sets & offers", href: "/offers" },
       { label: "Wishlist", href: "/wishlist" },
     ],
   },
@@ -87,6 +89,20 @@ type NewsletterStatus = "idle" | "sending" | "success" | "error";
 
 export default function Footer() {
   const paymentMode = usePaymentMode();
+  // Migration 70: links to pages that only exist while their feature is on.
+  const features = useStoreFeatures();
+  const columns = FOOTER_COLUMNS.map((column) =>
+    column.heading === "Fragrances"
+      ? {
+          ...column,
+          links: [
+            ...column.links,
+            ...(features.inspired_by && features.inspired_by.show_page !== false ? [{ label: "If you love…", href: "/inspired-by" }] : []),
+            ...(features.gift_cards ? [{ label: "Gift cards", href: "/gift-cards" }] : []),
+          ],
+        }
+      : column
+  );
   const [subscribedEmail, setSubscribedEmail] = useState("");
   const [newsletterStatus, setNewsletterStatus] = useState<NewsletterStatus>("idle");
   const { currency, setCurrency } = useCurrency();
@@ -201,7 +217,7 @@ export default function Footer() {
           </div>
 
           {/* Link columns */}
-          {FOOTER_COLUMNS.map((column) => (
+          {columns.map((column) => (
             <div key={column.heading} className="lg:col-span-2">
               <h3 className="mb-6 text-[16px] font-normal tracking-[0.04em] text-black">
                 {column.heading}

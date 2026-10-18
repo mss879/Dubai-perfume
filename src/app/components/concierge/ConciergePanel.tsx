@@ -88,6 +88,7 @@ export default function ConciergePanel({
   onRestoreStage,
   onLookupOrder,
   onResetOrder,
+  photosEnabled = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -104,6 +105,8 @@ export default function ConciergePanel({
   onRestoreStage: (stage: ConciergeStage) => void;
   onLookupOrder?: (orderRef: string, email: string) => Promise<void>;
   onResetOrder?: () => void;
+  /** The owner's switch (Admin → Agent): offer the photograph button. */
+  photosEnabled?: boolean;
 }) {
   const [input, setInput] = useState("");
   const [stageFolded, setStageFolded] = useState(false);
@@ -486,26 +489,30 @@ export default function ConciergePanel({
               className="flex items-end gap-3 border-t px-5 py-4 pb-[max(16px,env(safe-area-inset-bottom))]"
               style={{ borderColor: HAIRLINE }}
             >
-              {/* On a phone this opens the camera; on a desktop, the file
-                  picker — which is what a saved Instagram screenshot needs. */}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => pickImage(e.target.files?.[0])}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={status === "sending" || preparing}
-                aria-label="Send a photograph of a bottle"
-                title="Photograph a bottle"
-                className="mb-0.5 text-[#646464] transition-colors duration-300 hover:text-black disabled:opacity-40 cursor-pointer"
-              >
-                <Camera className="w-[18px] h-[18px]" strokeWidth={1.25} />
-              </button>
+              {photosEnabled ? (
+                <>
+                  {/* On a phone this opens the camera; on a desktop, the file
+                      picker — which is what a saved Instagram screenshot needs. */}
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => pickImage(e.target.files?.[0])}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={status === "sending" || preparing}
+                    aria-label="Send a photograph of a bottle"
+                    title="Photograph a bottle"
+                    className="mb-0.5 text-[#646464] transition-colors duration-300 hover:text-black disabled:opacity-40 cursor-pointer"
+                  >
+                    <Camera className="w-[18px] h-[18px]" strokeWidth={1.25} />
+                  </button>
+                </>
+              ) : null}
 
               <textarea
                 ref={textareaRef}

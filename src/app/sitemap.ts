@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { SITE_URL } from "./lib/site";
 import { createServerSupabase, isSupabaseConfigured } from "./lib/supabase-server";
 import { getAllPosts } from "./blogs/posts";
+import { liveStoreFeatures } from "./lib/features-server";
 
 /**
  * Rebuilt hourly. Without this the sitemap is baked at build time, so products
@@ -13,6 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: SITE_URL, changeFrequency: "daily", priority: 1 },
     { url: `${SITE_URL}/shop`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE_URL}/offers`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${SITE_URL}/collections`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${SITE_URL}/discover`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${SITE_URL}/blogs`, changeFrequency: "weekly", priority: 0.6 },
@@ -25,6 +27,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   if (!isSupabaseConfigured) {
     return staticRoutes;
+  }
+
+  // Migration 70: pages that exist only while their feature is switched on.
+  const features = await liveStoreFeatures();
+  if (features.gift_cards.enabled) staticRoutes.push({ url: `${SITE_URL}/gift-cards`, changeFrequency: "monthly", priority: 0.5 });
+  if (features.inspired_by.enabled && features.inspired_by.settings.show_page !== false) {
+    staticRoutes.push({ url: `${SITE_URL}/inspired-by`, changeFrequency: "weekly", priority: 0.6 });
   }
 
   try {

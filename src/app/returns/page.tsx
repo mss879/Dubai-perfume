@@ -3,7 +3,7 @@ import Link from "next/link";
 import AppHeader from "../components/AppHeader";
 import Footer from "../components/Footer";
 import { SITE_EMAIL } from "../lib/site";
-import { storefrontPaymentMode } from "../lib/payments/mode";
+import { liveStorefrontPaymentMode } from "../lib/storefront-payment-mode";
 
 export const metadata: Metadata = {
   title: "Shipping & Returns",
@@ -25,7 +25,12 @@ function ReturnsSection({ title, children }: { title: string; children: React.Re
   );
 }
 
-export default function ReturnsPage() {
+// Re-rendered at most once a minute, so the payment wording follows the
+// owner's switch in Settings → Payments without a redeploy.
+export const revalidate = 60;
+
+export default async function ReturnsPage() {
+  const online = (await liveStorefrontPaymentMode()) === "online";
   return (
     <div className="maison min-h-screen flex flex-col relative overflow-x-hidden">
       <AppHeader />
@@ -55,7 +60,7 @@ export default function ReturnsPage() {
               </p>
             </ReturnsSection>
 
-            {storefrontPaymentMode() === "online" ? (
+            {online ? (
               <ReturnsSection title="Payment">
                 <p>
                   Payment is made online at checkout, in AED, on the secure page of our payment
@@ -96,7 +101,7 @@ export default function ReturnsPage() {
             </ReturnsSection>
 
             <ReturnsSection title="Refunds">
-              {storefrontPaymentMode() === "online" ? (
+              {online ? (
                 <p>
                   Refunds are made to the card or wallet you paid with. Once the returned parcel has
                   been received and inspected, the refund is issued within 14 days; depending on your

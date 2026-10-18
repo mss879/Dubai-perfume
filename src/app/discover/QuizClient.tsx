@@ -11,7 +11,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { gsap } from "gsap";
-import { useCart } from "../lib/cart";
+import { useCart, type CartLine } from "../lib/cart";
+import { useBagQuote } from "../lib/use-bag-quote";
+import { useCurrency } from "../lib/currency";
 import Price from "../components/Price";
 import { openCartDrawer } from "../components/CartDrawer";
 import { usePaymentMode } from "../components/PaymentModeProvider";
@@ -633,6 +635,26 @@ export default function QuizClient({ products }: { products: FinderProduct[] }) 
 
   const profile = useMemo(() => readerProfile(answers), [answers]);
 
+  // The trio as one set: priced by the shop's offers (a "buy more, save more"
+  // offer usually covers three), so the saving shown is the one the bag gives.
+  const trioLines = useMemo<CartLine[]>(
+    () =>
+      matches.map((m) => ({
+        product: { id: m.product.id, brand: m.product.brand, name: m.product.name, price: m.product.price, image_url: m.product.image },
+        selectedSize: m.product.sizes[0] ?? "",
+        quantity: 1,
+      })),
+    [matches]
+  );
+  const { quote: trioQuote } = useBagQuote(stage === "results" && matches.length >= 2 ? trioLines : []);
+  const { format } = useCurrency();
+  const trioAdded = matches.length > 0 && matches.every((m) => added.has(m.product.id));
+  const addTrio = () => {
+    for (const match of matches) {
+      if (!added.has(match.product.id)) addToBag(match);
+    }
+  };
+
   /** The chips under the results — every answer, clickable to change. */
   const answerChips = (
     <div className="flex flex-wrap items-center justify-center gap-2">
@@ -931,6 +953,27 @@ export default function QuizClient({ products }: { products: FinderProduct[] }) 
               </motion.article>
             ))}
           </div>
+
+          {/* ── The trio, together ───────────────────────────────── */}
+          {matches.length >= 2 ? (
+            <div className="mt-10 flex flex-col items-center gap-4 border-y py-8 text-center" style={{ borderColor: HAIRLINE }}>
+              <span className="maison-eyebrow">Your {matches.length === 3 ? "trio" : "pair"}, together</span>
+              <p className="text-[15px] font-light text-black">
+                {trioQuote && trioQuote.offer_saving > 0 ? (
+                  <>
+                    <span className="mr-2 text-[13px] text-[#646464] line-through">{format(trioQuote.subtotal)}</span>
+                    {format(trioQuote.subtotal - trioQuote.offer_saving)}
+                    <span className="ml-2 text-[13px]">· you save {format(trioQuote.offer_saving)}</span>
+                  </>
+                ) : (
+                  format(matches.reduce((sum, m) => sum + m.product.price, 0))
+                )}
+              </p>
+              <button type="button" onClick={addTrio} disabled={trioAdded} className="maison-btn w-full max-w-[320px] cursor-pointer disabled:cursor-default disabled:opacity-60">
+                {trioAdded ? "All in your bag" : `Add all ${matches.length} to bag`}
+              </button>
+            </div>
+          ) : null}
 
           {/* ── Email capture ──────────────────────────────────────
               After the results, never in front of them. Gating the answer on an

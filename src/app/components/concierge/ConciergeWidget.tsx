@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { MessageSquare } from "lucide-react";
 import { getBrowserSupabase } from "../../lib/supabase-browser";
+import { DEFAULT_GREETING } from "../../lib/concierge/greeting";
 import ConciergePanel from "./ConciergePanel";
 import ConciergeNudge from "./ConciergeNudge";
 import { useConciergeChat } from "./useConciergeChat";
@@ -28,27 +29,63 @@ const HIDDEN_PREFIXES = [
   "/recover",
 ];
 
-const GREETING =
-  "Welcome to Gharib. I know every bottle of our six houses — tell me the occasion, ask about a fragrance, or let me build your scent profile.";
+const GREETING = DEFAULT_GREETING;
 const GREETING_CHIPS = [
   "Build my scent profile",
   "What are your bestsellers?",
   "Something for a gift",
 ];
 
+/** The owner's switches (Admin → Agent), as /api/concierge/settings reports them. */
+type AgentView = { enabled: boolean; greeting: string | null; photos: boolean; orderHelp: boolean; nudges: boolean };
+const AGENT_DEFAULTS: AgentView = { enabled: true, greeting: null, photos: true, orderHelp: true, nudges: true };
+
+function readAgentView(json: unknown): AgentView {
+  if (!json || typeof json !== "object") return AGENT_DEFAULTS;
+  const j = json as Partial<Record<keyof AgentView, unknown>>;
+  return {
+    enabled: j.enabled !== false,
+    greeting: typeof j.greeting === "string" && j.greeting.trim() ? j.greeting : null,
+    photos: j.photos !== false,
+    orderHelp: j.orderHelp !== false,
+    nudges: j.nudges !== false,
+  };
+}
+
 function ConciergeWidget() {
   const pathname = usePathname();
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
+  // Unknown until the switches are read; nothing shows until then, so a
+  // switched-off assistant never flashes onto the page.
+  const [agent, setAgent] = useState<AgentView | null>(null);
   const chat = useConciergeChat();
-  const { nudge, dismiss, accept } = useConciergeNudges({ suppressed: open });
+  const { nudge, dismiss, accept } = useConciergeNudges({ suppressed: open || !agent?.nudges });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/concierge/settings");
+        const json = response.ok ? await response.json() : null;
+        if (!cancelled) setAgent(readAgentView(json));
+      } catch {
+        // Can't tell: behave as before the switches existed.
+        if (!cancelled) setAgent(AGENT_DEFAULTS);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const greeting = agent?.greeting || GREETING;
 
   const hidden = HIDDEN_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
 
   // First open of an empty conversation: the house greeting, free of charge.
   useEffect(() => {
     if (open && chat.hydrated && chat.messages.length === 0) {
-      chat.addAssistantLocal(GREETING, GREETING_CHIPS);
+      chat.addAssistantLocal(greeting, GREETING_CHIPS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, chat.hydrated, chat.messages.length]);
@@ -92,7 +129,7 @@ function ConciergeWidget() {
     setOpen(true);
   }, [accept, chat]);
 
-  if (hidden) return null;
+  if (hidden || !agent || !agent.enabled) return null;
 
   return (
     <>
@@ -157,6 +194,7 @@ function ConciergeWidget() {
         onRestoreStage={chat.setStage}
         onLookupOrder={chat.lookupOrder}
         onResetOrder={chat.resetOrderView}
+        photosEnabled={agent.photos}
       />
     </>
   );

@@ -15,7 +15,27 @@ import { discountRefusalMessage } from "../../lib/discount-copy";
  * message: brute force should learn nothing faster than a shopper would.
  */
 
-type DiscountBody = { code?: unknown; subtotal?: unknown };
+type DiscountBody = { code?: unknown; subtotal?: unknown; items?: unknown };
+
+/**
+ * The bag's lines, as checkout knows them: product, size and quantity (prices
+ * come from the catalogue). The size matters since migration 69: a set can
+ * name one, and the code is priced after the offers.
+ */
+function bagLines(raw: unknown): { product_id: number; size: string; quantity: number }[] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 50) return null;
+  const lines = raw
+    .map((line) => {
+      const l = (line ?? {}) as { product_id?: unknown; size?: unknown; quantity?: unknown };
+      return {
+        product_id: Number(l.product_id),
+        size: typeof l.size === "string" ? l.size.slice(0, 50) : "",
+        quantity: Number(l.quantity),
+      };
+    })
+    .filter((l) => Number.isSafeInteger(l.product_id) && l.product_id > 0 && Number.isInteger(l.quantity) && l.quantity >= 1 && l.quantity <= 20);
+  return lines.length > 0 ? lines : null;
+}
 
 const MAX_CHECKS_PER_IP = 20;
 const CHECKS_WINDOW_SECONDS = 60;
@@ -65,10 +85,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase.rpc("validate_discount", {
+  // With the bag's lines a code for chosen perfumes, a collection or delivery is
+  // priced exactly as the order will be (check_discount, migration 67). Before
+  // that migration, fall back to the whole-order check.
+  const items = bagLines(parsed.body.items);
+  let { data, error } = await supabase.rpc("check_discount", {
     p_code: code,
+    p_items: items,
     p_subtotal: subtotal,
   });
+  if (error && isMissingFunction(error)) {
+    ({ data, error } = await supabase.rpc("validate_discount", {
+      p_code: code,
+      p_subtotal: subtotal,
+    }));
+  }
 
   if (error) {
     if (isMissingFunction(error)) {
@@ -83,7 +114,15 @@ export async function POST(request: NextRequest) {
   // `message`. Reading one collapsed every refusal to the same generic line and
   // threw away the only thing a shopper could act on — how far short they were.
   const result = data as
-    | { valid?: boolean; discount_amount?: number; reason?: string; minimum?: number }
+    | {
+        valid?: boolean;
+        discount_amount?: number | null;
+        reason?: string;
+        minimum?: number;
+        applies_to?: string;
+        applies_label?: string;
+        gift?: { name?: string; brand?: string | null; size?: string } | null;
+      }
     | null;
   if (!result || typeof result.valid !== "boolean") {
     return NextResponse.json({ ok: true, valid: null, discountAmount: 0, message: CANNOT_VALIDATE });
@@ -94,14 +133,25 @@ export async function POST(request: NextRequest) {
       ok: true,
       valid: false,
       discountAmount: 0,
-      message: discountRefusalMessage(result.reason, result.minimum),
+      message: discountRefusalMessage(result.reason, result.minimum, result.applies_label),
     });
   }
 
+  const appliesTo = result.applies_to ?? "order";
+  // Migration 70: a personal code (welcome, cart reminder, referral) is checked
+  // against the email and first order when the order is placed, which explains
+  // any refusal then; the preview just applies it.
   return NextResponse.json({
     ok: true,
     valid: true,
     discountAmount: Number(result.discount_amount) || 0,
-    message: "Code applied.",
+    appliesTo,
+    message: result.gift?.name
+      ? `Code applied: ${result.gift.name}${result.gift.size ? ` (${result.gift.size})` : ""} joins your order, complimentary.`
+      : appliesTo === "delivery"
+        ? "Code applied to your delivery."
+        : appliesTo !== "order" && result.applies_label
+          ? `Code applied to ${result.applies_label}.`
+          : "Code applied.",
   });
 }

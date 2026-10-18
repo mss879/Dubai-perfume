@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createSessionSupabase, isSupabaseConfigured } from "../../../lib/supabase-server";
-import { getAdminIdentity } from "../../../lib/auth";
+import { createHash } from "node:crypto";
+import { NextRequest } from "next/server";
+import { guardAdminWrite, readAdminJson, reply as respond, UUID_PATTERN } from "../../../lib/admin-route";
+import { createSessionSupabase } from "../../../lib/supabase-server";
 import { sendEmail } from "../../../lib/email/send";
 import { inquiryReplyEmail } from "../../../lib/email/templates";
 
@@ -18,6 +19,8 @@ import { inquiryReplyEmail } from "../../../lib/email/templates";
  *                             (the operator answered by phone, say).
  */
 
+export const dynamic = "force-dynamic";
+
 type Body = {
   inquiryId?: unknown;
   reply?: unknown;
@@ -27,25 +30,18 @@ type Body = {
 const MAX_REPLY_LENGTH = 5000;
 
 export async function POST(request: NextRequest) {
-  if (!isSupabaseConfigured) {
-    return NextResponse.json({ error: "Store database is not configured." }, { status: 503 });
-  }
+  const gate = await guardAdminWrite(request);
+  if (!gate.ok) return gate.response;
+  const admin = gate.admin;
 
-  const admin = await getAdminIdentity();
-  if (!admin) {
-    return NextResponse.json({ error: "Not authorised." }, { status: 403 });
-  }
-
-  let body: Body;
-  try {
-    body = (await request.json()) as Body;
-  } catch {
-    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-  }
+  // 5,000 characters of Arabic is up to 20KB of UTF-8; leave room for the JSON.
+  const parsed = await readAdminJson(request, 32 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = (parsed.body ?? {}) as Body;
 
   const inquiryId = String(body.inquiryId ?? "").trim();
-  if (!inquiryId) {
-    return NextResponse.json({ error: "Inquiry id is required." }, { status: 422 });
+  if (!UUID_PATTERN.test(inquiryId)) {
+    return respond(422, { error: "Inquiry id is required." });
   }
 
   const reply =
@@ -57,10 +53,7 @@ export async function POST(request: NextRequest) {
     typeof body.status === "string" ? body.status.trim().toLowerCase() : null;
 
   if (!reply && requestedStatus !== "new" && requestedStatus !== "answered") {
-    return NextResponse.json(
-      { error: "Provide a reply to send, or a status of 'new' or 'answered'." },
-      { status: 422 }
-    );
+    return respond(422, { error: "Write a reply, or choose to mark it answered or unanswered." });
   }
 
   const supabase = await createSessionSupabase();
@@ -69,16 +62,15 @@ export async function POST(request: NextRequest) {
   // whether this row is visible rather than a second is_admin check here.
   const { data: inquiry, error: readError } = await supabase
     .from("contact_inquiries")
-    .select("*")
+    .select("id, name, email, subject, message")
     .eq("id", inquiryId)
     .maybeSingle();
 
   if (readError) {
-    console.error("Inquiry read failed:", readError.message);
-    return NextResponse.json({ error: "Could not load the inquiry." }, { status: 500 });
+    return respond(500, { error: "Could not load the message. Try again." });
   }
   if (!inquiry) {
-    return NextResponse.json({ error: "Inquiry not found." }, { status: 404 });
+    return respond(404, { error: "That message no longer exists." });
   }
 
   const row = inquiry as Record<string, unknown>;
@@ -87,33 +79,30 @@ export async function POST(request: NextRequest) {
 
   if (!reply) {
     const status = requestedStatus as "new" | "answered";
-    const { error } = await supabase
+    const answeredAt = status === "answered" ? new Date().toISOString() : null;
+    const { data: updated, error } = await supabase
       .from("contact_inquiries")
       .update({
         status,
-        answered_at: status === "answered" ? new Date().toISOString() : null,
-        ...(status === "answered" ? { replied_by: admin.email } : { replied_by: null }),
+        answered_at: answeredAt,
+        replied_by: status === "answered" ? admin.email : null,
       })
-      .eq("id", inquiryId);
+      .eq("id", inquiryId)
+      .select("id");
 
-    if (error) {
-      console.error("Inquiry status update failed:", error.message);
-      return NextResponse.json(
-        { error: "Could not update the inquiry. Apply migration 48 if this persists." },
-        { status: 500 }
-      );
+    // Row-level security reports a refused update as "nothing changed", not as
+    // an error, so an empty result is a failure too.
+    if (error || !updated || updated.length === 0) {
+      return respond(500, { error: "Could not update the message. Try again." });
     }
-    return NextResponse.json({ ok: true, inquiryId, status, emailed: null });
+    return respond(200, { ok: true, inquiryId, status, answeredAt, emailed: null });
   }
 
   /* ── Reply and mark answered ───────────────────────────────────────────── */
 
   const recipient = String(row.email ?? "").trim();
   if (!recipient) {
-    return NextResponse.json(
-      { error: "This inquiry has no email address to reply to." },
-      { status: 422 }
-    );
+    return respond(422, { error: "This message has no email address to reply to." });
   }
 
   const message = inquiryReplyEmail({
@@ -123,23 +112,25 @@ export async function POST(request: NextRequest) {
     reply,
   });
 
-  const result = await sendEmail({ to: recipient, ...message });
+  // The same reply to the same message is delivered once, even if the button
+  // is pressed twice or the request is retried.
+  const digest = createHash("sha256").update(reply).digest("hex").slice(0, 24);
+  const result = await sendEmail(
+    { to: recipient, ...message },
+    { quiet: true, idempotencyKey: `inquiry-reply/${inquiryId}/${digest}` }
+  );
   if (!result.ok) {
     // Nothing is marked answered when nothing was sent — a row that claims to
     // be answered when the mail bounced is worse than an unanswered one.
-    console.error(`[inquiry ${inquiryId}] reply not sent: ${result.reason}`);
-    return NextResponse.json(
-      {
-        error: result.skipped
-          ? "Email is not configured on this deployment, so the reply was not sent."
-          : "The reply could not be sent.",
-      },
-      { status: 502 }
-    );
+    return respond(502, {
+      error: result.skipped
+        ? "Email is not set up on this site, so the reply was not sent."
+        : "The reply could not be sent. Try again in a minute.",
+    });
   }
 
   const answeredAt = new Date().toISOString();
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("contact_inquiries")
     .update({
       status: "answered",
@@ -147,23 +138,22 @@ export async function POST(request: NextRequest) {
       admin_reply: reply,
       replied_by: admin.email,
     })
-    .eq("id", inquiryId);
+    .eq("id", inquiryId)
+    .select("id");
 
-  if (updateError) {
+  if (updateError || !updated || updated.length === 0) {
     // The customer has the reply; only the bookkeeping failed. Say so plainly
     // rather than reporting a failure that would invite a duplicate send.
-    console.error("Inquiry answered-flag update failed:", updateError.message);
-    return NextResponse.json({
+    return respond(200, {
       ok: true,
       inquiryId,
       status: "new",
       emailed: recipient,
-      warning:
-        "The reply was sent, but the inquiry could not be marked answered. Apply migration 48.",
+      warning: "The reply was sent, but the message couldn't be marked answered. Mark it answered by hand.",
     });
   }
 
-  return NextResponse.json({
+  return respond(200, {
     ok: true,
     inquiryId,
     status: "answered",
